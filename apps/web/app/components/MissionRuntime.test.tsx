@@ -5,16 +5,15 @@ import MissionRuntime from "./MissionRuntime";
 describe("MissionRuntime", () => {
   it("renders in fixture mode without a live connection", () => {
     render(<MissionRuntime mode="fixture" />);
-    expect(
-      screen.getByText("Runtime: fixture replay · fixture")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Fixture replay")).toBeInTheDocument();
+    expect(screen.queryByText("Live Sandbox")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Approve verified PR" })
     ).toBeDisabled();
   });
 
-  it("renders in live mode label", () => {
+  it("renders live mode as idle before any stream events", () => {
     render(<MissionRuntime mode="live" />);
-    expect(screen.getByText(/Runtime: live ·/)).toBeInTheDocument();
+    expect(screen.getByText("TrueForge ready")).toBeInTheDocument();
   });
 });

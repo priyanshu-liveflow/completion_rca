@@ -25,11 +25,9 @@ export default function MissionRuntime({ mode }: MissionRuntimeProps) {
     [mode]
   );
 
-  const runtimeLabel = mode === "live" ? "live" : "fixture replay";
-
   return (
     <MissionProvider adapter={adapter}>
-      <MissionControlPage runtimeLabel={runtimeLabel} />
+      <MissionControlPage />
     </MissionProvider>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowRight,
   Box,
   CheckCircle,
   Circle,
@@ -17,6 +16,8 @@ import {
   Terminal,
 } from "lucide-react";
 import { useMission } from "./MissionProvider";
+import MissionMap from "./MissionMap";
+import RuntimeIndicator from "./RuntimeIndicator";
 import styles from "./MissionControlPage.module.css";
 import { TestLine } from "../lib/types";
 
@@ -75,10 +76,8 @@ function lineClass(kind: TestLine["kind"]) {
 
 export default function MissionControlPage({
   readOnly = false,
-  runtimeLabel = "fixture replay",
 }: {
   readOnly?: boolean;
-  runtimeLabel?: string;
 }) {
   const {
     state,
@@ -95,8 +94,6 @@ export default function MissionControlPage({
   const transcriptRef = useRef<HTMLDivElement>(null);
   const popOutRef = useRef<Window | null>(null);
   const isSubmitting = state.approvalSubmission === "submitting";
-
-  const runtimeStatus = `${runtimeLabel} · ${state.runtime.status}`;
 
   const approvalGuard = !state.redObserved
     ? "Locked until a failing selected-test run is observed."
@@ -237,8 +234,9 @@ export default function MissionControlPage({
               ))}
             </div>
             <div className={styles.navPin}>
-              <span>Runtime: {runtimeStatus}</span>
-              <span>Auto-refresh: on</span>
+              <span className={styles.navPinLabel}>Runtime</span>
+              <RuntimeIndicator state={state} />
+              <span className={styles.navPinRefresh}>Auto-refresh: on</span>
             </div>
           </nav>
         )}
@@ -251,53 +249,26 @@ export default function MissionControlPage({
             .filter(Boolean)
             .join(" ")}
         >
-          <section className={styles.map}>
-            <h2 className={styles.mapTitle}>
-              Dependency upgrade proof chain
-            </h2>
-            <div className={styles.chain}>
-              {state.nodes.map((node) => (
-                <div
-                  key={node.id}
-                  className={[
-                    styles.node,
-                    node.status === "amber" && styles.nodeAmber,
-                    node.status === "red" && styles.nodeRed,
-                    node.status === "green" && styles.nodeGreen,
-                    state.selectedNode === node.id && styles.nodeSelected,
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() =>
-                    selectNode(state.selectedNode === node.id ? null : node.id)
-                  }
-                >
-                  <div className={styles.nodeRole}>{node.role}</div>
-                  <div className={styles.nodeLabel}>{node.label}</div>
-                  <div className={styles.nodeDetail}>{node.detail}</div>
-                  {node.status === "static" && (
-                    <span className={styles.staticBadge}>static analysis</span>
-                  )}
-                </div>
-              ))}
-              {state.nodes.map((_, i) =>
-                i < state.nodes.length - 1 ? (
-                  <div key={i} className={styles.arrow}>
-                    <ArrowRight size={16} />
-                  </div>
-                ) : null
-              )}
-            </div>
-          </section>
+          <MissionMap
+            nodes={state.nodes}
+            selectedNode={state.selectedNode}
+            onSelect={selectNode}
+          />
 
           <section className={styles.dock}>
             <div className={styles.dockHeader}>
-              <span className={styles.dockTitle}>Live Sandbox</span>
+              <span className={styles.dockTitle}>
+                {state.runtime.mode === "live" && state.runtime.sandboxId
+                  ? "Live Sandbox"
+                  : "Sandbox replay"}
+              </span>
               <span className={styles.dockConnected}>
                 <span className={styles.dockDot} />
                 <span>TrueForge-native Daytona</span>
               </span>
-              <span className={styles.dockMeta}>(read-only · {runtimeStatus})</span>
+              {readOnly && (
+                <span className={styles.dockMeta}>(read-only)</span>
+              )}
               <div className={styles.dockSpacer} />
               {!readOnly && (
                 <button
