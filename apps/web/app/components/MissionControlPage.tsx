@@ -8,8 +8,6 @@ import {
   FileText,
   GitBranch,
   Layers,
-  Maximize,
-  Minus,
   Play,
   RefreshCw,
   Settings,
@@ -18,8 +16,9 @@ import {
 import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
+import SandboxDock from "./SandboxDock";
 import styles from "./MissionControlPage.module.css";
-import { TestLine } from "../lib/types";
+import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
 
 const navItems = [
   { icon: Circle, label: "Mission Control", active: true },
@@ -32,47 +31,6 @@ const navItems = [
   { icon: Layers, label: "Artifacts" },
   { icon: Settings, label: "Settings" },
 ];
-
-const tabs = [
-  { id: "environment" as const, label: "Environment" },
-  { id: "files" as const, label: "Files" },
-  { id: "processes" as const, label: "Processes" },
-];
-
-const inspectorContent: Record<string, string[]> = {
-  environment: [
-    "DAYTONA_IMAGE=debian-13-python-3.14",
-    "PIP_NO_BUILD_ISOLATION=1",
-    "PYTHONPATH=/workspace/repo",
-    "TF_SESSION=sxn-72a9f0",
-  ],
-  files: [
-    "/workspace/repo/src/intervals/server.py",
-    "/workspace/repo/src/intervals/mcp.py",
-    "/workspace/repo/tests/test_mcp.py",
-    "/workspace/repo/tests/test_server.py",
-  ],
-  processes: [
-    "pytest (pid 1842)",
-    "git (pid 881)",
-    "python -c apply patch (pid 1922)",
-  ],
-};
-
-function lineClass(kind: TestLine["kind"]) {
-  switch (kind) {
-    case "command":
-      return styles.lineCommand;
-    case "stderr":
-      return styles.lineStderr;
-    case "status":
-      return styles.lineStatus;
-    case "timing":
-      return styles.lineTiming;
-    default:
-      return "";
-  }
-}
 
 export default function MissionControlPage({
   readOnly = false,
@@ -91,8 +49,8 @@ export default function MissionControlPage({
   } = useMission();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [popOutError, setPopOutError] = useState<string | null>(null);
-  const transcriptRef = useRef<HTMLDivElement>(null);
   const popOutRef = useRef<Window | null>(null);
+
   const isSubmitting = state.approvalSubmission === "submitting";
 
   const approvalGuard = !state.redObserved
@@ -104,17 +62,6 @@ export default function MissionControlPage({
         : state.approvalSubmission === "failed"
           ? "Approval resolution failed."
           : "The PR tool stayed locked while tests were red.";
-
-  // Scroll selected node transcript lines into view
-  useEffect(() => {
-    if (!state.selectedNode || !transcriptRef.current) return;
-    const el = transcriptRef.current.querySelector(
-      `[data-node="${state.selectedNode}"]`
-    );
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [state.selectedNode]);
 
   // Close the external window if this screen unmounts.
   useEffect(() => {
@@ -138,6 +85,17 @@ export default function MissionControlPage({
     return () => window.clearInterval(id);
   }, [state.popOutOpen, togglePopOut]);
 
+  // Publish the latest state to the pop-out while it is open.
+  useEffect(() => {
+    if (state.popOutOpen && popOutRef.current && !popOutRef.current.closed) {
+      try {
+        writeSandboxSnapshot(window.localStorage, state);
+      } catch {
+        // no-op
+      }
+    }
+  }, [state]);
+
   const onTogglePopOut = () => {
     if (state.popOutOpen) {
       if (popOutRef.current && !popOutRef.current.closed) {
@@ -150,10 +108,9 @@ export default function MissionControlPage({
     }
 
     try {
-      localStorage.setItem("ar-mission-snapshot", JSON.stringify(state));
-      localStorage.setItem("ar-mission-snapshot-at", Date.now().toString());
+      writeSandboxSnapshot(window.localStorage, state);
     } catch {
-      // localStorage may be unavailable in a sandbox; still open a default view
+      // localStorage may be unavailable; still attempt a default view
     }
 
     const popOut = window.open(
@@ -182,7 +139,7 @@ export default function MissionControlPage({
   const selectedNodeObj = state.nodes.find((n) => n.id === state.selectedNode);
 
   return (
-    <div className={readOnly ? `${styles.shell} ${styles.sandboxShell}` : styles.shell}>
+    <div className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.logo}>
           <div className={styles.logoDot} />
@@ -255,160 +212,91 @@ export default function MissionControlPage({
             onSelect={selectNode}
           />
 
-          <section className={styles.dock}>
-            <div className={styles.dockHeader}>
-              <span className={styles.dockTitle}>
-                {state.runtime.mode === "live" && state.runtime.sandboxId
-                  ? "Live Sandbox"
-                  : "Sandbox replay"}
-              </span>
-              <span className={styles.dockConnected}>
-                <span className={styles.dockDot} />
-                <span>TrueForge-native Daytona</span>
-              </span>
-              {readOnly && (
-                <span className={styles.dockMeta}>(read-only)</span>
-              )}
-              <div className={styles.dockSpacer} />
-              {!readOnly && (
-                <button
-                  className={styles.dockBtn}
-                  onClick={onTogglePopOut}
-                  title="Pop out sandbox"
-                >
-                  <Maximize size={14} />
-                </button>
-              )}
-              <button
-                className={styles.dockBtn}
-                onClick={toggleDock}
-                title={state.dockOpen ? "Collapse sandbox" : "Expand sandbox"}
-              >
-                {state.dockOpen ? <Minus size={14} /> : "+"}
-              </button>
-            </div>
-            <div
-              className={[
-                styles.dockBody,
-                !state.dockOpen && styles.dockBodyHidden,
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <div ref={transcriptRef} className={styles.transcript}>
-                {state.transcript.map((line) => (
-                  <div
-                    key={line.id}
-                    data-node={line.nodeId}
-                    className={[
-                      styles.line,
-                      lineClass(line.kind),
-                      line.nodeId && line.nodeId === state.selectedNode
-                        ? styles.lineHighlighted
-                        : "",
-                    ].join(" ")}
-                  >
-                    {line.kind === "command" && "$ "}
-                    {line.text}
-                  </div>
-                ))}
-              </div>
-              <aside className={styles.inspector}>
-                <div className={styles.inspectorTabs}>
-                  {tabs.map((t) => (
-                    <button
-                      key={t.id}
-                      className={
-                        state.activeTab === t.id
-                          ? `${styles.inspectorTab} ${styles.inspectorTabActive}`
-                          : styles.inspectorTab
-                      }
-                      onClick={() => setTab(t.id)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <div className={styles.inspectorBody}>
-                  {inspectorContent[state.activeTab].map((row, i) => (
-                    <div key={i}>{row}</div>
-                  ))}
-                </div>
-              </aside>
-            </div>
-          </section>
+          <SandboxDock
+            state={state}
+            readOnly={readOnly}
+            onToggleDock={toggleDock}
+            onTabChange={setTab}
+            onPopOut={readOnly ? undefined : onTogglePopOut}
+          />
 
-          {!readOnly && <aside className={styles.rail}>
-            <div className={styles.railTitle}>Human approval required</div>
-            <div className={styles.railSection}>
-              <div className={styles.railHeading}>Verified patch receipt</div>
-              <div className={styles.railRow}>
-                Base commit: <code>{state.indexedCommit.slice(0, 12)}</code>
-              </div>
-              <div className={styles.railRow}>
-                Dependency: {state.dependency}{" "}
-                <code>
-                  {state.baselineVersion} → {state.breakingVersion}
-                </code>
-              </div>
-              <div className={styles.railRow}>
-                Files changed: <strong>4</strong>
-              </div>
-              <div className={styles.railRow}>
-                Before: <span style={{ color: "var(--oxide)" }}>exit 2</span>
-              </div>
-              <div className={styles.railRow}>
-                After: <span style={{ color: "var(--mineral)" }}>61 passed</span>
-              </div>
-            </div>
-            <div className={styles.guard} aria-live="polite">
-              {approvalGuard}
-            </div>
-            {selectedNodeObj && (
+          {!readOnly && (
+            <aside className={styles.rail}>
+              <div className={styles.railTitle}>Human approval required</div>
               <div className={styles.railSection}>
-                <div className={styles.railHeading}>Selected</div>
+                <div className={styles.railHeading}>Verified patch receipt</div>
                 <div className={styles.railRow}>
-                  {selectedNodeObj.role}: {selectedNodeObj.label}
+                  Base commit: <code>{state.indexedCommit.slice(0, 12)}</code>
+                </div>
+                <div className={styles.railRow}>
+                  Dependency: {state.dependency}{" "}
+                  <code>
+                    {state.baselineVersion} → {state.breakingVersion}
+                  </code>
+                </div>
+                <div className={styles.railRow}>
+                  Files changed: <strong>4</strong>
+                </div>
+                <div className={styles.railRow}>
+                  Before: <span style={{ color: "var(--oxide)" }}>exit 2</span>
+                </div>
+                <div className={styles.railRow}>
+                  After: <span style={{ color: "var(--mineral)" }}>61 passed</span>
                 </div>
               </div>
-            )}
-            {state.approved !== null && (
-              <div
-                className={styles.railSection}
-                style={{
-                  color: state.approved ? "var(--mineral)" : "var(--oxide)",
-                }}
-              >
-                <div className={styles.railHeading}>Decision</div>
-                <div className={styles.railRow}>
-                  {state.approved ? "Approved — local state only" : "Denied"}
+              <div className={styles.guard} aria-live="polite">
+                {approvalGuard}
+              </div>
+              {selectedNodeObj && (
+                <div className={styles.railSection}>
+                  <div className={styles.railHeading}>Selected</div>
+                  <div className={styles.railRow}>
+                    {selectedNodeObj.role}: {selectedNodeObj.label}
+                  </div>
                 </div>
+              )}
+              {state.approved !== null && (
+                <div
+                  className={styles.railSection}
+                  style={{
+                    color: state.approved ? "var(--mineral)" : "var(--oxide)",
+                  }}
+                >
+                  <div className={styles.railHeading}>Decision</div>
+                  <div className={styles.railRow}>
+                    {state.approved
+                      ? "Approved — local state only"
+                      : "Denied"}
+                  </div>
+                </div>
+              )}
+              {popOutError && (
+                <div className={styles.railSection}>
+                  <div className={styles.railHeading}>Pop-out</div>
+                  <div className={styles.railRow}>{popOutError}</div>
+                </div>
+              )}
+              <div className={styles.actions}>
+                <button
+                  className={styles.btnPrimary}
+                  disabled={!canApprove || isSubmitting}
+                  onClick={onApprove}
+                >
+                  {isSubmitting ? "Submitting..." : "Approve verified PR"}
+                </button>
+                <button
+                  className={styles.btnSecondary}
+                  onClick={onDeny}
+                  disabled={state.approved !== null || isSubmitting}
+                >
+                  {isSubmitting ? "Submitting..." : "Deny"}
+                </button>
+                <p className={styles.note}>
+                  No write to GitHub in this prototype
+                </p>
               </div>
-            )}
-            {popOutError && (
-              <div className={styles.railSection}>
-                <div className={styles.railHeading}>Pop-out</div>
-                <div className={styles.railRow}>{popOutError}</div>
-              </div>
-            )}
-            <div className={styles.actions}>
-              <button
-                className={styles.btnPrimary}
-                disabled={!canApprove || isSubmitting}
-                onClick={onApprove}
-              >
-                {isSubmitting ? "Submitting..." : "Approve verified PR"}
-              </button>
-              <button
-                className={styles.btnSecondary}
-                onClick={onDeny}
-                disabled={state.approved !== null || isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Deny"}
-              </button>
-              <p className={styles.note}>No write to GitHub in this prototype</p>
-            </div>
-          </aside>}
+            </aside>
+          )}
         </div>
       </main>
 
@@ -431,6 +319,9 @@ export default function MissionControlPage({
             <div className={styles.dialogRow}>
               Test receipt: <code>61 passed</code> after red reproduction
             </div>
+            {state.approvalError && (
+              <div className={styles.dialogRow}>{state.approvalError}</div>
+            )}
             <div className={styles.dialogActions}>
               <button
                 className={styles.btnSecondary}
