@@ -90,3 +90,30 @@ of scope. Worth tightening the wording rather than re-arguing this per PR.
 `scripts/check_layering.py` already encodes the intent correctly — it bans HTTP
 *clients*, not vendor SDKs — and it passes on this PR.
 
+
+---
+
+## PR #15 — `agents/seed.ts` lives outside `src/main/agentradar` — **declined**
+
+**Finding:** *"Agentradar tooling outside allowed directories."* `CLAUDE.md`
+says to scope new tooling to `src/main/agentradar` and `tests/agentradar`;
+the conductor seeding tool sits in `agents/` instead.
+
+**Declined.** `agents/` is not tooling in the sense that rule governs. It holds
+TrueForge's declarative artifacts — a JSON agent manifest, four prompt markdown
+files, and the TypeScript SDK script that uploads them. `src/main/agentradar`
+is a Python package tree: `scripts/check_layering.py` walks it as Python AST,
+`mypy --strict` types it, and the four spine rules (`contracts`/`core`/
+`adapters`/`mcp`) describe Python import layering. A `.ts` file and its
+`package.json`/`package-lock.json` would be invisible to every one of those
+checks while sitting inside the subtree they exist to guard — the rule's intent
+is inverted, not served, by moving it there.
+
+The build plan (`docs/build-plan.md`, PR10) specifies these exact paths and
+states "Language: Python everywhere, except `agents/seed.ts`," because the
+TrueForge SDK is TypeScript and nothing else in the build is.
+
+**Consequence:** same root cause as the PR #7 entry — `CLAUDE.md` states a rule
+about the *Python* package layout without saying so, so a reviewer reading it
+literally applies it to every new file. Worth one clarifying clause in
+`CLAUDE.md` rather than re-arguing per PR.
