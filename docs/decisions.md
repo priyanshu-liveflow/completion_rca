@@ -117,3 +117,55 @@ TrueForge SDK is TypeScript and nothing else in the build is.
 about the *Python* package layout without saying so, so a reviewer reading it
 literally applies it to every new file. Worth one clarifying clause in
 `CLAUDE.md` rather than re-arguing per PR.
+
+
+---
+
+## PR #17 — `record_fixtures.py` uses `urllib` directly — **declined, with a guard**
+
+**Finding:** *"record_fixtures bypasses HTTP adapter."* Rule 2987720 routes all
+outbound HTTP through `adapters/brightdata.py`; the recorder calls
+`urllib.request.urlopen` itself. Qodo rated it weak relevance and noted the
+matching finding was already declined on PR #15.
+
+**Declined on the same grounds, and for the same reason as `agents/seed.ts`.**
+The Bright Data rule governs *web* access — the open internet, where a request
+needs to look like a browser and where an unproxied client is a correctness and
+compliance problem. TrueForge is the local harness control plane. Routing a
+`POST /api/v1/sessions/{id}/turns` through a SERP/Unlocker CLI is not possible,
+and `adapters/brightdata.py` shells out to `bdata`, which has no notion of an
+arbitrary local endpoint. `agents/seed.ts` already talks to the same API the
+same way and was accepted on PR #15.
+
+**But the objection had a real half.** The previous decline rested on "it is
+only ever localhost," which was a claim about how somebody runs the script, not
+about what the script does — `TRUEFORGE_URL` is an environment variable, and
+nothing stopped it pointing at a public host. `assert_loopback` now enforces it
+before the first request, so the exception is a property of the code. Tested
+both ways in `tests/agentradar/test_fixtures.py`.
+
+**Consequence:** `scripts/check_layering.py` walks `src/` and `tests/` but not
+`scripts/`, so it would not have caught a genuinely unproxied client here. The
+loopback guard covers this file; widening the layering check to `scripts/` is
+the general fix and is not this PR's concern.
+
+---
+
+## PR #17 — recorder and replayer live in `scripts/` — **declined**
+
+**Finding:** *"record_fixtures outside AgentRadar."* Rule 2987739 scopes new
+AgentRadar tooling to `src/main/agentradar` or `tests/agentradar`. Weak
+relevance, and Qodo again flagged that PR #15 declined the equivalent.
+
+**Declined.** `docs/build-plan.md` names these exact paths in the PR13 section
+(`scripts/record_fixtures.py`, `fixtures/missions/<name>.jsonl`), and
+`scripts/` already holds `check_layering.py` and `export_schemas.py` from PR1 —
+both operator entry points rather than importable product code. That is the
+distinction the rule is really drawing: `src/main/agentradar` is the package the
+four spine rules govern and `mypy --strict` types; `scripts/` is where
+hand-run commands live. A recorder that exists to be invoked once by a human
+before a demo belongs in the second category.
+
+The parsing logic *would* belong in `core/` if the product consumed fixtures at
+runtime. It does not — replay is a laptop-in-airplane-mode fallback, and if it
+ever moves onto the demo path, that move is what should carry the refactor.

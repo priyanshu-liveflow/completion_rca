@@ -16,9 +16,16 @@ from pathlib import Path
 from typing import Any
 
 
-def format_event(event: dict[str, Any]) -> str:
-    """Render one recorded event for demo output."""
-    t_ms = event.get("t_ms", 0)
+def format_event(event: dict[str, Any], t_ms: int | None = None) -> str:
+    """Render one recorded event for demo output.
+
+    `t_ms` overrides the event's own value so the printed clock is the same
+    one the replay sleeps on. They diverge only for a fixture recorded before
+    the recorder's timing was fixed, and a demo that prints times running
+    backwards is worse than one that prints nothing.
+    """
+    if t_ms is None:
+        t_ms = int(event.get("t_ms", 0))
     event_type = event.get("type", "unknown")
     parts = [f"[{t_ms:5d}ms] {event_type}"]
 
@@ -53,9 +60,15 @@ def format_event(event: dict[str, Any]) -> str:
         if user_input:
             content = user_input[0].get("content", "")
             if content:
-                parts.append(f"prompt: {content[:80]}{'...' if len(content) > 80 else ''}")
+                parts.append(
+                    f"prompt: {content[:80]}{'...' if len(content) > 80 else ''}"
+                )
 
-    return "  ".join(parts) if len(parts) == 2 and "\n" not in parts[1] else "\n".join(parts)
+    return (
+        "  ".join(parts)
+        if len(parts) == 2 and "\n" not in parts[1]
+        else "\n".join(parts)
+    )
 
 
 def replay(path: Path, *, speed: float) -> int:
@@ -74,7 +87,7 @@ def replay(path: Path, *, speed: float) -> int:
         if speed > 0 and count > 0:
             delay = max(0.0, (t_ms - prev_t) / 1000.0 / speed)
             time.sleep(delay)
-        print(format_event(event))
+        print(format_event(event, t_ms))
         sys.stdout.flush()
         prev_t = t_ms
         count += 1
@@ -87,7 +100,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Replay a recorded mission fixture.")
     parser.add_argument("fixture", type=Path, help="JSONL fixture path")
     parser.add_argument(
-        "--speed", type=float, default=1.0,
+        "--speed",
+        type=float,
+        default=1.0,
         help="Playback speed multiplier (0 = instant)",
     )
     args = parser.parse_args()
