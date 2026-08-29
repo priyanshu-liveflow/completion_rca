@@ -1,0 +1,45 @@
+# Demo target — chosen and verified at H0.
+#
+# Selection criteria, all four confirmed empirically (see docs/demo-repo.md):
+#   Python + public                    yes
+#   indexes fast                       20 source files, 3 runtime deps
+#   test suite currently passes        61 tests, 0.50s, no credentials needed
+#   real recent breaking change        MCP Python SDK v1 -> v2
+#
+# Everything downstream reads this file. Do not hardcode these values.
+
+demo:
+  repo_url: "https://github.com/mvilanova/intervals-mcp-server"
+  repo_key: "intervals-mcp-server"     # last path segment - what queries.py expects
+  commit: "cb1fbcac81095cf3e094e995decf04b8b1f259f8"
+  python: "3.13"                       # repo requires >=3.12
+  test_root: "tests"
+  test_command: "pytest -v --durations=10 -rA"
+
+  dependency: "mcp"
+  from_version: "1.29.1"               # resolved from 'mcp[cli]>=1.4.0,<2.0.0'
+  to_version: "2.1.1"
+  install_spec_before: "mcp[cli]>=1.4.0,<2.0.0"
+  install_spec_after: "mcp[cli]>=2.0.0"
+
+  # The symbol the scouts surface and the graph locates. find_by_pattern
+  # matches source text, so this hits every import site.
+  symbol: "FastMCP"
+
+  # Verified contact points at the pinned commit. The agent must rediscover
+  # these through the graph - this list exists to check its work, not to feed it.
+  expected_contact_points:
+    - "src/intervals_mcp_server/mcp_instance.py"
+    - "src/intervals_mcp_server/api/client.py"
+    - "src/intervals_mcp_server/server_setup.py"
+    - "src/intervals_mcp_server/tools/__init__.py"
+
+  # Confirmed by hand: this exact change takes 61 tests from red to green.
+  expected_patch_shape: |
+    - from mcp.server.fastmcp import FastMCP
+    + from mcp.server.mcpserver import MCPServer as FastMCP
+
+  # The red case is a COLLECTION error, not per-test failures. Both test
+  # modules fail to import. core/testreport.py must handle this: zero
+  # per-test node ids, non-zero error count, exit code 2.
+  red_is_collection_error: true

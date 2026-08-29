@@ -103,7 +103,7 @@ None of this is a PR. It is machine setup, and it gates PR1/PR5. **Start 1, 2 an
 
 | # | Task | Who | Time | Blocks |
 |---|---|---|---|---|
-| 1 | **Pick the demo repo.** Timebox 30 min, all four required: Python; public; indexes in well under an hour; **fast test suite that currently passes**; depends on something with a *real* recent breaking change. Verify the change is real before committing. Fallback: a deprecation rather than a break. Write the answer into `configs/demo.yaml` | human | 30m | PR5, PR7, PR8 |
+| 1 | ~~Pick the demo repo~~ — **DONE.** `mvilanova/intervals-mcp-server` @ `cb1fbca`, breaking on MCP SDK v1→v2. Red/green proven by hand; `configs/demo.yaml` and `fixtures/pytest_output_{red,green}.txt` are committed | — | done | — |
 | 2 | `pipx install codegraphcontext`, index the demo repo at a **pinned commit**. I/O-bound, blocks nothing else — start it and walk away | human | 5m + background | PR3, PR4 |
 | 3 | **Daytona signup + API key**, wire it into TrueForge, and run a `sandbox.created` smoke test. Free tier, $200 compute, no credit card. **This is now on the demo path** — it is not optional | human | 20m | PR5, PR10, PR11 |
 | 4 | **Prewarm the native sandbox** per `sandbox/PREWARM.md`: clone the pinned commit, install baseline deps, confirm the selected tests are green, keep the session alive. Set `auto_stop`/`auto_archive` intervals explicitly and confirm it survives an idle gap | human | 40m | PR5 |
@@ -349,16 +349,11 @@ Python 3.11, `uv` or pip. Steps, in order:
 
 The demo repo is chosen at H0, not now. Everything reads it from here:
 
-```yaml
-demo:
-  repo_url: ""          # TBD at H0
-  repo_key: ""          # last path segment — what queries.py expects
-  commit: ""            # the commit that was indexed AND baked into the image
-  dependency: ""        # the package with the breaking change
-  from_version: ""
-  to_version: ""
-  test_root: "tests"
-```
+**Already chosen and verified — see `configs/demo.yaml` and `docs/demo-repo.md`.**
+
+`mvilanova/intervals-mcp-server` at `cb1fbca`, breaking on **MCP Python SDK v1 → v2**. 61 tests, 0.50s, three runtime deps, no credentials. Confirmed by hand: green at `mcp<2`, collection error at `mcp>=2`, green again after a four-line import rename.
+
+Do not hardcode any of it. Everything reads `configs/demo.yaml`.
 
 ### `CLAUDE.md`
 
@@ -520,6 +515,8 @@ The warmup is setup, not evidence. Every number in the impact claim comes from a
 def parse_pytest(stdout: str, package: str, version: str, report_id: str,
                  *, duration_s: float = 0.0) -> TestReport: ...
 ```
+
+**It must handle collection errors, not just test failures.** The real red case for our demo repo is `ERROR tests/test_server.py` with `Interrupted: 2 errors during collection` and exit code 2 — zero per-test node ids exist, because the module never imported. A parser that only looks for `FAILED` lines reports this as *green*, which would make the product lie on stage in the most embarrassing way possible. `fixtures/pytest_output_red.txt` is exactly this case; make it a test.
 
 Parse the short-summary block (`PASSED`/`FAILED`/`ERROR` node ids), per-test durations when `--durations` is present, and capture the failing traceback. Tests read `fixtures/pytest_output_*.txt` — **this is why the fixtures are captured by hand first.** It takes a plain string, so it parses output from the native sandbox, from Docker, or from a fixture, unchanged.
 

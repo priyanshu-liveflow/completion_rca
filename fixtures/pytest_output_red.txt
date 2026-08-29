@@ -1,0 +1,50 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-priyanshu-research-agents/1124eaa1-392f-46e1-befa-94f5d8a8bc04/scratchpad/intervals
+configfile: pyproject.toml
+testpaths: tests
+plugins: asyncio-1.4.0, anyio-4.14.2, mock-3.12.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 26 items / 2 errors
+
+==================================== ERRORS ====================================
+____________ ERROR collecting tests/test_make_intervals_request.py _____________
+ImportError while importing test module '/private/tmp/claude-501/-Users-priyanshu-research-agents/1124eaa1-392f-46e1-befa-94f5d8a8bc04/scratchpad/intervals/tests/test_make_intervals_request.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/priyanshu/.local/share/mise/installs/python/3.13.14/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_make_intervals_request.py:19: in <module>
+    from intervals_mcp_server import server  # pylint: disable=wrong-import-position
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/intervals_mcp_server/server.py:49: in <module>
+    from intervals_mcp_server.api.client import (
+src/intervals_mcp_server/api/client.py:17: in <module>
+    from mcp.server.fastmcp import FastMCP  # pylint: disable=import-error
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/mcp/server/fastmcp.py:16: in <module>
+    raise ModuleNotFoundError(_MESSAGE, name=__name__)
+E   ModuleNotFoundError: No module named 'mcp.server.fastmcp'. This is mcp 2.x, where FastMCP was renamed to MCPServer (from mcp.server.mcpserver import MCPServer) and other APIs changed; see the migration guide at https://py.sdk.modelcontextprotocol.io/v2/migration/#fastmcp-renamed-to-mcpserver or pin 'mcp<2' to keep running v1 code.
+____________________ ERROR collecting tests/test_server.py _____________________
+ImportError while importing test module '/private/tmp/claude-501/-Users-priyanshu-research-agents/1124eaa1-392f-46e1-befa-94f5d8a8bc04/scratchpad/intervals/tests/test_server.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/priyanshu/.local/share/mise/installs/python/3.13.14/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_server.py:28: in <module>
+    from intervals_mcp_server.server import (  # pylint: disable=wrong-import-position
+src/intervals_mcp_server/server.py:49: in <module>
+    from intervals_mcp_server.api.client import (
+src/intervals_mcp_server/api/client.py:17: in <module>
+    from mcp.server.fastmcp import FastMCP  # pylint: disable=import-error
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.13/site-packages/mcp/server/fastmcp.py:16: in <module>
+    raise ModuleNotFoundError(_MESSAGE, name=__name__)
+E   ModuleNotFoundError: No module named 'mcp.server.fastmcp'. This is mcp 2.x, where FastMCP was renamed to MCPServer (from mcp.server.mcpserver import MCPServer) and other APIs changed; see the migration guide at https://py.sdk.modelcontextprotocol.io/v2/migration/#fastmcp-renamed-to-mcpserver or pin 'mcp<2' to keep running v1 code.
+=========================== short test summary info ============================
+ERROR tests/test_make_intervals_request.py
+ERROR tests/test_server.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 0.37s ===============================

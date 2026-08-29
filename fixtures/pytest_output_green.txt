@@ -1,0 +1,89 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-priyanshu-research-agents/1124eaa1-392f-46e1-befa-94f5d8a8bc04/scratchpad/intervals
+configfile: pyproject.toml
+testpaths: tests
+plugins: asyncio-1.4.0, anyio-4.14.2, mock-3.12.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 61 items
+
+tests/test_formatting.py ............                                    [ 19%]
+tests/test_make_intervals_request.py .                                   [ 21%]
+tests/test_server.py ..................................                  [ 77%]
+tests/test_validation.py ........                                        [ 90%]
+tests/test_value.py ......                                               [100%]
+
+==================================== PASSES ====================================
+_____________________ test_make_intervals_request_bad_json _____________________
+------------------------------ Captured log call -------------------------------
+ERROR    intervals_icu_mcp_server:client.py:146 Invalid JSON in response from: https://intervals.icu/api/v1/bad
+_____________________________ test_get_activities ______________________________
+------------------------------ Captured log call -------------------------------
+ERROR    intervals_icu_mcp_server:client.py:237 HTTP error: 401 - {"status":401,"error":"Auth failed"}
+============================= slowest 10 durations =============================
+0.24s call     tests/test_server.py::test_get_activities
+
+(9 durations < 0.005s hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+PASSED tests/test_formatting.py::test_format_activity_summary
+PASSED tests/test_formatting.py::test_format_workout
+PASSED tests/test_formatting.py::test_format_wellness_entry
+PASSED tests/test_formatting.py::test_format_wellness_entry_include_all_fields
+PASSED tests/test_formatting.py::test_format_wellness_entry_no_extra_fields_by_default
+PASSED tests/test_formatting.py::test_format_wellness_entry_macros_populated
+PASSED tests/test_formatting.py::test_format_wellness_entry_macros_null_hidden
+PASSED tests/test_formatting.py::test_format_event_summary
+PASSED tests/test_formatting.py::test_format_event_details
+PASSED tests/test_formatting.py::test_format_intervals
+PASSED tests/test_formatting.py::test_format_power_curves
+PASSED tests/test_formatting.py::test_format_power_curves_without_normalised
+PASSED tests/test_make_intervals_request.py::test_make_intervals_request_bad_json
+PASSED tests/test_server.py::test_get_activities
+PASSED tests/test_server.py::test_get_activity_details
+PASSED tests/test_server.py::test_get_events
+PASSED tests/test_server.py::test_get_event_by_id
+PASSED tests/test_server.py::test_get_wellness_data
+PASSED tests/test_server.py::test_get_wellness_data_renders_macros
+PASSED tests/test_server.py::test_get_wellness_data_include_all_fields
+PASSED tests/test_server.py::test_get_activity_intervals
+PASSED tests/test_server.py::test_get_activity_streams
+PASSED tests/test_server.py::test_add_or_update_event
+PASSED tests/test_server.py::test_get_activity_messages
+PASSED tests/test_server.py::test_get_activity_messages_error
+PASSED tests/test_server.py::test_get_activity_messages_empty
+PASSED tests/test_server.py::test_add_activity_message
+PASSED tests/test_server.py::test_add_activity_message_missing_id
+PASSED tests/test_server.py::test_add_activity_message_unexpected_response
+PASSED tests/test_server.py::test_add_activity_message_error
+PASSED tests/test_server.py::test_get_athlete_power_curves
+PASSED tests/test_server.py::test_get_athlete_power_curves_custom_durations
+PASSED tests/test_server.py::test_get_athlete_power_curves_without_normalised
+PASSED tests/test_server.py::test_get_athlete_power_curves_date_validation
+PASSED tests/test_server.py::test_get_athlete_power_curves_no_curves_selected
+PASSED tests/test_server.py::test_get_custom_items
+PASSED tests/test_server.py::test_get_custom_item_by_id
+PASSED tests/test_server.py::test_create_custom_item
+PASSED tests/test_server.py::test_create_custom_item_with_string_content
+PASSED tests/test_server.py::test_update_custom_item
+PASSED tests/test_server.py::test_delete_custom_item
+PASSED tests/test_server.py::test_create_custom_item_with_invalid_json_content
+PASSED tests/test_server.py::test_get_gear_list
+PASSED tests/test_server.py::test_get_gear_list_empty
+PASSED tests/test_server.py::test_get_gear_list_cache_and_refresh
+PASSED tests/test_server.py::test_get_activity_details_resolves_gear_name
+PASSED tests/test_server.py::test_get_activities_resolves_gear_name
+PASSED tests/test_validation.py::test_explicit_activity_type_returned_as_is
+PASSED tests/test_validation.py::test_keyword_ride
+PASSED tests/test_validation.py::test_keyword_run
+PASSED tests/test_validation.py::test_keyword_swim
+PASSED tests/test_validation.py::test_keyword_walk
+PASSED tests/test_validation.py::test_keyword_row
+PASSED tests/test_validation.py::test_default_ride_when_no_match
+PASSED tests/test_validation.py::test_case_insensitive
+PASSED tests/test_value.py::test_str_percent_ftp
+PASSED tests/test_value.py::test_str_ramp_percent_ftp
+PASSED tests/test_value.py::test_pace_units_deserialise_from_api_string[MINS_KM-ValueUnits.MINS_KM]
+PASSED tests/test_value.py::test_pace_units_deserialise_from_api_string[MINS_MILE-ValueUnits.MINS_MILE]
+PASSED tests/test_value.py::test_pace_units_deserialise_from_api_string[SECS_100M-ValueUnits.SECS_100M]
+PASSED tests/test_value.py::test_pace_units_deserialise_from_api_string[SECS_500M-ValueUnits.SECS_500M]
+============================== 61 passed in 0.50s ==============================
