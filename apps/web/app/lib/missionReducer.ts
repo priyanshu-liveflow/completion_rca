@@ -4,13 +4,14 @@ import {
   MissionState,
   NodeId,
   NodeStatus,
+  TestRunEvidence,
 } from "./types";
 
 export function createInitialMissionState(
   currentTime = "—",
   seed: Partial<MissionState> = {}
 ): MissionState {
-  return {
+  const initial: MissionState = {
     ...fixtureMission,
     nodes: fixtureMission.nodes.map((node) => ({ ...node, status: "pending" })),
     transcript: [],
@@ -18,6 +19,8 @@ export function createInitialMissionState(
     greenObservedAfterRed: false,
     redTests: 0,
     greenTests: 0,
+    redEvidence: null,
+    greenEvidence: null,
     selectedNode: null,
     dockOpen: true,
     activeTab: "environment",
@@ -25,8 +28,21 @@ export function createInitialMissionState(
     approved: null,
     currentTime,
     restored: true,
+    runtime: {
+      mode: "fixture",
+      status: "fixture",
+      sessionId: null,
+      turnId: null,
+      sandboxId: null,
+      error: null,
+    },
+    pendingApproval: null,
+    approvalSubmission: "idle",
+    approvalError: null,
+    patchEvidence: null,
     ...seed,
   };
+  return initial;
 }
 
 function updateNode(
@@ -42,11 +58,32 @@ function updateNode(
   };
 }
 
-export function canApproveMission(state: MissionState) {
+function evidenceMatches(red: TestRunEvidence, green: TestRunEvidence) {
   return (
-    state.redObserved &&
-    state.greenObservedAfterRed &&
-    state.approved === null
+    red.missionId === green.missionId &&
+    red.sandboxId === green.sandboxId &&
+    red.selectionKey === green.selectionKey &&
+    red.phase === "reproduce" &&
+    green.phase === "verify" &&
+    red.exitCode !== 0 &&
+    green.exitCode === 0
+  );
+}
+
+export function canApproveMission(state: MissionState) {
+  const hasMatchingEvidence =
+    state.redEvidence &&
+    state.greenEvidence &&
+    evidenceMatches(state.redEvidence, state.greenEvidence);
+
+  const hasPendingApproval =
+    state.runtime.mode === "live" ? state.pendingApproval !== null : true;
+
+  return Boolean(
+    hasMatchingEvidence &&
+      hasPendingApproval &&
+      state.approvalSubmission !== "submitting" &&
+      state.approved === null
   );
 }
 
@@ -56,28 +93,88 @@ export function missionReducer(
 ): MissionState {
   switch (event.type) {
     case "mission.reset":
-      return createInitialMissionState(event.currentTime ?? state.currentTime);
+      return createInitialMissionState(event.currentTime ?? state.currentTime, {
+        runtime: {
+          ...createInitialMissionState().runtime,
+          mode: state.runtime.mode,
+          status: "idle",
+        },
+      });
+    case "runtime.connecting":
+      return {
+        ...state,
+        runtime: { ...state.runtime, status: "connecting", error: null },
+      };
+    case "runtime.connected":
+      return {
+        ...state,
+        runtime: { ...state.runtime, sessionId: event.sessionId, status: "idle" },
+      };
+    case "runtime.turn.started":
+      return {
+        ...state,
+        runtime: { ...state.runtime, turnId: event.turnId ?? null, status: "streaming" },
+      };
+    case "runtime.turn.completed":
+      return {
+        ...state,
+        runtime: {
+          ...state.runtime,
+          status:
+            state.pendingApproval !== null ? "awaiting_approval" : "completed",
+        },
+      };
+    case "runtime.failed":
+      return {
+        ...state,
+        runtime: { ...state.runtime, status: "failed", error: event.message },
+      };
+    case "sandbox.connected":
+      return {
+        ...state,
+        runtime: { ...state.runtime, sandboxId: event.sandboxId },
+      };
     case "proof.node.updated":
       return updateNode(state, event.nodeId, event.status);
     case "sandbox.line.appended":
       return state.transcript.some((line) => line.id === event.line.id)
         ? state
         : { ...state, transcript: [...state.transcript, event.line] };
-    case "tests.red_observed":
+    case "tests.red_observed": {
+      const redEvidence = event.evidence ?? null;
+      if (redEvidence && redEvidence.phase === "baseline") {
+        // Baseline green is not the same as reproduced red; do not unlock.
+        return {
+          ...updateNode(state, "tests", "green"),
+          redTests: 0,
+        };
+      }
       return {
         ...updateNode(state, "errors", "red"),
         redObserved: true,
         greenObservedAfterRed: false,
         redTests: event.failed,
         greenTests: 0,
+        redEvidence,
+        greenEvidence: null,
       };
-    case "tests.green_observed":
+    }
+    case "tests.green_observed": {
+      const greenEvidence = event.evidence ?? null;
+      if (greenEvidence?.phase === "baseline") {
+        return {
+          ...updateNode(state, "tests", "green"),
+          greenTests: greenEvidence.exitCode === 0 ? event.passed : 0,
+        };
+      }
       if (!state.redObserved) return state;
       return {
         ...updateNode(state, "verify", "green"),
         greenObservedAfterRed: true,
         greenTests: event.passed,
+        greenEvidence,
       };
+    }
     case "selection.changed":
       return { ...state, selectedNode: event.nodeId };
     case "dock.toggled":
@@ -86,10 +183,38 @@ export function missionReducer(
       return { ...state, activeTab: event.tab };
     case "popout.toggled":
       return { ...state, popOutOpen: !state.popOutOpen };
+    case "approval.required":
+      return {
+        ...state,
+        pendingApproval: event.request,
+        runtime: { ...state.runtime, status: "awaiting_approval" },
+      };
+    case "approval.submitting":
+      return { ...state, approvalSubmission: "submitting", approvalError: null };
+    case "approval.resolved":
+      return {
+        ...state,
+        approvalSubmission: event.decision === "approve" ? "accepted" : "denied",
+        approved: event.decision === "approve",
+        approvalError: null,
+      };
+    case "approval.failed":
+      return {
+        ...state,
+        approvalSubmission: "failed",
+        approvalError: event.message,
+      };
+    case "patch.observed":
+      return {
+        ...updateNode(state, "patch", "static"),
+        patchEvidence: event.patch,
+      };
     case "approval.approved":
       return canApproveMission(state) ? { ...state, approved: true } : state;
     case "approval.denied":
-      return state.approved === null ? { ...state, approved: false } : state;
+      return state.approved === null
+        ? { ...state, approved: false, approvalSubmission: "denied" }
+        : state;
     case "clock.ticked":
       return { ...state, currentTime: event.currentTime };
   }
