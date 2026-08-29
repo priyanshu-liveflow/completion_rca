@@ -1,0 +1,24 @@
+{
+  "description": "One organic SERP result after Bright Data search.",
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "snippet": {
+      "title": "Snippet",
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "url",
+    "snippet"
+  ],
+  "title": "SearchHit",
+  "type": "object"
+}

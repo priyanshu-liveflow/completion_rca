@@ -1,0 +1,48 @@
+{
+  "$defs": {
+    "SearchHit": {
+      "description": "One organic SERP result after Bright Data search.",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "snippet": {
+          "title": "Snippet",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "url",
+        "snippet"
+      ],
+      "title": "SearchHit",
+      "type": "object"
+    }
+  },
+  "description": "Contract returned by `web_search`.",
+  "properties": {
+    "query": {
+      "title": "Query",
+      "type": "string"
+    },
+    "hits": {
+      "items": {
+        "$ref": "#/$defs/SearchHit"
+      },
+      "title": "Hits",
+      "type": "array"
+    }
+  },
+  "required": [
+    "query",
+    "hits"
+  ],
+  "title": "SearchResults",
+  "type": "object"
+}

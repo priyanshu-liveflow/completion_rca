@@ -1,0 +1,19 @@
+{
+  "description": "Contract returned by `scrape_page`.",
+  "properties": {
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url",
+    "text"
+  ],
+  "title": "PageContent",
+  "type": "object"
+}

@@ -1,0 +1,19 @@
+{
+  "description": "One function node from the code graph.",
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "fid": {
+      "title": "Fid",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "name",
+    "fid"
+  ],
+  "title": "GraphNode",
+  "type": "object"
+}

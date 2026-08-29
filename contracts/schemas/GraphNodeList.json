@@ -1,0 +1,38 @@
+{
+  "$defs": {
+    "GraphNode": {
+      "description": "One function node from the code graph.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "fid": {
+          "title": "Fid",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "fid"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    }
+  },
+  "description": "MCP response: graph nodes returned by caller or call-chain tools.",
+  "properties": {
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/GraphNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes"
+  ],
+  "title": "GraphNodeList",
+  "type": "object"
+}

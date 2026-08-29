@@ -45,3 +45,36 @@ class ImpactRow(BaseModel):
     verdict: Verdict
     why: str
     evidence_ref: str | None
+
+
+class GraphNode(BaseModel):
+    """One function node from the code graph."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    fid: int
+
+
+class ContactPointList(BaseModel):
+    """MCP response: dependency contact points in the indexed repo."""
+
+    model_config = ConfigDict(frozen=True)
+
+    contact_points: list[ContactPoint]
+
+
+class GraphNodeList(BaseModel):
+    """MCP response: graph nodes returned by caller or call-chain tools."""
+
+    model_config = ConfigDict(frozen=True)
+
+    nodes: list[GraphNode]
+
+
+class FunctionSource(BaseModel):
+    """MCP response: function source text for patch context."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str

@@ -22,7 +22,17 @@ dependencies = [
     "scipy>=1.17.1",
     "structlog>=24.1.0",
     "graphviz>=0.20",
+    "mcp>=1.0,<2",
+    "langchain-openai>=0.2",
 ]
+
+# NOTE: `daytona` is deliberately NOT a dependency, declared or optional.
+# It requires protobuf>=5 transitively (via opentelemetry) while
+# codegraphcontext pins protobuf<3.21 — declaring it as an extra makes the
+# project unresolvable. Install it into a separate environment when running
+# sandbox/timing_probe.py; see sandbox/PREWARM.md. Nothing on the test path
+# imports it: adapters/sandbox.py takes an already-connected sandbox handle
+# and imports the SDK lazily inside DaytonaRunner.connect.
 
 [project.scripts]
 graph-rca = "src.main.cli:main"
@@ -64,3 +74,17 @@ strict = true
 explicit_package_bases = true
 mypy_path = "."
 files = ["src/main/agentradar"]
+
+[[tool.mypy.overrides]]
+module = ["mcp.*", "starlette.*", "uvicorn"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["src.main.code_tools", "src.main.code_tools.*"]
+follow_imports = "skip"
+
+# `daytona` is an optional extra and is absent in CI. It is imported lazily,
+# inside DaytonaRunner.connect, so nothing else in the package depends on it.
+[[tool.mypy.overrides]]
+module = ["daytona.*"]
+ignore_missing_imports = true

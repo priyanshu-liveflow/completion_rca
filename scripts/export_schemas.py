@@ -31,18 +31,31 @@ from src.main.agentradar.contracts.evidence import (  # noqa: E402
 from src.main.agentradar.contracts.impact import (  # noqa: E402
     BlastRadius,
     ContactPoint,
+    ContactPointList,
+    FunctionSource,
+    GraphNode,
+    GraphNodeList,
     ImpactRow,
 )
 from src.main.agentradar.contracts.mission import ActionPlan, Mission  # noqa: E402
 from src.main.agentradar.contracts.patch import Patch, VerifyResult  # noqa: E402
+from src.main.agentradar.contracts.web import (  # noqa: E402
+    PageContent,
+    SearchHit,
+    SearchResults,
+)
 
 MODELS = (
     Dependency,
     Watchlist,
     ReleaseEvent,
     ContactPoint,
+    ContactPointList,
     BlastRadius,
     ImpactRow,
+    GraphNode,
+    GraphNodeList,
+    FunctionSource,
     TestSelection,
     TestCase,
     TestReport,
@@ -53,6 +66,9 @@ MODELS = (
     CollectorRun,
     Mission,
     ActionPlan,
+    SearchHit,
+    SearchResults,
+    PageContent,
 )
 
 

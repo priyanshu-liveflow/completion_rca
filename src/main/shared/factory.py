@@ -32,7 +32,11 @@ def make_provider(
             num_ctx=ollama_num_ctx if ollama_num_ctx is not None else 32768,
         )
 
+    if cloud_provider == "openai_compat":
+        from src.main.shared.providers.langchain import LangChainProvider
+        return LangChainProvider()
+
     raise ValueError(
         f"Unknown CLOUD_PROVIDER '{cloud_provider}'. "
-        "Set CLOUD_PROVIDER=aws|azure|ollama in your environment or .env file."
+        "Set CLOUD_PROVIDER=aws|azure|ollama|openai_compat in your environment or .env file."
     )
