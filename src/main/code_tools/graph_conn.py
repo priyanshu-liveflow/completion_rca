@@ -4,16 +4,57 @@ import os
 
 _graph_instance = None
 
+# codegraphcontext moved to FalkorDB Lite, which is embedded rather than a
+# standalone server. The unix socket is created by a `codegraphcontext.core
+# .falkor_worker` process and exists only while one is running — `cgc api
+# start`, `cgc query`, or the MCP server. We connect to that socket; we cannot
+# create it, because `falkordblite` ships in the cgc tool environment, not in
+# this project's dependencies.
+DEFAULT_SOCKET_PATH = "~/.codegraphcontext/global/db/falkordb.sock"
+
+_UNAVAILABLE = (
+    "No FalkorDB Lite worker is listening on {sock}.\n"
+    "FalkorDB Lite is embedded: the socket exists only while a codegraphcontext "
+    "process owns it.\n"
+    "Start one and leave it running:  cgc api start\n"
+    "Then confirm the graph is indexed:  cgc query 'MATCH (f:Function) RETURN count(f)'\n"
+    "Override the socket location with FALKORDB_SOCKET_PATH if yours differs."
+)
+
+
+class GraphUnavailable(RuntimeError):
+    """No FalkorDB worker is listening. Actionable, unlike a raw ConnectionError."""
+
+
+def socket_path():
+    """Socket to connect on. FALKORDB_SOCKET_PATH wins, matching cgc's own .env."""
+    return os.path.expanduser(os.getenv("FALKORDB_SOCKET_PATH") or DEFAULT_SOCKET_PATH)
+
 
 def get_graph():
-    """Get cached FalkorDB graph connection."""
+    """Get cached FalkorDB graph connection.
+
+    Raises GraphUnavailable when no worker is listening. A stale socket file
+    left behind by a dead worker fails the same way as a missing one, so this
+    pings rather than trusting os.path.exists.
+    """
     global _graph_instance
     if _graph_instance is None:
         from falkordb import FalkorDB
-        sock = os.path.expanduser("~/.codegraphcontext/global/db/falkordb.sock")
-        db = FalkorDB(unix_socket_path=sock)
+        sock = socket_path()
+        try:
+            db = FalkorDB(unix_socket_path=sock)
+            db.connection.ping()
+        except Exception as e:
+            raise GraphUnavailable(_UNAVAILABLE.format(sock=sock)) from e
         _graph_instance = db.select_graph("codegraph")
     return _graph_instance
+
+
+def reset_graph():
+    """Drop the cached connection so the next call reconnects."""
+    global _graph_instance
+    _graph_instance = None
 
 
 def query(cypher: str, params: dict = None) -> list:

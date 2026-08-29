@@ -38,6 +38,21 @@ def _path_from_read(blob: str) -> str:
     return ""
 
 
+def _relative_to_repo(path: str, repo: str) -> str:
+    """Trim an indexed absolute path down to repo-relative.
+
+    The graph stores absolute paths from index time, but every consumer wants
+    repo-relative: `configs/demo.yaml` lists contact points that way, and PR4's
+    `module_name_for(file_path, source_root)` strips a source root off the
+    front, which an absolute path defeats. `repo` is the last path segment,
+    which is the same convention `queries.py` uses.
+    """
+    parts = path.replace("\\", "/").split("/")
+    if repo in parts:
+        return "/".join(parts[len(parts) - 1 - parts[::-1].index(repo) + 1 :])
+    return path
+
+
 class FalkorCodeGraph:
     """FalkorDB-backed graph. Talks to the unix socket via `code_tools.queries`."""
 
@@ -59,7 +74,7 @@ class FalkorCodeGraph:
                     symbol=symbol,
                     function_name=name,
                     fid=fid,
-                    file_path=_path_from_read(blob),
+                    file_path=_relative_to_repo(_path_from_read(blob), repo),
                     line=None,
                 )
             )

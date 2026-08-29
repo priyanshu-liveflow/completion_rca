@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.main.agentradar.adapters.graph import FalkorCodeGraph, _path_from_read
+from src.main.agentradar.adapters.graph import (
+    FalkorCodeGraph,
+    _path_from_read,
+    _relative_to_repo,
+)
 from src.main.agentradar.contracts.impact import ContactPoint
 from src.main.agentradar.mcp import graph_server
 from src.main.agentradar.mcp._server import (
@@ -17,9 +21,29 @@ from src.main.agentradar.mcp._server import (
     is_error_envelope,
 )
 from src.main.code_tools import queries
+from src.main.code_tools.graph_conn import (
+    DEFAULT_SOCKET_PATH,
+    GraphUnavailable,
+    get_graph,
+    reset_graph,
+    socket_path,
+)
 from tests.agentradar.fakes import demo_fastmcp_graph
 
 _SOCK = Path.home() / ".codegraphcontext" / "global" / "db" / "falkordb.sock"
+
+
+def _graph_is_live() -> bool:
+    """A socket *file* proves nothing — a dead worker leaves one behind."""
+    reset_graph()
+    try:
+        get_graph()
+    except Exception:
+        return False
+    return True
+
+
+_LIVE = _graph_is_live()
 
 
 @pytest.fixture(autouse=True)
@@ -149,12 +173,112 @@ def test_falkor_maps_pattern_rows_without_cypher() -> None:
     ]
 
 
-@pytest.mark.skipif(not _SOCK.exists(), reason="FalkorDB socket not present")
+# -- the connection precondition ---------------------------------------------
+
+
+def test_socket_path_honours_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cgc's own .env sets FALKORDB_SOCKET_PATH; respect it over the default."""
+    monkeypatch.setenv("FALKORDB_SOCKET_PATH", "/tmp/custom.sock")
+    assert socket_path() == "/tmp/custom.sock"
+
+    monkeypatch.delenv("FALKORDB_SOCKET_PATH")
+    assert socket_path() == str(Path(DEFAULT_SOCKET_PATH).expanduser())
+
+
+def test_missing_worker_raises_something_actionable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The blocker was a bare `ConnectionError: Error 2 ... No such file`.
+
+    FalkorDB Lite is embedded, so the socket exists only while a cgc process
+    owns it. The error has to say that, or the next person loses the same hour.
+    """
+    monkeypatch.setenv("FALKORDB_SOCKET_PATH", "/tmp/agentradar-no-such.sock")
+    reset_graph()
+
+    with pytest.raises(GraphUnavailable) as excinfo:
+        get_graph()
+
+    message = str(excinfo.value)
+    assert "cgc api start" in message
+    assert "embedded" in message
+    assert "FALKORDB_SOCKET_PATH" in message
+    reset_graph()
+
+
+def test_stale_socket_file_is_not_mistaken_for_a_live_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dead worker leaves the file behind. `os.path.exists` would be fooled."""
+    import socket as socketlib
+    import tempfile
+
+    # Not tmp_path: AF_UNIX paths cap around 104 bytes and pytest's is longer.
+    workdir = tempfile.mkdtemp(prefix="agr", dir="/tmp")
+    stale = Path(workdir) / "f.sock"
+    server = socketlib.socket(socketlib.AF_UNIX)
+    try:
+        server.bind(str(stale))
+        server.close()
+        assert stale.exists()
+
+        monkeypatch.setenv("FALKORDB_SOCKET_PATH", str(stale))
+        reset_graph()
+
+        with pytest.raises(GraphUnavailable):
+            get_graph()
+    finally:
+        stale.unlink(missing_ok=True)
+        Path(workdir).rmdir()
+        reset_graph()
+
+
+# -- paths are repo-relative, not absolute -----------------------------------
+
+
+def test_relative_to_repo_trims_the_indexed_absolute_path() -> None:
+    """The graph stores absolute paths; every consumer wants repo-relative."""
+    assert (
+        _relative_to_repo(
+            "/Users/x/research-agents/intervals-mcp-server/src/pkg/client.py",
+            "intervals-mcp-server",
+        )
+        == "src/pkg/client.py"
+    )
+
+
+def test_relative_to_repo_uses_the_last_matching_segment() -> None:
+    """A repo nested inside a same-named directory must not trim too early."""
+    assert _relative_to_repo("/a/demo/demo/src/pkg/x.py", "demo") == "src/pkg/x.py"
+
+
+def test_relative_to_repo_passes_through_unknown_paths() -> None:
+    assert _relative_to_repo("src/pkg/x.py", "intervals-mcp-server") == "src/pkg/x.py"
+
+
+# -- against the real indexed graph ------------------------------------------
+
+
+@pytest.mark.skipif(
+    not _LIVE, reason="no live FalkorDB Lite worker; run `cgc api start`"
+)
 def test_live_fastmcp_contact_points() -> None:
+    """The real graph must return exactly what `configs/demo.yaml` promises.
+
+    Substring matching on filenames hid a real defect: the graph returns
+    absolute paths, while the fake, demo.yaml, and PR4's `module_name_for`
+    all assume repo-relative.
+    """
+    import yaml
+
+    demo = yaml.safe_load(Path("configs/demo.yaml").read_text())["demo"]
+
     graph_server.set_graph(FalkorCodeGraph())
     points = FalkorCodeGraph().find_contact_points(
-        "FastMCP", "intervals-mcp-server", limit=15
+        demo["symbol"], demo["repo_key"], limit=15
     )
-    joined = " ".join(p.file_path for p in points)
-    assert "mcp_instance.py" in joined
-    assert "client.py" in joined
+
+    assert {p.file_path for p in points} == set(demo["expected_contact_points"])
+    assert all(not p.file_path.startswith("/") for p in points)
