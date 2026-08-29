@@ -1,36 +1,75 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import MissionControlPage from "../components/MissionControlPage";
 import { MissionProvider } from "../components/MissionProvider";
+import { useMission } from "../components/MissionProvider";
+import SandboxDock from "../components/SandboxDock";
 import { noOpAdapter } from "../lib/fixtureMissionAdapter";
+import {
+  readSandboxSnapshot,
+  subscribeSandboxSnapshot,
+} from "../lib/sandboxSnapshot";
 import { MissionState } from "../lib/types";
+import styles from "../components/MissionControlPage.module.css";
+
+function SandboxWindow() {
+  const { state, toggleDock, setTab } = useMission();
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <div className={styles.logo}>
+          <div className={styles.logoDot} />
+          <span>AGENTRADAR</span>
+        </div>
+        <div className={styles.dockConnected}>
+          <span className={styles.dockDot} />
+          <span>TrueForge-native Daytona sandbox · read-only</span>
+        </div>
+        <div className={styles.spacer} />
+        <div className={styles.time}>{state.currentTime}</div>
+      </header>
+
+      <main
+        className={[styles.main, styles.workspace, styles.workspaceSandbox]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <SandboxDock
+          state={state}
+          readOnly
+          onToggleDock={toggleDock}
+          onTabChange={setTab}
+        />
+      </main>
+    </div>
+  );
+}
 
 export default function SandboxPage() {
   const [seed, setSeed] = useState<Partial<MissionState> | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ar-mission-snapshot");
-      if (raw) {
-        // Hydrating from localStorage is necessary because the snapshot is set
-        // by the parent window immediately before opening this pop-out.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSeed(JSON.parse(raw) as Partial<MissionState>);
-      }
-    } catch {
-      // localStorage unavailable or invalid; fall back to default fixture state
-    } finally {
-      setHydrated(true);
+    if (typeof window === "undefined") return;
+
+    const initial = readSandboxSnapshot(window.localStorage);
+    if (initial) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSeed(initial);
+      setTick((t) => t + 1);
     }
+
+    const unsubscribe = subscribeSandboxSnapshot((snapshot) => {
+      setSeed(snapshot);
+      setTick((t) => t + 1);
+    });
+    return unsubscribe;
   }, []);
 
-  if (!hydrated) return null;
-
   return (
-    <MissionProvider adapter={noOpAdapter} seed={seed ?? undefined}>
-      <MissionControlPage readOnly />
+    <MissionProvider key={tick} adapter={noOpAdapter} seed={seed ?? undefined}>
+      <SandboxWindow />
     </MissionProvider>
   );
 }
