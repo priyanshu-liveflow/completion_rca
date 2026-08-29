@@ -7,10 +7,20 @@ import {
   TestRunEvidence,
 } from "./types";
 
+export interface InitialMissionOptions {
+  currentTime?: string;
+  mode?: "fixture" | "live";
+  seed?: Partial<MissionState>;
+}
+
 export function createInitialMissionState(
-  currentTime = "—",
-  seed: Partial<MissionState> = {}
+  options: InitialMissionOptions = {}
 ): MissionState {
+  const mode = options.mode ?? "fixture";
+  const currentTime = options.currentTime ?? "—";
+  const status: MissionState["runtime"]["status"] =
+    mode === "fixture" ? "fixture" : "idle";
+
   const initial: MissionState = {
     ...fixtureMission,
     nodes: fixtureMission.nodes.map((node) => ({ ...node, status: "pending" })),
@@ -29,8 +39,8 @@ export function createInitialMissionState(
     currentTime,
     restored: true,
     runtime: {
-      mode: "fixture",
-      status: "fixture",
+      mode,
+      status,
       sessionId: null,
       turnId: null,
       sandboxId: null,
@@ -40,7 +50,7 @@ export function createInitialMissionState(
     approvalSubmission: "idle",
     approvalError: null,
     patchEvidence: null,
-    ...seed,
+    ...options.seed,
   };
   return initial;
 }
@@ -93,12 +103,9 @@ export function missionReducer(
 ): MissionState {
   switch (event.type) {
     case "mission.reset":
-      return createInitialMissionState(event.currentTime ?? state.currentTime, {
-        runtime: {
-          ...createInitialMissionState().runtime,
-          mode: state.runtime.mode,
-          status: "idle",
-        },
+      return createInitialMissionState({
+        currentTime: event.currentTime ?? state.currentTime,
+        mode: state.runtime.mode,
       });
     case "runtime.connecting":
       return {
@@ -157,6 +164,9 @@ export function missionReducer(
         greenTests: 0,
         redEvidence,
         greenEvidence: null,
+        approved: null,
+        approvalSubmission: "idle",
+        approvalError: null,
       };
     }
     case "tests.green_observed": {
