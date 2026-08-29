@@ -45,7 +45,7 @@ export class TrueForgeMissionAdapter implements MissionAdapter {
       this.emit({ type: "runtime.connecting" });
 
       try {
-        await this.transport.createSession();
+        await this.transport.createSession(signal);
         if (this.generation !== startedGeneration || signal.aborted) return;
 
         const sessionId = this.transport.getSessionId() ?? "";
@@ -58,13 +58,14 @@ export class TrueForgeMissionAdapter implements MissionAdapter {
           (chunk) => this.handleChunk(startedGeneration, chunk),
           signal,
         );
+
+        if (this.generation !== startedGeneration || signal.aborted) return;
+        this.emitRemaining(startedGeneration);
       } catch (error) {
         if (this.generation !== startedGeneration) return;
-        const message =
-          error instanceof Error && error.name !== "AbortError"
-            ? error.message
-            : "Unknown TrueForge error";
         if (error instanceof Error && error.name === "AbortError") return;
+        const message =
+          error instanceof Error ? error.message : "Unknown TrueForge error";
         this.emit({ type: "runtime.failed", message });
       }
     };
@@ -89,6 +90,17 @@ export class TrueForgeMissionAdapter implements MissionAdapter {
         this.emit(event);
       }
       message = this.parser.nextMessage();
+    }
+  }
+
+  private emitRemaining(expectedGeneration: number) {
+    if (this.generation !== expectedGeneration) return;
+    const tail = this.parser.end();
+    for (const message of tail) {
+      const events = this.translator.translate(message);
+      for (const event of events) {
+        this.emit(event);
+      }
     }
   }
 
