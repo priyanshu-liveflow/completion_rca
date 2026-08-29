@@ -25,6 +25,7 @@ from src.main.agentradar.core.patch import can_act
 from src.main.agentradar.core.policy import PolicyError, pr_body
 
 DEFAULT_TIMEOUT_S = 60.0
+DEFAULT_BASE = "main"
 
 _PR_TOOL = "github_pr"
 _ISSUE_TOOL = "github_issue"
@@ -69,6 +70,10 @@ class CodeHost(Protocol):
     def open_pr(self, branch: str, title: str, body: str, diff: str) -> str: ...
 
     def open_issue(self, title: str, body: str) -> str: ...
+
+    def changed_files(self, base: str, head: str) -> list[str]:
+        """Files `head` changes relative to `base`, on the remote. Sorted."""
+        ...
 
 
 class SubprocessRunner:
@@ -125,6 +130,25 @@ class GhClient:
         """File an issue. Returns the issue URL."""
         stdout = self._invoke(["issue", "create", "--title", title, "--body", body])
         return _require_url(stdout, what="issue")
+
+    def changed_files(self, base: str, head: str) -> list[str]:
+        """Files `head` changes relative to `base`, read from the remote.
+
+        The *remote* branch, deliberately: `gh pr create --head <branch>`
+        opens whatever GitHub has on that ref, not whatever is in the local
+        working tree. Comparing anything else would check a different artifact
+        from the one the PR ships.
+        """
+        stdout = self._invoke(
+            [
+                "api",
+                f"repos/{{owner}}/{{repo}}/compare/{base}...{head}",
+                "--paginate",
+                "--jq",
+                ".files[].filename",
+            ]
+        )
+        return sorted({line.strip() for line in stdout.splitlines() if line.strip()})
 
     def _invoke(self, argv: list[str], *, timeout_s: float | None = None) -> str:
         limit = self._timeout_s if timeout_s is None else timeout_s
@@ -198,6 +222,8 @@ def execute(
             raise GateClosed("github_pr diff does not match the verified patch")
         branch = _need(plan.payload, "branch")
         title = _need(plan.payload, "title")
+        base = _optional_str(plan.payload, "base") or DEFAULT_BASE
+        _assert_branch_carries_patch(host, base, branch, verify)
         return writer(branch, title, pr_body(plan.summary, verify), verify.patch.diff)
 
     if plan.target == _ISSUE_TOOL:
@@ -206,6 +232,37 @@ def execute(
         )
 
     raise PolicyError(f"no GitHub write for target {plan.target!r}")
+
+
+def _assert_branch_carries_patch(
+    host: CodeHost, base: str, branch: str, verify: VerifyResult
+) -> None:
+    """Refuse to open a PR from a branch that is not the verified patch.
+
+    ``can_act`` proves that *a* patch went red to green. It says nothing about
+    what is on the branch ``gh pr create --head`` will ship: the diff argument
+    is body text, while the commits come from the ref. Without this check a
+    caller can verify patch A and open a PR from branch B, and the PR renders
+    A as its evidence while containing B — the one outcome the whole gate
+    exists to prevent, reached without forging anything.
+
+    Compared by file set rather than by diff text. The verified patch is what
+    the agent wrote against the sandbox tree; the branch has been committed and
+    pushed, so whitespace, context lines and hunk offsets all legitimately
+    differ. Which files are touched does not.
+    """
+    declared = sorted(set(verify.patch.files))
+    if not declared:
+        raise GateClosed(
+            "github_pr: the verified patch names no files, so no branch can match it"
+        )
+    actual = sorted(set(host.changed_files(base, branch)))
+    if actual != declared:
+        raise GateClosed(
+            f"github_pr: branch {branch!r} does not carry the verified patch — "
+            f"it changes {actual or ['nothing']} against {base!r}, "
+            f"but the proven patch touches {declared}"
+        )
 
 
 def _need(payload: Mapping[str, Any], key: str) -> str:
