@@ -5,7 +5,7 @@
  * Idempotent — safe to run any number of times. Concatenates
  * `agents/prompts/*.md` (filename order) into the manifest's `instructions`,
  * compiles `actions/policy.yaml` into `require_approval_for_tools`, registers
- * the three MCP servers, then creates or updates the `conductor` agent.
+ * the four MCP servers, then creates or updates the `conductor` agent.
  *
  * No TrueForge SDK here on purpose. `@truefoundry/trueforge` and
  * `@truefoundry/trueforge-core` are the harness ENGINE — the thing

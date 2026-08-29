@@ -252,3 +252,156 @@ def test_concurrent_save_impact_preserves_all_rows(store: SqliteStore) -> None:
     loaded = store.get_mission(created.id)
     assert len(loaded.impact_rows) == 8
     assert {row.why for row in loaded.impact_rows} == {f"row-{i}" for i in range(8)}
+
+
+# -- save_verify enforces validate_patch ------------------------------------
+#
+# `validate_patch` had no production caller: it was tested, documented, and
+# unreachable. `save_verify` is where agent-written JSON becomes the evidence
+# `can_act` reads, so it is the only place the rule can actually bind. These
+# tests drive the MCP boundary, not the pure function, because the pure
+# function was never the thing that was broken.
+
+_ALLOWED_FILE = "src/intervals_mcp_server/mcp_instance.py"
+
+
+def _diff_touching(*paths: str) -> str:
+    return "".join(
+        f"diff --git a/{p} b/{p}\n--- a/{p}\n+++ b/{p}\n"
+        "@@ -1 +1 @@\n-from mcp.server.fastmcp import FastMCP\n"
+        "+from mcp.server import MCPServer\n"
+        for p in paths
+    )
+
+
+def _located_mission() -> Mission:
+    """A mission whose impact analysis named exactly `_ALLOWED_FILE`."""
+    created = dispatch("create_mission", _release().model_dump())
+    assert "error" not in created
+    mission_id = str(created["id"])
+    dispatch(
+        "save_impact",
+        {
+            "mission_id": mission_id,
+            "row": ImpactRow(
+                contact_point=_contact(),
+                verdict=Verdict.BROKEN,
+                why="Selected tests fail under mcp 2.1.1.",
+                evidence_ref="rep_red",
+            ).model_dump(),
+        },
+    )
+    return Mission.model_validate(dispatch("get_mission", {"mission_id": mission_id}))
+
+
+def _verify_payload(diff: str, declared: list[str]) -> dict[str, object]:
+    return {
+        "patch": {"diff": diff, "files": declared, "rationale": "rename import"},
+        "before": _report(report_id="rep_red", passed=0, failed=2).model_dump(),
+        "after": _report(report_id="rep_green", passed=61, failed=0).model_dump(),
+    }
+
+
+def test_save_verify_accepts_a_patch_inside_the_blast_radius() -> None:
+    mission = _located_mission()
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": mission.id,
+            "result": _verify_payload(_diff_touching(_ALLOWED_FILE), [_ALLOWED_FILE]),
+        },
+    )
+    assert "error" not in result
+    assert Mission.model_validate(result).verify is not None
+
+
+def test_save_verify_rejects_a_file_outside_the_blast_radius() -> None:
+    mission = _located_mission()
+    other = "src/intervals_mcp_server/unrelated.py"
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": mission.id,
+            "result": _verify_payload(_diff_touching(other), [other]),
+        },
+    )
+    assert result["error"]["type"] == "patch_rejected"
+    assert other in result["error"]["message"]
+
+
+def test_save_verify_rejects_an_edit_to_a_test_file() -> None:
+    """The whole product: an agent may not fix a failing test by editing it."""
+    mission = _located_mission()
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": mission.id,
+            "result": _verify_payload(
+                _diff_touching("tests/test_server.py"), ["tests/test_server.py"]
+            ),
+        },
+    )
+    assert result["error"]["type"] == "patch_rejected"
+    assert (
+        "may not fix a failing test by editing the test" in result["error"]["message"]
+    )
+
+
+def test_save_verify_reads_the_diff_not_the_declared_file_list() -> None:
+    """`Patch.files` is agent-supplied, so the declared list proves nothing.
+
+    Here the payload declares only the allowed production file while the diff
+    rewrites a test. Trusting `patch.files` passes both of `validate_patch`'s
+    rules while `git apply` edits the test.
+    """
+    mission = _located_mission()
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": mission.id,
+            "result": _verify_payload(
+                _diff_touching("tests/test_server.py"), [_ALLOWED_FILE]
+            ),
+        },
+    )
+    assert result["error"]["type"] == "patch_rejected"
+    assert "tests/test_server.py" in result["error"]["message"]
+
+
+def test_save_verify_rejects_a_rename_that_moves_a_test_out_of_the_way() -> None:
+    """A rename names two paths; only the destination looks innocent.
+
+    `diff --git a/tests/test_server.py b/<allowed>.py` reads as one allowed,
+    non-test file if only the `b/` side is recorded — while `git apply`
+    deletes the test. Both endpoints have to count.
+    """
+    mission = _located_mission()
+    rename = (
+        f"diff --git a/tests/test_server.py b/{_ALLOWED_FILE}\n"
+        "similarity index 92%\n"
+        "rename from tests/test_server.py\n"
+        f"rename to {_ALLOWED_FILE}\n"
+    )
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": mission.id,
+            "result": _verify_payload(rename, [_ALLOWED_FILE]),
+        },
+    )
+    assert result["error"]["type"] == "patch_rejected"
+    assert "tests/test_server.py" in result["error"]["message"]
+
+
+def test_save_verify_refuses_every_patch_when_nothing_was_located() -> None:
+    """No impact rows means no blast radius, so no patch is aimed at anything."""
+    created = dispatch("create_mission", _release().model_dump())
+    result = dispatch(
+        "save_verify",
+        {
+            "mission_id": str(created["id"]),
+            "result": _verify_payload(_diff_touching(_ALLOWED_FILE), [_ALLOWED_FILE]),
+        },
+    )
+    assert result["error"]["type"] == "patch_rejected"
+    assert "allowed: none" in result["error"]["message"]

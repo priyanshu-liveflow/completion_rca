@@ -16,6 +16,16 @@ An empty section here is fine. An unresolved Qodo comment with no entry here is 
 
 ---
 
+### PR #18 — `gh pr create` does not apply the verified patch onto a new branch
+**Qodo said:** `github_pr` takes a caller-supplied `branch` (and used to take a separate `diff`), so a verified patch A can still open a PR from unrelated commits already on branch B.
+**We did:** partially addressed. The embedded diff is now always `mission.verify.patch.diff`; a payload diff that disagrees is a closed gate, and the MCP tool no longer accepts a caller `diff` or `VerifyResult` dump. We did not make `GhClient` `git apply` / commit / push.
+**Why:** `CodeHost.open_pr(branch, title, body, diff)` is the PR12 contract — `gh pr create --head` submits an already-pushed branch. Applying the patch in the adapter would mutate the harness checkout, and secrets must not enter the sandbox to push from there. The human approval pause is the remaining check that `--head` is the branch that actually carries the repair. Binding the write to a commit minted from the patch is follow-up work, not a silent extra git write in this PR.
+
+### PR #18 — sandbox-signed verification ids versus store-backed reports
+**Qodo said:** recomputing `verified` from caller-authored `TestReport` counts does not prove the tests ran; bind the write to an immutable run id produced by the sandbox.
+**We did:** partially addressed. `github_pr` now takes `mission_id` and reads `mission.verify` from the store — a fabricated dict on the tool call cannot open the gate. We did not add a signed run id to the frozen contracts.
+**Why:** `save_verify` already persists a `VerifyResult` whose `verified` field is computed, and `save_report` already parses pytest stdout rather than trusting a `failed=` integer. A cryptographic run id would reopen `contracts/patch.py` and `contracts/evidence.py`, which later PRs have been treating as frozen. The remaining hole (an agent posting invented pytest stdout through `save_report`) is the same one the rest of the pipeline lives with; closing it belongs with a sandbox-emitted artifact, not a GitHub-adapter special case.
+
 ### PR #12 — `reached_from` legibility versus the frozen contract
 **Qodo said:** the IMPORTS walk stored contact-point *file paths* in `reached_from` while the CALLS walk stored *function names*, so a union mixed two identifier namespaces.
 **We did:** fixed the inconsistency by moving IMPORTS onto function names, per `docs/build-plan.md:247` (`reached_from: list[str]  # contact point function names`). Also widened origin tracking from "first contact point to arrive" to the full set, since several contact points routinely share one module.
@@ -117,3 +127,55 @@ TrueForge SDK is TypeScript and nothing else in the build is.
 about the *Python* package layout without saying so, so a reviewer reading it
 literally applies it to every new file. Worth one clarifying clause in
 `CLAUDE.md` rather than re-arguing per PR.
+
+
+---
+
+## PR #17 — `record_fixtures.py` uses `urllib` directly — **declined, with a guard**
+
+**Finding:** *"record_fixtures bypasses HTTP adapter."* Rule 2987720 routes all
+outbound HTTP through `adapters/brightdata.py`; the recorder calls
+`urllib.request.urlopen` itself. Qodo rated it weak relevance and noted the
+matching finding was already declined on PR #15.
+
+**Declined on the same grounds, and for the same reason as `agents/seed.ts`.**
+The Bright Data rule governs *web* access — the open internet, where a request
+needs to look like a browser and where an unproxied client is a correctness and
+compliance problem. TrueForge is the local harness control plane. Routing a
+`POST /api/v1/sessions/{id}/turns` through a SERP/Unlocker CLI is not possible,
+and `adapters/brightdata.py` shells out to `bdata`, which has no notion of an
+arbitrary local endpoint. `agents/seed.ts` already talks to the same API the
+same way and was accepted on PR #15.
+
+**But the objection had a real half.** The previous decline rested on "it is
+only ever localhost," which was a claim about how somebody runs the script, not
+about what the script does — `TRUEFORGE_URL` is an environment variable, and
+nothing stopped it pointing at a public host. `assert_loopback` now enforces it
+before the first request, so the exception is a property of the code. Tested
+both ways in `tests/agentradar/test_fixtures.py`.
+
+**Consequence:** `scripts/check_layering.py` walks `src/` and `tests/` but not
+`scripts/`, so it would not have caught a genuinely unproxied client here. The
+loopback guard covers this file; widening the layering check to `scripts/` is
+the general fix and is not this PR's concern.
+
+---
+
+## PR #17 — recorder and replayer live in `scripts/` — **declined**
+
+**Finding:** *"record_fixtures outside AgentRadar."* Rule 2987739 scopes new
+AgentRadar tooling to `src/main/agentradar` or `tests/agentradar`. Weak
+relevance, and Qodo again flagged that PR #15 declined the equivalent.
+
+**Declined.** `docs/build-plan.md` names these exact paths in the PR13 section
+(`scripts/record_fixtures.py`, `fixtures/missions/<name>.jsonl`), and
+`scripts/` already holds `check_layering.py` and `export_schemas.py` from PR1 —
+both operator entry points rather than importable product code. That is the
+distinction the rule is really drawing: `src/main/agentradar` is the package the
+four spine rules govern and `mypy --strict` types; `scripts/` is where
+hand-run commands live. A recorder that exists to be invoked once by a human
+before a demo belongs in the second category.
+
+The parsing logic *would* belong in `core/` if the product consumed fixtures at
+runtime. It does not — replay is a laptop-in-airplane-mode fallback, and if it
+ever moves onto the demo path, that move is what should carry the refactor.

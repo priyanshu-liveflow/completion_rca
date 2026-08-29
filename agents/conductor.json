@@ -18,6 +18,11 @@
       "name": "store",
       "url": "http://localhost:8767/sse",
       "description": "Mission store: create_mission, get_mission, set_state, save_impact, save_selection, save_report, save_verify."
+    },
+    {
+      "name": "github",
+      "url": "http://localhost:8768/sse",
+      "description": "Approval-gated writes: github_pr, github_issue. github_pr is unreachable without a proven red-to-green."
     }
   ],
   "skills": [],

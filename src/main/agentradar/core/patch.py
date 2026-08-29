@@ -24,15 +24,19 @@ decisions only, both made from text and contracts already in hand:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 
 from ..contracts.evidence import TestReport
+from ..contracts.impact import ImpactRow
 from ..contracts.patch import Patch, VerifyResult
 
 __all__ = [
+    "allowed_files_from_impact",
     "build_verify_result",
     "can_act",
     "parse_diff",
     "validate_patch",
+    "validate_submitted_patch",
 ]
 
 # `diff --git a/path b/path` — the header every git-produced unified diff
@@ -64,6 +68,16 @@ def _is_test_file(path: str) -> bool:
 def parse_diff(diff: str) -> Patch:
     """Parse a unified diff into a `Patch`, reading only its file headers.
 
+    Records **both endpoints** of every file header, not just the destination.
+    A git rename carries two distinct paths, and `git apply` acts on both: it
+    deletes the source and creates the destination. Recording only `b/` meant
+    `diff --git a/tests/test_server.py b/src/allowed.py` presented as a patch
+    touching one allowed, non-test file — while applying it deleted a test.
+    That defeats both of `validate_patch`'s rules at once, and
+    `DaytonaRunner.apply_patch` hands the whole diff to `git apply` verbatim,
+    so nothing downstream would have caught it. Every path the diff can move,
+    create, or destroy has to be visible to validation.
+
     Never raises: a diff with no recognisable `diff --git` header or
     `---`/`+++` pair parses to an empty file list rather than throwing, so a
     caller can turn a malformed patch into a rejection instead of a crash.
@@ -74,15 +88,17 @@ def parse_diff(diff: str) -> Patch:
     seen: set[str] = set()
     pending_minus: str | None = None
 
+    def record(*paths: str | None) -> None:
+        for path in paths:
+            if path is None or path == _DEV_NULL or path in seen:
+                continue
+            seen.add(path)
+            files.append(path)
+
     for line in diff.splitlines():
         git_header = _DIFF_GIT.match(line)
         if git_header is not None:
-            path = git_header.group("b")
-            if path == _DEV_NULL:
-                path = git_header.group("a")
-            if path != _DEV_NULL and path not in seen:
-                seen.add(path)
-                files.append(path)
+            record(git_header.group("a"), git_header.group("b"))
             pending_minus = None
             continue
 
@@ -93,13 +109,8 @@ def parse_diff(diff: str) -> Patch:
 
         plus = _PLUS_PLUS_PLUS.match(line)
         if plus is not None:
-            path = plus.group("path")
-            if path == _DEV_NULL:
-                path = pending_minus
+            record(pending_minus, plus.group("path"))
             pending_minus = None
-            if path is not None and path != _DEV_NULL and path not in seen:
-                seen.add(path)
-                files.append(path)
 
     return Patch(diff=diff, files=files, rationale="")
 
@@ -133,6 +144,45 @@ def validate_patch(patch: Patch, allowed_files: list[str]) -> tuple[bool, str]:
         )
 
     return True, "patch touches only allowed, non-test files"
+
+
+def allowed_files_from_impact(rows: Iterable[ImpactRow]) -> list[str]:
+    """The blast radius, taken from evidence the store already holds.
+
+    `validate_patch` is only as trustworthy as the `allowed_files` it is
+    handed, so that list must not come from the same agent that wrote the
+    diff. These are the files the graph named during impact analysis and the
+    store persisted — the agent can widen its diff, but it cannot widen this.
+
+    A mission with no impact rows yields an empty list, which makes
+    `validate_patch` reject every patch. That is the intended answer: nothing
+    was ever located, so there is no site a patch could legitimately be
+    aimed at.
+    """
+    seen: set[str] = set()
+    files: list[str] = []
+    for row in rows:
+        path = row.contact_point.file_path
+        if path and path not in seen:
+            seen.add(path)
+            files.append(path)
+    return sorted(files)
+
+
+def validate_submitted_patch(
+    patch: Patch, allowed_files: list[str]
+) -> tuple[bool, str]:
+    """`validate_patch` for a patch whose `files` list came from the agent.
+
+    The file list is re-derived from the diff text and the supplied one is
+    discarded. `Patch.files` is an ordinary field, so anything reaching this
+    module through `VerifyResult.model_validate` on agent JSON can declare
+    `files: ["src/client.py"]` beside a diff that renames
+    `tests/test_server.py` away — passing both of `validate_patch`'s rules
+    while `git apply` deletes a test. Reading the diff is the only view of
+    the patch that `git apply` and this function share.
+    """
+    return validate_patch(parse_diff(patch.diff), allowed_files)
 
 
 def build_verify_result(
