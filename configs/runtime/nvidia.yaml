@@ -18,11 +18,29 @@ provider: openai_compat
 #
 # For OpenAI instead of NIM, copy this file and set the whole endpoint:
 #   LLM_BASE_URL=https://api.openai.com/v1  LLM_API_KEY=<OpenAI key>
+# Every model below was invoked against this account and confirmed to emit
+# tool_calls. Both checks matter and neither implies the other:
+#
+#   1. /v1/models lists the NVIDIA CATALOG, not what an account may call. It
+#      answers UNAUTHENTICATED. Most models advertised there return 404
+#      "not found for account" on /chat/completions.
+#   2. Tool calling is not universal, and every agent path here is tool-driven.
+#
+# Confirmed 200 + tool_calls:
+#   meta/llama-3.2-11b-vision-instruct, deepseek-ai/deepseek-v4-flash-0731,
+#   moonshotai/kimi-k3, nvidia/nemotron-3-super-120b-a12b
+#
+# Confirmed 200 but NO tool_calls - do not use:
+#   nvidia/nemotron-3-nano-30b-a3b, minimaxai/minimax-m3
+#
+# Confirmed 404 for this account:
+#   meta/llama-3.3-70b-instruct, meta/llama-3.1-8b-instruct, mistralai/*,
+#   ibm/granite-*, google/gemma-*
 models:
-  light: "meta/llama-3.1-8b-instruct"
-  default: "meta/llama-3.3-70b-instruct"
-  heavy: "meta/llama-3.3-70b-instruct"
-  router: "meta/llama-3.1-8b-instruct"
+  light: "meta/llama-3.2-11b-vision-instruct"
+  default: "deepseek-ai/deepseek-v4-flash-0731"
+  heavy: "moonshotai/kimi-k3"
+  router: "meta/llama-3.2-11b-vision-instruct"
 
 budget:
   max_turns_per_agent: 12
