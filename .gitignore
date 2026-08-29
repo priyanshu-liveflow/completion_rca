@@ -1,0 +1,24 @@
+# Demo target, cloned locally at the pinned commit in configs/demo.yaml.
+# Never committed - it is someone else's repo and it would swamp every diff.
+/intervals-mcp-server/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env + secrets. Secrets never enter the sandbox and never enter git.
+.env
+.env.local
+
+# Node (agents/seed.ts)
+node_modules/
+
+# Local state
+*.sqlite
+*.db
