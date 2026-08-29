@@ -45,11 +45,20 @@ That last row matters — it degrades honestly instead of silently guessing.
 
 ### Graph-guided test selection
 
-Running a full suite is slow and often broken. You don't have to. **`get_callers` applied recursively from a contact point reaches the test functions that exercise it.** Run only those.
+Running a full suite is slow and often broken. You don't have to. **Walk the graph up from a contact point to the tests that exercise it, and run only those.**
 
 This is the thing only this architecture can do: the graph makes the sandbox affordable, and the sandbox makes the graph trustworthy. Cheap filter, expensive prover.
 
-*Verify at H2 that `codegraphcontext` indexes test functions and that recursive callers actually reach them. If not, fall back to path-based selection (tests importing the touched modules) — still far better than the whole suite.*
+**Measured, not assumed** — the demo repo is indexed and both strategies were run against it:
+
+| Walk | Result on our break |
+|---|---|
+| `CALLS` (recursive callers) | **0 tests reached.** The mechanism is sound — 56 of 61 tests do reach source functions this way — but nothing *calls* an import, so it cannot see an import-level break |
+| `IMPORTS` (transitive, prefix-matched) | **Exactly the 2 test modules that error.** 0 false positives, 0 misses, out of 5 |
+
+So we ship both and union them. Signature changes need `CALLS`; moved or renamed symbols need `IMPORTS`. A real release produces both kinds.
+
+The demo claim is stronger for having measured it: *"Five test modules. The graph selected two. Both went red. The other three were never at risk."* Selecting all five would have run tests that could not fail and made the impact table meaningless.
 
 ### TrueForge's native sandbox is load-bearing
 
@@ -359,7 +368,7 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 | **Native sandbox too slow on stage** | Prewarm one persistent TrueForge session; shallow-clone; small repo; graph-selected tests only; time every step at H10 |
 | **Daytona or venue network unavailable** | Reconnect once, then use clearly labeled fixture replay for presentation continuity. Do not represent replay as live sandbox proof |
 | **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
-| **Recursive callers don't reach tests** | Verify at H2; fall back to path-based test selection |
+| ~~Recursive callers don't reach tests~~ | **Closed.** Measured at H0: `CALLS` reaches 0 for an import break, `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship, and `TestSelection.strategy` says which fired |
 | Indexing fails or is slow | Start H0 background; small repo; checkpoint H2 |
 | No clean real breaking change | 30-min timebox; fall back to a deprecation |
 | Patch step unreliable | Stop supporting work at H6.5 and harden one call site until the same selected tests pass consistently |

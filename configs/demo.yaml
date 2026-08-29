@@ -43,3 +43,21 @@ demo:
   # modules fail to import. core/testreport.py must handle this: zero
   # per-test node ids, non-zero error count, exit code 2.
   red_is_collection_error: true
+
+  source_root: "src"
+
+  # Verified against the indexed graph. select_tests must return exactly
+  # these two - not a superset. The other three test modules are not at
+  # risk and running them would make the impact table meaningless.
+  expected_test_selection:
+    - "tests/test_server.py"
+    - "tests/test_make_intervals_request.py"
+  not_selected:
+    - "tests/test_formatting.py"
+    - "tests/test_validation.py"
+    - "tests/test_value.py"
+
+  # CALLS reaches 0 for this break (nothing calls an import).
+  # IMPORTS with dot-boundary prefix matching reaches exactly the two above.
+  expected_selection_strategy: "imports"
+

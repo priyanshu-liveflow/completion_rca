@@ -104,7 +104,7 @@ None of this is a PR. It is machine setup, and it gates PR1/PR5. **Start 1, 2 an
 | # | Task | Who | Time | Blocks |
 |---|---|---|---|---|
 | 1 | ~~Pick the demo repo~~ — **DONE.** `mvilanova/intervals-mcp-server` @ `cb1fbca`, breaking on MCP SDK v1→v2. Red/green proven by hand; `configs/demo.yaml` and `fixtures/pytest_output_{red,green}.txt` are committed | — | done | — |
-| 2 | `pipx install codegraphcontext`, index the demo repo at a **pinned commit**. I/O-bound, blocks nothing else — start it and walk away | human | 5m + background | PR3, PR4 |
+| 2 | ~~Index the demo repo~~ — **DONE.** `uv tool install codegraphcontext` (no pipx on this machine), `cgc index intervals-mcp-server`. 2.28s, 210 functions, 749 CALLS edges, 114 IMPORTS edges. FalkorDB Lite, `cgc doctor` all green | — | done | — |
 | 3 | **Daytona signup + API key**, wire it into TrueForge, and run a `sandbox.created` smoke test. Free tier, $200 compute, no credit card. **This is now on the demo path** — it is not optional | human | 20m | PR5, PR10, PR11 |
 | 4 | **Prewarm the native sandbox** per `sandbox/PREWARM.md`: clone the pinned commit, install baseline deps, confirm the selected tests are green, keep the session alive. Set `auto_stop`/`auto_archive` intervals explicitly and confirm it survives an idle gap | human | 40m | PR5 |
 | 5 | `BRIGHTDATA_API_KEY` — `bdata login`, confirm `bdata scraper run` works by hand once | human | 10m | PR6 |
@@ -444,6 +444,31 @@ tests/agentradar/test_selection.py            NEW
 
 Pure. Takes a `CodeGraph` **Protocol** — tests pass `FakeCodeGraph`, so no FalkorDB.
 
+#### Measured against the real graph before this PR was written
+
+The demo repo is indexed (210 functions, 15 classes, 749 `CALLS` edges, **2.28s**). Two strategies were tested against it, and the result changes the design:
+
+| Strategy | Result on our break |
+|---|---|
+| Recursive `get_callers` from the contact points | **0 tests reached.** Not a bug — 56 of 61 tests *do* reach source functions through `CALLS`, so the mechanism works. It simply cannot see this break, because the contact points are module-level imports and nothing *calls* an import. |
+| Transitive `IMPORTS` with prefix matching | **Exactly the 2 modules that actually error.** Zero false positives, zero misses, out of 5 test modules. |
+
+**So `IMPORTS` is a first-class strategy, not a fallback.** `TestSelection.strategy` takes four values: `"callers"`, `"imports"`, `"path"`, `"manual"`.
+
+Run both and union the results. Call breaks (a changed signature) need `CALLS`; import breaks (a moved or renamed symbol) need `IMPORTS`. A real dependency release produces both.
+
+#### One catch in the graph shape
+
+`IMPORTS` edges run **file → module-name string**, and the module-name nodes are leaves. `test_server.py -IMPORTS-> "intervals_mcp_server.server"` does *not* connect to the `server.py` file node, so a transitive Cypher walk dies after one hop. The join is yours to make, in pure code:
+
+1. Contact points → the set of files containing them.
+2. Each file path → its importable module name (`src/intervals_mcp_server/api/client.py` → `intervals_mcp_server.api.client`). Strip the source root from `configs/demo.yaml`.
+3. Find importers where the imported name **equals the target or is a prefix of it** on a dot boundary. `intervals_mcp_server.api` must match `intervals_mcp_server.api.client` — this is what catches `test_make_intervals_request.py`, and naive equality misses it.
+4. Repeat from the newly reached files until nothing new appears.
+5. Files under `test_root` → their `test_*` functions are the selection.
+
+**Prefix matching must respect dot boundaries.** `intervals_mcp_server.api` matches `intervals_mcp_server.api.client`; `intervals_mcp_server.apiclient` must not.
+
 ```python
 def select_tests(
     graph: CodeGraph,
@@ -453,8 +478,27 @@ def select_tests(
     max_depth: int = 4,
     max_tests: int = 12,
     test_root: str = "tests",
+    source_root: str = "src",
 ) -> TestSelection:
-    """Walk callers breadth-first from each contact point; collect test functions."""
+    """Union of the callers walk and the imports walk. Records which strategies fired."""
+
+def select_tests_by_callers(
+    graph: CodeGraph, contact_points: list[ContactPoint], repo: str,
+    *, max_depth: int = 4, test_root: str = "tests",
+) -> TestSelection:
+    """BFS up CALLS edges from each contact point; collect test functions."""
+
+def select_tests_by_imports(
+    graph: CodeGraph, contact_points: list[ContactPoint], repo: str,
+    *, max_depth: int = 4, test_root: str = "tests", source_root: str = "src",
+) -> TestSelection:
+    """Transitive IMPORTS walk with dot-boundary prefix matching. See the five steps above."""
+
+def module_name_for(file_path: str, source_root: str) -> str:
+    """'src/pkg/api/client.py' -> 'pkg.api.client'. Handles __init__.py -> the package itself."""
+
+def module_matches(imported: str, target: str) -> bool:
+    """True if imported == target or is a dot-boundary prefix of it."""
 
 def is_test_node(name: str, file_path: str, test_root: str) -> bool:
     """A node is a test if its file is under test_root and its name starts with 'test_'."""
@@ -462,10 +506,10 @@ def is_test_node(name: str, file_path: str, test_root: str) -> bool:
 def select_tests_by_path(
     contact_points: list[ContactPoint], repo_files: list[str], test_root: str
 ) -> TestSelection:
-    """Fallback: tests whose module path shares a package with a touched module."""
+    """Last resort: tests whose module path shares a package with a touched module."""
 
 def to_node_ids(functions: list[dict]) -> list[str]:
-    """Graph nodes → pytest node ids 'path::name'."""
+    """Graph nodes -> pytest node ids 'path::name'."""
 ```
 
 Requirements:
@@ -474,9 +518,14 @@ Requirements:
 - Deterministic ordering (sort by `fid`) so runs are reproducible on stage.
 - `strategy` field records which path was taken. **Never silently fall back** — the UI shows it.
 
-**Verify at H2 against the real graph:** does `codegraphcontext` index test functions, and does recursive `get_callers` reach them? If no → `select_tests_by_path` is the primary, and say so in the demo. Do not fake it.
+**Already verified against the real graph** — see the table above and `docs/demo-repo.md`. Test functions are indexed (`IGNORE_TEST_FILES=false`, 109 nodes under `tests/`). Do not re-litigate this; do reproduce it if selection misbehaves.
 
-**Acceptance:** unit tests cover — reaches a test 3 hops up; cycles terminate; `max_tests` sets `truncated`; empty contact points → empty selection, not a crash; path fallback returns a strict superset of nothing.
+**Acceptance:**
+- On the real graph, `select_tests` returns exactly `test_server.py` and `test_make_intervals_request.py` for `symbol: FastMCP`. **Not a superset** — picking all five modules would run tests that were never at risk and make the impact table meaningless.
+- `module_matches("pkg.api", "pkg.api.client")` is true; `module_matches("pkg.apiclient", "pkg.api.client")` is false.
+- `module_name_for("src/pkg/tools/__init__.py", "src")` returns `"pkg.tools"`.
+- Unit tests with `FakeCodeGraph`: reaches a test 3 hops up; cycles terminate; `max_tests` sets `truncated`; empty contact points return an empty selection, not a crash.
+- `strategy` records every strategy that contributed. **Never silently fall back** — the demo says out loud which one fired.
 
 ---
 
@@ -818,7 +867,7 @@ Run in order. Each maps to a PR.
 |---|---|---|
 | 1 | `CLOUD_PROVIDER=openai_compat graph-rca query` works with no AWS credentials | 2 |
 | 2 | `find_contact_points("<dep symbol>")` returns real call sites | 3 |
-| 3 | Recursive `get_callers` reaches test functions — **or** the path fallback is honestly labelled | 4 |
+| 3 | ~~Recursive `get_callers` reaches tests~~ — **measured.** `CALLS` reaches 0 for an import break; `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship | 4 |
 | 4 | `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK streams a trivial turn | 10 |
 | 5 | `mcp-graph` at a localhost URL returns real results from a TrueForge session — **no tunnel** | 3 |
 | 6 | Prewarmed **native** sandbox runs the green suite in under 15s — timed, and re-timed after an idle gap | 5 |

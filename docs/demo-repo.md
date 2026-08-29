@@ -101,3 +101,71 @@ WATCH story wants a release the scouts can plausibly have just found.
 
 MCP SDK v2 also carries a narrative advantage at *this* hackathon: every MCP
 server on GitHub is on v1, and some of the judges maintain one.
+
+## Graph verification — run at H0, not deferred to H2
+
+Indexed with `cgc index intervals-mcp-server` (FalkorDB Lite, `cgc doctor` all green).
+
+```
+Total scanned files    38
+Function nodes         210
+Class nodes            15
+CALLS edges            749
+IMPORTS edges          114
+Index time             2.28 seconds
+```
+
+`IGNORE_TEST_FILES=false`, so test functions are indexed — 109 nodes under `tests/`.
+
+### Contact points
+
+`f.source CONTAINS 'FastMCP'` returns **7 nodes**: four `<module>` nodes, one per
+importing file, plus `setup_api_client`, `start_server`, and `register_tools`.
+This is the `find_by_pattern` path — it matches source text, which is why an
+import-only symbol is findable at all.
+
+### The finding that changed PR4
+
+Two selection strategies were run against the real graph.
+
+**`CALLS` reaches zero.** Not a broken mechanism: 56 of 61 tests do reach source
+functions through `CALLS`, and the tests call `format_*` helpers exactly as you
+would hope. But nothing *calls* an import statement, so a recursive caller walk
+from these contact points reaches nothing. For a signature change it would work;
+for this break it cannot.
+
+**`IMPORTS` reaches exactly the right two.**
+
+| Test module | Imports | Selected |
+|---|---|---|
+| `test_server.py` | `intervals_mcp_server.tools` | **yes** — exact match |
+| `test_make_intervals_request.py` | `intervals_mcp_server.api` | **yes** — dot-boundary prefix of `...api.client` |
+| `test_formatting.py` | `utils.formatting` | no |
+| `test_validation.py` | `utils.validation` | no |
+| `test_value.py` | `utils.types` | no |
+
+Those two are precisely the modules that error under `mcp 2.x`. Zero false
+positives, zero misses.
+
+**Both strategies ship, unioned.** Import breaks need `IMPORTS`; signature
+changes need `CALLS`. A real dependency release produces both.
+
+### The catch to implement around
+
+`IMPORTS` edges run **file → module-name string**, and module-name nodes are
+leaves. `test_server.py -IMPORTS-> "intervals_mcp_server.server"` does not
+connect to the `server.py` file node, so a transitive Cypher walk dies after one
+hop. The name-to-file join happens in `core/selection.py`, in pure code.
+
+Prefix matching must respect dot boundaries: `intervals_mcp_server.api` matches
+`intervals_mcp_server.api.client`, but `intervals_mcp_server.apiclient` must not.
+Naive equality misses `test_make_intervals_request.py` entirely — half the
+selection.
+
+### What this buys the demo
+
+> *"Five test modules. The graph selected two. Both went red. The other three
+> were never at risk."*
+
+Precision is the claim, not recall. Selecting all five would have run tests that
+could not fail and made the impact table meaningless.
