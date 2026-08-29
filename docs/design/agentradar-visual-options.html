@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0b0d;font-family:'IBM Plex Sans',system-ui,sans-serif}
+.dv-turn{padding:40px 44px 60px;border-bottom:1px solid rgba(255,255,255,.08)}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+.dv-tid{font:600 10px 'IBM Plex Mono',monospace;padding:3px 7px;background:#fff;color:#0b0b0d;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 14px/1.2 'IBM Plex Sans',sans-serif;color:#fff}
+.dv-sub{margin:0 0 26px;font:400 12.5px/1.5 'IBM Plex Sans',sans-serif;color:rgba(255,255,255,.5);max-width:760px}
+.dv-opts{display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px}
+.dv-oid{font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.12);color:#fff;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:500 12px/1.3 'IBM Plex Sans',sans-serif;color:rgba(255,255,255,.75)}
+.dv-odesc{margin:0;font:400 11.5px/1.5 'IBM Plex Sans',sans-serif;color:rgba(255,255,255,.42);max-width:1440px}
+.dv-card{width:1440px;border-radius:2px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.dv-next{margin:26px 0 0;font:12px/1.6 'IBM Plex Sans',sans-serif;color:rgba(255,255,255,.4)}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Three visual directions for Mission Control</span></div>
+<p class="dv-sub">Same five regions and fixture data as the target (top bar, left nav, mission graph, approval rail, sandbox dock) — each option pushes the "engineering control room" idea a different way, further from generic AI-dashboard territory.</p>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Blueprint Ledger — refined, drafting-table ink</div>
+<p class="dv-odesc">Closest to the original brief but tightened: cross-hair corner ticks on every node like technical drafting marks, a visible dot-grid under the graph, heavier rules between regions, no soft shadows anywhere.</p>
+<div class="dv-card">
+
+<div style="background:#0a0d12;color:#e7e4dc;display:flex;flex-direction:column;height:920px;font-family:'IBM Plex Sans',sans-serif">
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:22px;padding:0 20px;border-bottom:1px solid rgba(231,228,220,.12);background:#0c1017">
+<div style="display:flex;align-items:center;gap:9px"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#e7e4dc" stroke-width="1.3"></circle><circle cx="8" cy="8" r="2" fill="#e7e4dc"></circle></svg><span style="font:700 13.5px 'IBM Plex Mono',monospace;letter-spacing:.03em">AGENTRADAR</span></div>
+<div style="width:1px;height:16px;background:rgba(231,228,220,.15)"></div>
+<div style="display:flex;align-items:center;gap:7px;font:500 12px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.65)"><svg width="12" height="12" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" fill="none" stroke="currentColor" stroke-width="1.2"></rect><rect x="9" y="9" width="5" height="5" fill="none" stroke="currentColor" stroke-width="1.2"></rect></svg>acme/langsmith</div>
+<div style="font:500 12px 'IBM Plex Mono',monospace;color:#c9a24a;border:1px solid rgba(201,162,74,.4);padding:3px 8px;border-radius:2px">MISSION AR-024</div>
+<div style="display:flex;align-items:center;gap:6px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7fae8a"><svg width="10" height="10" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M8 4v4l3 2" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg>Session restored</div>
+<div style="flex:1"></div>
+<div style="font:400 11.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.5)">AUG 29 2026 · 10:42:31 UTC</div>
+<div style="font:400 11.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.5);border-left:1px solid rgba(231,228,220,.15);padding-left:16px">DOCS</div>
+<svg width="15" height="15" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="rgba(231,228,220,.6)" stroke-width="1.2"></circle><path d="M8 2v2M8 12v2M2 8h2M12 8h2M4 4l1.4 1.4M10.6 10.6L12 12M12 4l-1.4 1.4M5.4 10.6L4 12" stroke="rgba(231,228,220,.6)" stroke-width="1.1"></path></svg>
+</div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:176px;flex:none;border-right:1px solid rgba(231,228,220,.12);display:flex;flex-direction:column;padding:16px 0;background:#0c1017">
+<div style="display:flex;flex-direction:column;gap:2px;padding:0 10px">
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(201,162,74,.12);border-left:2px solid #c9a24a;font:500 12px 'IBM Plex Sans',sans-serif;color:#e7e4dc"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#c9a24a" stroke-width="1.3"></circle></svg>Mission Control</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><path d="M2 8h12M8 2v12" stroke="currentColor" stroke-width="1.2"></path></svg>Graph</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" fill="none" stroke="currentColor" stroke-width="1.2"></rect></svg>Events</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="5" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="1.2"></circle><circle cx="11" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="1.2"></circle></svg>Agents</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"></rect><path d="M2 6h12" stroke="currentColor" stroke-width="1.2"></path></svg>Sandbox</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="4" cy="8" r="1.6" fill="currentColor"></circle><circle cx="12" cy="8" r="1.6" fill="currentColor"></circle><path d="M5.6 8h4.8" stroke="currentColor" stroke-width="1.2"></path></svg>Commits</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><path d="M3 3l5 5-5 5M8 13h5" stroke="currentColor" stroke-width="1.2" fill="none"></path></svg>Tests</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><rect x="3" y="5" width="10" height="8" fill="none" stroke="currentColor" stroke-width="1.2"></rect><path d="M3 5l5-3 5 3" fill="none" stroke="currentColor" stroke-width="1.2"></path></svg>Artifacts</div>
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;font:400 12px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)"><svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"></circle><path d="M8 2v2M8 12v2M2 8h2M12 8h2" stroke="currentColor" stroke-width="1.1"></path></svg>Settings</div>
+</div>
+<div style="flex:1"></div>
+<div style="border-top:1px solid rgba(231,228,220,.12);padding:12px 16px;font:400 11px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.45)">
+<div style="color:rgba(231,228,220,.7);margin-bottom:2px">MISSION</div>
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="width:5px;height:5px;background:#7fae8a;border-radius:50%"></span>AR-024 · Running</div>
+<div style="color:rgba(231,228,220,.7);margin-bottom:2px">AUTO-REFRESH</div>
+<div style="display:flex;align-items:center;gap:6px"><span style="width:5px;height:5px;background:#7fae8a;border-radius:50%"></span>On</div>
+</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;padding:20px 24px;overflow:hidden;background-image:radial-gradient(rgba(231,228,220,.05) 1px,transparent 1px);background-size:16px 16px">
+<div style="font:700 17px 'IBM Plex Sans',sans-serif;color:#e7e4dc;margin-bottom:2px">Mission Control Map</div>
+<div style="font:400 12px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.45);margin-bottom:16px">LangGraph 0.3 checkpoint persistence</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px">
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:rgba(231,228,220,.4)">RELEASE</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:rgba(231,228,220,.4)">AFFECTED SOURCE (6)</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:rgba(231,228,220,.4)">SELECTED TESTS (4)</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:rgba(231,228,220,.4)">DAYTONA SANDBOX AR-024</div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:8px">
+<div><div style="border:1px solid rgba(231,228,220,.25);padding:10px;position:relative"><div style="position:absolute;top:-1px;left:-1px;width:6px;height:6px;border-top:1px solid #c9a24a;border-left:1px solid #c9a24a"></div><div style="font:600 12px 'IBM Plex Sans',sans-serif">Release 0.3</div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.45);margin-top:2px">e7d9a1f</div></div></div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">1 checkpoint.py save() L128</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">2 store/base.py put() L87</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">3 graph/state.py L44</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">4 runtime/runner.py L210</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">5 persistence/sql.py L66</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">6 api/server.py L311</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;justify-content:space-around">
+<div style="border:1px solid rgba(231,228,220,.18);padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">test_persistence_roundtrip</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">test_resume_after_interrupt</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">test_put_get_consistency</div>
+<div style="border:1px solid rgba(231,228,220,.18);padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.8)">test_end_to_end_checkpoint</div>
+</div>
+<div style="border:1px dashed rgba(231,228,220,.25);padding:12px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px;align-items:center">
+<div style="flex:1;border:1px solid #a5453d;background:rgba(165,69,61,.1);padding:8px;position:relative"><div style="position:absolute;top:-1px;left:-1px;width:6px;height:6px;border-top:1px solid #a5453d;border-left:1px solid #a5453d"></div><div style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Sans',sans-serif;color:#d4756c"><svg width="11" height="11" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" stroke-width="1.4"></path></svg>3 failed</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.4)">10:40:25</div></div>
+<div style="flex:1;border:1px solid rgba(231,228,220,.25);padding:8px"><div style="font:600 12px 'IBM Plex Sans',sans-serif;color:#e7e4dc">Patch 8f4c2a7</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.45)">2 files, +20 −6</div></div>
+<div style="flex:1;border:1px solid #6f9e73;background:rgba(111,158,115,.1);padding:8px;position:relative"><div style="position:absolute;top:-1px;left:-1px;width:6px;height:6px;border-top:1px solid #6f9e73;border-left:1px solid #6f9e73"></div><div style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Sans',sans-serif;color:#8fc394"><svg width="11" height="11" viewBox="0 0 16 16"><path d="M4 8l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>4 passed</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.4)">10:41:58</div></div>
+</div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:14px;font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.4)">
+<div>WATCHER<br>10:39:02</div><div>LOCATOR<br>10:39:05</div><div>BLASTER<br>10:40:11</div><div>PATCHER → VERIFIER<br>10:40:58 → 10:41:58</div>
+</div>
+</div>
+<div style="width:270px;flex:none;border-left:1px solid rgba(231,228,220,.12);padding:20px 18px;background:#0c1017">
+<div style="display:flex;align-items:center;gap:7px;color:#c9a24a;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;margin-bottom:14px"><svg width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.6" fill="none" stroke="currentColor" stroke-width="1.3"></circle><path d="M3 14c0-3 2-5 5-5s5 2 5 5" fill="none" stroke="currentColor" stroke-width="1.3"></path></svg>HUMAN APPROVAL REQUIRED</div>
+<div style="border:1px solid rgba(111,158,115,.35);background:rgba(111,158,115,.06);padding:10px;margin-bottom:14px"><div style="font:600 12.5px 'IBM Plex Sans',sans-serif;color:#8fc394">Verified against patch 8f4c2a7</div></div>
+<p style="font:400 11.5px/1.6 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55);margin:0 0 16px">All selected tests passed in an isolated Daytona sandbox. Changes are minimal and scoped to the identified breakage.</p>
+<div style="display:flex;flex-direction:column;gap:9px;font:400 11.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.7);margin-bottom:18px">
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">COMMIT</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">BASE</span>e7d9a1f</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">FILES CHANGED</span>2</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">TESTS</span>4 passed</div>
+</div>
+<div style="background:#c9a24a;color:#1a1408;text-align:center;padding:11px;font:600 12.5px 'IBM Plex Sans',sans-serif;border-radius:2px">Approve verified PR</div>
+<div style="font:400 10.5px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.35);margin-top:8px;text-align:center">PR will be opened only on approval.</div>
+</div>
+</div>
+<div style="height:250px;flex:none;border-top:1px solid rgba(231,228,220,.12);display:flex;background:#0c1017">
+<div style="flex:1;display:flex;flex-direction:column;border-right:1px solid rgba(231,228,220,.12)">
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid rgba(231,228,220,.1)"><span style="font:600 12px 'IBM Plex Sans',sans-serif">Live Sandbox · ar-024</span><span style="font:600 9.5px 'IBM Plex Mono',monospace;color:#7fae8a;border:1px solid rgba(127,174,138,.4);padding:1px 5px">LIVE</span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.4)">Connected to Daytona · 1m 40s</span><div style="flex:1"></div><span style="font:500 11px 'IBM Plex Sans',sans-serif;color:rgba(231,228,220,.55)">Pop out ↗</span></div>
+<div style="font:400 10px 'IBM Plex Mono',monospace;color:rgba(231,228,220,.4);padding:6px 16px;border-bottom:1px solid rgba(231,228,220,.08)">Read-only mirror — commands and output streamed from TrueForge events.</div>
+<div style="flex:1;overflow:hidden;padding:8px 16px;font:400 11px/1.7 'IBM Plex Mono',monospace;color:rgba(231,228,220,.65)">
+<div>10:40:07 &gt; pytest -q tests/checkpoint tests/store tests/integration</div>
+<div style="color:#d4756c">10:40:25 ✕ 3 failed, 1 passed in 12.37s</div>
+<div>10:40:35 &gt; apply patch 8f4c2a7</div>
+<div style="color:#8fc394">10:41:52 ✓ 4 passed in 12.34s — verification successful</div>
+</div>
+</div>
+<div style="width:290px;flex:none;padding:0 16px">
+<div style="display:flex;gap:16px;height:38px;align-items:center;font:500 11.5px 'IBM Plex Sans',sans-serif;border-bottom:1px solid rgba(231,228,220,.1)"><span style="color:#c9a24a;border-bottom:2px solid #c9a24a;padding-bottom:11px">Environment</span><span style="color:rgba(231,228,220,.4)">Files (2)</span><span style="color:rgba(231,228,220,.4)">Processes (3)</span></div>
+<div style="font:400 11px/1.9 'IBM Plex Mono',monospace;color:rgba(231,228,220,.55);padding-top:8px">
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">Repository</span>acme/langsmith</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">Branch</span>dependabot/…</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">Commit</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:rgba(231,228,220,.4)">Python</span>3.11.10</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Paper Schematic — inverted, patent-drawing light mode</div>
+<p class="dv-odesc">A bolder swing: warm paper instead of ink. Nodes read like a patent diagram — dashed connector lines, hairline black rules, state colors kept as the only saturation on the page. Reads more like a printed engineering report than a monitoring dashboard.</p>
+<div class="dv-card">
+
+<div style="background:#f2ede2;color:#211d16;display:flex;flex-direction:column;height:920px;font-family:'IBM Plex Sans',sans-serif">
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:22px;padding:0 20px;border-bottom:1.5px solid #211d16">
+<div style="display:flex;align-items:center;gap:9px"><svg width="15" height="15" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" fill="none" stroke="#211d16" stroke-width="1.4"></rect><circle cx="8" cy="8" r="2" fill="#211d16"></circle></svg><span style="font:700 13.5px 'IBM Plex Mono',monospace;letter-spacing:.03em">AGENTRADAR</span></div>
+<div style="width:1px;height:16px;background:#211d16;opacity:.3"></div>
+<div style="font:500 12px 'IBM Plex Mono',monospace;color:#5a5346">acme/langsmith</div>
+<div style="font:600 12px 'IBM Plex Mono',monospace;border:1.3px solid #211d16;padding:3px 8px">MISSION AR-024</div>
+<div style="font:500 11.5px 'IBM Plex Mono',monospace;color:#3f6b46">● Session restored</div>
+<div style="flex:1"></div>
+<div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#5a5346">AUG 29 2026 · 10:42:31 UTC</div>
+<div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#5a5346;border-left:1px solid #211d16;padding-left:16px;opacity:.7">DOCS · SETTINGS</div>
+</div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:176px;flex:none;border-right:1.5px solid #211d16;display:flex;flex-direction:column;padding:16px 0">
+<div style="display:flex;flex-direction:column;gap:2px;padding:0 10px">
+<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#211d16;color:#f2ede2;font:600 12px sans-serif">Mission Control</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Graph</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Events</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Agents</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Sandbox</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Commits</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Tests</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Artifacts</div>
+<div style="padding:8px 10px;font:400 12px sans-serif;color:#5a5346">Settings</div>
+</div>
+<div style="flex:1"></div>
+<div style="border-top:1.5px solid #211d16;padding:12px 16px;font:400 11px 'IBM Plex Mono',monospace;color:#5a5346">
+<div>MISSION — AR-024 · Running</div><div style="margin-top:10px">AUTO-REFRESH — On</div>
+</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div style="flex:1;padding:20px 24px;overflow:hidden">
+<div style="font:700 17px sans-serif;margin-bottom:2px">Mission Control Map</div>
+<div style="font:400 12px 'IBM Plex Mono',monospace;color:#5a5346;margin-bottom:18px">LangGraph 0.3 checkpoint persistence</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px">
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#5a5346">RELEASE</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#5a5346">AFFECTED SOURCE (6)</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#5a5346">SELECTED TESTS (4)</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#5a5346">DAYTONA SANDBOX AR-024</div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:8px">
+<div><div style="border:1.3px solid #211d16;padding:10px"><div style="font:600 12px sans-serif">Release 0.3</div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#5a5346;margin-top:2px">e7d9a1f</div></div></div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">1 checkpoint.py save() L128</div>
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">2 store/base.py put() L87</div>
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">3 graph/state.py L44</div>
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">4 runtime/runner.py L210</div>
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">5 persistence/sql.py L66</div>
+<div style="border:1px dashed #211d16;padding:6px 8px;font:400 10.5px 'IBM Plex Mono',monospace">6 api/server.py L311</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;justify-content:space-around">
+<div style="border:1px dashed #211d16;padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace">test_persistence_roundtrip</div>
+<div style="border:1px dashed #211d16;padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace">test_resume_after_interrupt</div>
+<div style="border:1px dashed #211d16;padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace">test_put_get_consistency</div>
+<div style="border:1px dashed #211d16;padding:7px 8px;font:400 10.5px 'IBM Plex Mono',monospace">test_end_to_end_checkpoint</div>
+</div>
+<div style="border:1.3px solid #211d16;padding:12px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px">
+<div style="flex:1;border:1.3px solid #a5453d;padding:8px"><div style="font:600 12px sans-serif;color:#a5453d">3 failed</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#5a5346">10:40:25</div></div>
+<div style="flex:1;border:1px solid #211d16;padding:8px"><div style="font:600 12px sans-serif">Patch 8f4c2a7</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#5a5346">2 files, +20 −6</div></div>
+<div style="flex:1;border:1.3px solid #3f6b46;padding:8px"><div style="font:600 12px sans-serif;color:#3f6b46">4 passed</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#5a5346">10:41:58</div></div>
+</div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:14px;font:400 10.5px 'IBM Plex Mono',monospace;color:#5a5346">
+<div>WATCHER<br>10:39:02</div><div>LOCATOR<br>10:39:05</div><div>BLASTER<br>10:40:11</div><div>PATCHER → VERIFIER<br>10:40:58 → 10:41:58</div>
+</div>
+</div>
+<div style="width:270px;flex:none;border-left:1.5px solid #211d16;padding:20px 18px">
+<div style="font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#8a5a1c;margin-bottom:14px">⚠ HUMAN APPROVAL REQUIRED</div>
+<div style="border:1.3px solid #3f6b46;padding:10px;margin-bottom:14px"><div style="font:600 12.5px sans-serif;color:#3f6b46">Verified against patch 8f4c2a7</div></div>
+<p style="font:400 11.5px/1.6 sans-serif;color:#5a5346;margin:0 0 16px">All selected tests passed in an isolated Daytona sandbox. Changes are minimal and scoped to the identified breakage.</p>
+<div style="display:flex;flex-direction:column;gap:9px;font:400 11.5px 'IBM Plex Mono',monospace;margin-bottom:18px">
+<div style="display:flex;justify-content:space-between"><span style="color:#5a5346">COMMIT</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5a5346">BASE</span>e7d9a1f</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5a5346">FILES CHANGED</span>2</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5a5346">TESTS</span>4 passed</div>
+</div>
+<div style="background:#211d16;color:#f2ede2;text-align:center;padding:11px;font:600 12.5px sans-serif">Approve verified PR</div>
+<div style="font:400 10.5px sans-serif;color:#8a8271;margin-top:8px;text-align:center">PR will be opened only on approval.</div>
+</div>
+</div>
+<div style="height:250px;flex:none;border-top:1.5px solid #211d16;display:flex">
+<div style="flex:1;display:flex;flex-direction:column;border-right:1.5px solid #211d16">
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid #211d16"><span style="font:600 12px sans-serif">Live Sandbox · ar-024</span><span style="font:600 9.5px 'IBM Plex Mono',monospace;color:#3f6b46;border:1.3px solid #3f6b46;padding:1px 5px">LIVE</span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#5a5346">Connected · 1m 40s</span><div style="flex:1"></div><span style="font:500 11px sans-serif;color:#211d16">Pop out ↗</span></div>
+<div style="font:400 10px 'IBM Plex Mono',monospace;color:#5a5346;padding:6px 16px;border-bottom:1px solid #211d16">Read-only mirror — streamed from TrueForge events.</div>
+<div style="flex:1;overflow:hidden;padding:8px 16px;font:400 11px/1.7 'IBM Plex Mono',monospace;color:#3a352b">
+<div>10:40:07 &gt; pytest -q tests/checkpoint tests/store tests/integration</div>
+<div style="color:#a5453d">10:40:25 ✕ 3 failed, 1 passed in 12.37s</div>
+<div>10:40:35 &gt; apply patch 8f4c2a7</div>
+<div style="color:#3f6b46">10:41:52 ✓ 4 passed in 12.34s — verification successful</div>
+</div>
+</div>
+<div style="width:290px;flex:none;padding:0 16px">
+<div style="display:flex;gap:16px;height:38px;align-items:center;font:500 11.5px sans-serif;border-bottom:1px solid #211d16"><span style="color:#211d16;border-bottom:2px solid #211d16;padding-bottom:11px">Environment</span><span style="color:#8a8271">Files (2)</span><span style="color:#8a8271">Processes (3)</span></div>
+<div style="font:400 11px/1.9 'IBM Plex Mono',monospace;color:#3a352b;padding-top:8px">
+<div style="display:flex;justify-content:space-between"><span style="color:#8a8271">Repository</span>acme/langsmith</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#8a8271">Commit</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#8a8271">Python</span>3.11.10</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Phosphor Console — CRT terminal, single-hue accent</div>
+<p class="dv-odesc">Near-black with a phosphor-green scanning accent for chrome/selection (state colors stay reserved for red/green/amber outcomes only). Uppercase mono labels throughout, a ruled tick strip under the graph like an oscilloscope trace — leans hardest into "purpose-built tool," furthest from a SaaS dashboard.</p>
+<div class="dv-card">
+
+<div style="background:#05070a;color:#c9d6c9;display:flex;flex-direction:column;height:920px;font-family:'IBM Plex Mono',monospace">
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:22px;padding:0 20px;border-bottom:1px solid rgba(84,214,140,.25)">
+<div style="display:flex;align-items:center;gap:9px"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M2 12h3l2-8 2 8h2l2-8 1 8" fill="none" stroke="#54d68c" stroke-width="1.3"></path></svg><span style="font:700 13.5px 'IBM Plex Mono',monospace;letter-spacing:.05em;color:#54d68c">AGENTRADAR</span></div>
+<div style="width:1px;height:16px;background:rgba(84,214,140,.25)"></div>
+<div style="font:500 11.5px 'IBM Plex Mono',monospace;letter-spacing:.03em;color:#7d8f7d">ACME/LANGSMITH</div>
+<div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#54d68c;border:1px solid rgba(84,214,140,.4);padding:3px 8px;letter-spacing:.03em">MISSION AR-024</div>
+<div style="font:400 11px 'IBM Plex Mono',monospace;color:#54d68c;letter-spacing:.03em">[SESSION RESTORED]</div>
+<div style="flex:1"></div>
+<div style="font:400 11px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.03em">2026-08-29 10:42:31Z</div>
+<div style="font:400 11px 'IBM Plex Mono',monospace;color:#7d8f7d;border-left:1px solid rgba(84,214,140,.25);padding-left:16px;letter-spacing:.03em">DOCS · SETTINGS</div>
+</div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="width:176px;flex:none;border-right:1px solid rgba(84,214,140,.2);display:flex;flex-direction:column;padding:16px 0">
+<div style="display:flex;flex-direction:column;gap:2px;padding:0 10px">
+<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(84,214,140,.1);border-left:2px solid #54d68c;font:500 11.5px 'IBM Plex Mono',monospace;color:#e2ffe9;letter-spacing:.02em">&gt; MISSION_CTRL</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">GRAPH</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">EVENTS</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">AGENTS</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">SANDBOX</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">COMMITS</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">TESTS</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">ARTIFACTS</div>
+<div style="padding:8px 10px 8px 18px;font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">SETTINGS</div>
+</div>
+<div style="flex:1"></div>
+<div style="border-top:1px solid rgba(84,214,140,.2);padding:12px 16px;font:400 10.5px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">
+<div style="color:#54d68c">MISSION AR-024</div><div style="margin:2px 0 10px">STATUS: RUNNING</div>
+<div style="color:#54d68c">AUTO-REFRESH</div><div style="margin-top:2px">STATE: ON</div>
+</div>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;min-width:0">
+<div style="flex:1;padding:20px 24px;overflow:hidden">
+<div style="font:600 16px 'IBM Plex Mono',monospace;color:#e2ffe9;letter-spacing:.02em;margin-bottom:2px">MISSION_CONTROL_MAP</div>
+<div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#7d8f7d;margin-bottom:16px">langgraph-0.3 :: checkpoint_persistence</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px">
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#54d68c">RELEASE</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#54d68c">AFFECTED_SRC[6]</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#54d68c">SELECTED_TESTS[4]</div>
+<div style="font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#54d68c">DAYTONA_SANDBOX::AR-024</div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:8px">
+<div><div style="border:1px solid rgba(84,214,140,.3);padding:10px"><div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#e2ffe9">release_0.3</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d;margin-top:2px">e7d9a1f</div></div></div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">01 checkpoint.py::save L128</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">02 store/base.py::put L87</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">03 graph/state.py L44</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">04 runtime/runner.py L210</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">05 persistence/sql.py L66</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:6px 8px;font:400 10px 'IBM Plex Mono',monospace">06 api/server.py L311</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px;justify-content:space-around">
+<div style="border:1px solid rgba(84,214,140,.18);padding:7px 8px;font:400 10px 'IBM Plex Mono',monospace">test_persistence_roundtrip</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:7px 8px;font:400 10px 'IBM Plex Mono',monospace">test_resume_after_interrupt</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:7px 8px;font:400 10px 'IBM Plex Mono',monospace">test_put_get_consistency</div>
+<div style="border:1px solid rgba(84,214,140,.18);padding:7px 8px;font:400 10px 'IBM Plex Mono',monospace">test_end_to_end_checkpoint</div>
+</div>
+<div style="border:1px solid rgba(84,214,140,.3);padding:12px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:10px">
+<div style="flex:1;border:1px solid #d1453d;background:rgba(209,69,61,.08);padding:8px"><div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#f0837a">3_FAILED</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d">10:40:25</div></div>
+<div style="flex:1;border:1px solid rgba(84,214,140,.3);padding:8px"><div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#e2ffe9">PATCH_8f4c2a7</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d">2 files +20/−6</div></div>
+<div style="flex:1;border:1px solid #4f9d69;background:rgba(79,157,105,.1);padding:8px"><div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#7ee0a0">4_PASSED</div><div style="font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d">10:41:58</div></div>
+</div>
+</div>
+</div>
+<div style="margin-top:16px;height:14px;border-top:1px solid rgba(84,214,140,.2);position:relative">
+<div style="position:absolute;top:-1px;left:120px;width:1px;height:8px;background:rgba(84,214,140,.4)"></div>
+<div style="position:absolute;top:-1px;left:340px;width:1px;height:8px;background:rgba(84,214,140,.4)"></div>
+<div style="position:absolute;top:-1px;left:560px;width:1px;height:8px;background:rgba(84,214,140,.4)"></div>
+<div style="position:absolute;top:-1px;left:860px;width:1px;height:8px;background:rgba(84,214,140,.4)"></div>
+</div>
+<div style="display:grid;grid-template-columns:120px 220px 220px 300px;gap:14px;margin-top:6px;font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d;letter-spacing:.02em">
+<div>WATCHER<br>10:39:02</div><div>LOCATOR<br>10:39:05</div><div>BLASTER<br>10:40:11</div><div>PATCHER → VERIFIER<br>10:40:58 → 10:41:58</div>
+</div>
+</div>
+<div style="width:270px;flex:none;border-left:1px solid rgba(84,214,140,.2);padding:20px 18px">
+<div style="font:700 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#e0a83f;margin-bottom:14px">[!] HUMAN_APPROVAL_REQUIRED</div>
+<div style="border:1px solid #4f9d69;background:rgba(79,157,105,.08);padding:10px;margin-bottom:14px"><div style="font:600 11.5px 'IBM Plex Mono',monospace;color:#7ee0a0">VERIFIED :: PATCH_8f4c2a7</div></div>
+<p style="font:400 11px/1.6 'IBM Plex Mono',monospace;color:#7d8f7d;margin:0 0 16px">All selected tests passed in an isolated Daytona sandbox. Changes minimal, scoped to identified breakage.</p>
+<div style="display:flex;flex-direction:column;gap:9px;font:400 11px 'IBM Plex Mono',monospace;color:#c9d6c9;margin-bottom:18px">
+<div style="display:flex;justify-content:space-between"><span style="color:#7d8f7d">COMMIT</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#7d8f7d">BASE</span>e7d9a1f</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#7d8f7d">FILES</span>2</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#7d8f7d">TESTS</span>4 passed</div>
+</div>
+<div style="border:1px solid #e0a83f;color:#e0a83f;text-align:center;padding:11px;font:600 11.5px 'IBM Plex Mono',monospace;letter-spacing:.04em">[ APPROVE_VERIFIED_PR ]</div>
+<div style="font:400 10px 'IBM Plex Mono',monospace;color:#5f6f5f;margin-top:8px;text-align:center">PR opens only on approval.</div>
+</div>
+</div>
+<div style="height:250px;flex:none;border-top:1px solid rgba(84,214,140,.2);display:flex">
+<div style="flex:1;display:flex;flex-direction:column;border-right:1px solid rgba(84,214,140,.2)">
+<div style="height:38px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid rgba(84,214,140,.15)"><span style="font:600 11.5px 'IBM Plex Mono',monospace;color:#e2ffe9;letter-spacing:.02em">LIVE_SANDBOX::AR-024</span><span style="font:600 9px 'IBM Plex Mono',monospace;color:#54d68c;border:1px solid rgba(84,214,140,.5);padding:1px 5px">● LIVE</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#7d8f7d">1m40s elapsed</span><div style="flex:1"></div><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#7d8f7d">[POP OUT]</span></div>
+<div style="font:400 9.5px 'IBM Plex Mono',monospace;color:#5f6f5f;padding:6px 16px;border-bottom:1px solid rgba(84,214,140,.1);letter-spacing:.02em">READ-ONLY MIRROR — STREAMED FROM TRUEFORGE</div>
+<div style="flex:1;overflow:hidden;padding:8px 16px;font:400 10.5px/1.7 'IBM Plex Mono',monospace;color:#8fa08f">
+<div>10:40:07 &gt; pytest -q tests/checkpoint tests/store tests/integration</div>
+<div style="color:#f0837a">10:40:25 ✕ 3 failed, 1 passed in 12.37s</div>
+<div>10:40:35 &gt; apply patch 8f4c2a7</div>
+<div style="color:#7ee0a0">10:41:52 ✓ 4 passed in 12.34s :: verification_successful</div>
+</div>
+</div>
+<div style="width:290px;flex:none;padding:0 16px">
+<div style="display:flex;gap:16px;height:38px;align-items:center;font:500 10.5px 'IBM Plex Mono',monospace;border-bottom:1px solid rgba(84,214,140,.15);letter-spacing:.02em"><span style="color:#54d68c;border-bottom:2px solid #54d68c;padding-bottom:11px">ENVIRONMENT</span><span style="color:#5f6f5f">FILES[2]</span><span style="color:#5f6f5f">PROC[3]</span></div>
+<div style="font:400 10px/1.9 'IBM Plex Mono',monospace;color:#8fa08f;padding-top:8px">
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6f5f">REPO</span>acme/langsmith</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6f5f">COMMIT</span>8f4c2a7</div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6f5f">PYTHON</span>3.11.10</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "more like <a class="dv-oid" href="#1a">1a</a> but with the accent color from <a class="dv-oid" href="#1c">1c</a>" · "combine <a class="dv-oid" href="#1b">1b</a>'s paper mode with the tick-strip from <a class="dv-oid" href="#1c">1c</a>" · "build out <a class="dv-oid" href="#1a">1a</a> as the full interactive prototype"</p>
+</section>
+
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#0b0b0d"/><text x="50" y="55" font-size="34" fill="#54d68c" text-anchor="middle" font-family="monospace">AR</text></svg></template>
+
+</x-dc>
+</body>
+</html>
