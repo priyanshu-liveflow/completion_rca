@@ -1,12 +1,12 @@
 {
   "name": "conductor",
   "model": {
-    "name": "deepseek-nim/deepseek-ai-deepseek-v-4-flash-0731"
+    "name": "openai/gpt-5-4-mini"
   },
   "mcp_servers": [
     {
       "name": "graph",
-      "url": "http://localhost:8765/sse",
+      "url": "http://localhost:8768/sse",
       "description": "Code graph: find_contact_points, get_callers, get_call_chain, read_function_source. select_tests lands here in a later PR."
     },
     {
@@ -21,7 +21,7 @@
     },
     {
       "name": "github",
-      "url": "http://localhost:8768/sse",
+      "url": "http://localhost:8769/sse",
       "description": "Approval-gated writes: github_pr, github_issue. github_pr is unreachable without a proven red-to-green."
     }
   ],

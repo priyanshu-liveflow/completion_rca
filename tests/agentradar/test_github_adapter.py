@@ -22,6 +22,7 @@ from src.main.agentradar.adapters.github import (
 from src.main.agentradar.adapters.store import SqliteStore
 from src.main.agentradar.contracts.dependency import ReleaseEvent
 from src.main.agentradar.contracts.evidence import TestReport
+from src.main.agentradar.contracts.mission import ActionPlan
 from src.main.agentradar.contracts.patch import Patch, VerifyResult
 from src.main.agentradar.core.patch import build_verify_result
 from src.main.agentradar.core.policy import load_policy, plan_action, pr_body
@@ -38,6 +39,7 @@ _PATCH = Patch(
     files=["src/x.py"],
     rationale="bump mcp 1.x -> 2.x",
 )
+_PATCHED_FILE = _PATCH.files[0]
 _PR_URL = "https://github.com/example/repo/pull/7"
 _ISSUE_URL = "https://github.com/example/repo/issues/3"
 
@@ -81,8 +83,12 @@ class RecordingHost:
 
     pr_calls: list[tuple[str, str, str, str]] = field(default_factory=list)
     issue_calls: list[tuple[str, str]] = field(default_factory=list)
+    compare_calls: list[tuple[str, str]] = field(default_factory=list)
     pr_url: str = _PR_URL
     issue_url: str = _ISSUE_URL
+    # What the head branch actually changes. Defaults to the file the
+    # canonical verified patch touches, so the happy path matches.
+    branch_files: list[str] = field(default_factory=lambda: [_PATCHED_FILE])
 
     def open_pr(self, branch: str, title: str, body: str, diff: str) -> str:
         self.pr_calls.append((branch, title, body, diff))
@@ -91,6 +97,10 @@ class RecordingHost:
     def open_issue(self, title: str, body: str) -> str:
         self.issue_calls.append((title, body))
         return self.issue_url
+
+    def changed_files(self, base: str, head: str) -> list[str]:
+        self.compare_calls.append((base, head))
+        return list(self.branch_files)
 
 
 def _policy() -> dict[str, bool]:
@@ -430,3 +440,107 @@ def test_dispatch_github_issue_returns_action_plan(host: RecordingHost) -> None:
     assert result["target"] == "github_issue"
     assert result["payload"]["url"] == _ISSUE_URL
     assert host.issue_calls == [("FastMCP moved", "two modules failed to import")]
+
+
+# -- the branch must carry the patch that was verified ----------------------
+#
+# `can_act` proves *a* patch went red to green. `gh pr create --head <branch>`
+# ships whatever commits GitHub has on that ref — the diff argument is only
+# body text. Verifying patch A and opening a PR from branch B reaches exactly
+# the outcome the gate exists to prevent, without forging anything.
+
+
+def _verified(red_report: TestReport, green_report: TestReport) -> VerifyResult:
+    return VerifyResult(patch=_PATCH, before=red_report, after=green_report)
+
+
+def _pr_plan(**overrides: object) -> ActionPlan:
+    payload: dict[str, object] = {
+        "branch": "fix/mcp-rename",
+        "base": "main",
+        "title": "Fix FastMCP import",
+        "diff": _PATCH.diff,
+    }
+    payload.update(overrides)
+    return ActionPlan(
+        target="github_pr",
+        summary="proven fix",
+        payload=payload,
+        requires_approval=True,
+    )
+
+
+def test_pr_is_refused_when_the_branch_changes_different_files(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    """Verify patch A, open from branch B: the write must not happen."""
+    host = RecordingHost(branch_files=["src/something_else.py"])
+    with pytest.raises(GateClosed) as excinfo:
+        execute(
+            host, _pr_plan(), approved=True, verify=_verified(red_report, green_report)
+        )
+    assert "does not carry the verified patch" in str(excinfo.value)
+    assert host.pr_calls == [], "a refused PR must reach GitHub zero times"
+
+
+def test_pr_is_refused_when_the_branch_carries_extra_files(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    """A superset is not the verified patch either — the extra file is unproven."""
+    host = RecordingHost(branch_files=[_PATCHED_FILE, "src/sneaked_in.py"])
+    with pytest.raises(GateClosed):
+        execute(
+            host, _pr_plan(), approved=True, verify=_verified(red_report, green_report)
+        )
+    assert host.pr_calls == []
+
+
+def test_pr_is_refused_when_the_branch_is_empty(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    """An unpushed or already-merged branch compares to nothing."""
+    host = RecordingHost(branch_files=[])
+    with pytest.raises(GateClosed):
+        execute(
+            host, _pr_plan(), approved=True, verify=_verified(red_report, green_report)
+        )
+    assert host.pr_calls == []
+
+
+def test_pr_proceeds_when_the_branch_carries_exactly_the_verified_patch(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    host = RecordingHost(branch_files=[_PATCHED_FILE])
+    url = execute(
+        host, _pr_plan(), approved=True, verify=_verified(red_report, green_report)
+    )
+    assert url == _PR_URL
+    assert len(host.pr_calls) == 1
+    assert host.compare_calls == [("main", "fix/mcp-rename")]
+
+
+def test_branch_check_uses_the_supplied_base(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    """Comparing against the wrong base compares the wrong set of commits."""
+    host = RecordingHost(branch_files=[_PATCHED_FILE])
+    execute(
+        host,
+        _pr_plan(base="release/2.x"),
+        approved=True,
+        verify=_verified(red_report, green_report),
+    )
+    assert host.compare_calls == [("release/2.x", "fix/mcp-rename")]
+
+
+def test_denied_approval_never_reaches_the_compare_call(
+    red_report: TestReport, green_report: TestReport
+) -> None:
+    """Deny short-circuits before any network call, not just before the write."""
+    host = RecordingHost()
+    with pytest.raises(ActionDenied):
+        execute(
+            host, _pr_plan(), approved=False, verify=_verified(red_report, green_report)
+        )
+    assert host.pr_calls == []
+    assert host.compare_calls == []

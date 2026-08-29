@@ -240,11 +240,11 @@ def select_tests(
 
 
 def main() -> None:
-    """Entry: `python -m src.main.agentradar.mcp.graph_server --port 8765`."""
+    """Entry: `python -m src.main.agentradar.mcp.graph_server --port 8768`."""
     import argparse
 
     parser = argparse.ArgumentParser(description="AgentRadar code-graph MCP server")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=8768)
     args = parser.parse_args()
     serve("mcp-graph", args.port)
 

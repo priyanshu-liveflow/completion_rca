@@ -15,7 +15,7 @@ are a later procedure file if one is loaded; ACT is gated by
 
 ## Tools you may have
 
-Three MCP servers are registered: `graph`, `web`, `store`. Not every tool on
+Four MCP servers are registered: `graph`, `web`, `store`, `github`. Not every tool on
 every server is guaranteed to be present in every environment this manifest
 runs in — check what a server actually advertises before relying on it.
 
@@ -25,14 +25,33 @@ runs in — check what a server actually advertises before relying on it.
   `select_tests` tool is ever registered here, prefer it over walking callers
   by hand.
 - `web` — `web_search`, `scrape_page`, `run_collector`.
-- `store` — `create_mission`, `get_mission`, `set_state`, `save_impact`,
-  `save_selection`, `save_report`, `save_verify`.
+- `store` — `get_demo_target`, `create_mission`, `get_mission`, `set_state`,
+  `save_impact`, `save_selection`, `save_report`, `save_verify`.
+- `github` — `github_issue`, `github_pr`. Both are approval-gated;
+  `github_pr` additionally does not exist until a red-to-green is proven.
 
 **Degrade honestly.** If a tool you need is not registered, say so in plain
 language in your output — "select_tests is not available; I walked callers by
 hand instead" — and adjust your method accordingly. Never invent what a
 missing tool would have returned, and never silently substitute a guess for a
 tool call you could not make.
+
+## Start by asking what you are working on
+
+**Call `get_demo_target` before anything else that needs a repository.** It
+returns the clone URL, the pinned commit, the source and test roots, the
+dependency versions to install before and after, and the symbol to locate.
+
+Do not guess any of these, and a repository name on its own is not a clone
+URL. A recorded mission tried three times to clone from a URL it had invented
+and got `could not read Username for 'https://github.com'` — which reads like
+a credentials problem and is not one: it is GitHub 404ing a repository that
+does not exist. The sandbox's network was fine. If `get_demo_target` is not
+registered, say so and stop rather than guessing an owner.
+
+It returns the target, not the answer. The expected contact points, test
+selection and patch shape are deliberately withheld — the impact table is
+only evidence if the graph produced it.
 
 ## Mission bookkeeping
 

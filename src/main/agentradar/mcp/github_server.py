@@ -8,7 +8,9 @@ makes the write unreachable even if a prompt says to call it anyway.
 The verify evidence is loaded from the mission store, not from the tool
 arguments. A caller-authored `VerifyResult` dump cannot open the gate.
 The diff written into the PR body is `mission.verify.patch.diff`, not a
-second caller-supplied patch.
+second caller-supplied patch, and the head branch is checked against that
+patch's file set before the write — proving *a* patch went green does not
+authorise shipping a different one.
 """
 
 from __future__ import annotations
@@ -136,6 +138,10 @@ def _run_write(
                 "description": "Head branch already pushed to the remote",
             },
             "title": {"type": "string", "description": "Pull request title"},
+            "base": {
+                "type": "string",
+                "description": "Base branch the PR merges into (default: main)",
+            },
             "summary": {
                 "type": "string",
                 "description": "One-line ask shown above the evidence",
@@ -149,6 +155,7 @@ def github_pr(
     branch: str,
     title: str,
     summary: str = "",
+    base: str = "main",
 ) -> ActionPlan:
     """Open a PR. Returns an ActionPlan whose payload includes the URL."""
     try:
@@ -168,7 +175,7 @@ def github_pr(
     plan = _plan(
         "github_pr",
         summary or title,
-        {"branch": branch, "title": title, "diff": result.patch.diff},
+        {"branch": branch, "base": base, "title": title, "diff": result.patch.diff},
     )
     url = _run_write(host, plan, verify=result)
     return _with_url(plan, url)
@@ -195,11 +202,11 @@ def github_issue(title: str, body: str) -> ActionPlan:
 
 
 def main() -> None:
-    """Entry: `python -m src.main.agentradar.mcp.github_server --port 8768`."""
+    """Entry: `python -m src.main.agentradar.mcp.github_server --port 8769`."""
     import argparse
 
     parser = argparse.ArgumentParser(description="AgentRadar GitHub MCP server")
-    parser.add_argument("--port", type=int, default=8768)
+    parser.add_argument("--port", type=int, default=8769)
     args = parser.parse_args()
     serve("mcp-github", args.port)
 

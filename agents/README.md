@@ -50,10 +50,10 @@ see `docs/runbook.md`) with both providers already configured
 (`python scripts/configure_trueforge.py`) and the four MCP servers running:
 
 ```bash
-python -m src.main.agentradar.mcp.graph_server  --port 8765
+python -m src.main.agentradar.mcp.graph_server  --port 8768
 python -m src.main.agentradar.mcp.web_server    --port 8766
 python -m src.main.agentradar.mcp.store_server  --port 8767
-python -m src.main.agentradar.mcp.github_server --port 8768
+python -m src.main.agentradar.mcp.github_server --port 8769
 ```
 
 `seed.ts` registers all four with TrueForge (`PUT /api/v1/settings/mcp-servers`,
