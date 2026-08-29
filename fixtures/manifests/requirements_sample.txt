@@ -1,0 +1,6 @@
+# runtime pins
+django==5.0.4
+celery>=5.3.0
+
+# dev-only (still listed for parsing tests)
+pytest>=8.0.0
