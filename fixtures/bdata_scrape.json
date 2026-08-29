@@ -1,0 +1,4 @@
+{
+  "url": "https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md",
+  "markdown": "# Migration to MCP Python SDK v2\n\n`FastMCP` is now `MCPServer`.\n\nReplace:\n\n```python\nfrom mcp.server.fastmcp import FastMCP\n```\n\nwith:\n\n```python\nfrom mcp.server.mcpserver import MCPServer as FastMCP\n```\n\nPin `mcp>=2` only after this import rename. Collection fails until then.\n"
+}
