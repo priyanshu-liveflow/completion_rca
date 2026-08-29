@@ -68,6 +68,11 @@ def _is_int(value: Any) -> bool:
     return type(value) is int
 
 
+def _is_number(value: Any) -> bool:
+    """True for JSON numbers only. Rejects bool (a subclass of int in Python)."""
+    return type(value) in (int, float)
+
+
 def validate_input(schema: JsonObject, arguments: JsonObject) -> None:
     """Check required fields and primitive types. Raises ToolError on mismatch."""
     properties = schema.get("properties") or {}
@@ -88,6 +93,12 @@ def validate_input(schema: JsonObject, arguments: JsonObject) -> None:
         expected = spec.get("type")
         if expected == "string" and not isinstance(value, str):
             raise ToolError("invalid_input", f"{key!r} must be a string")
+        if expected == "boolean" and type(value) is not bool:
+            raise ToolError("invalid_input", f"{key!r} must be a boolean")
+        if expected == "number" and not _is_number(value):
+            raise ToolError("invalid_input", f"{key!r} must be a number")
+        if expected == "object" and not isinstance(value, dict):
+            raise ToolError("invalid_input", f"{key!r} must be an object")
         if expected == "integer":
             if not _is_int(value):
                 raise ToolError("invalid_input", f"{key!r} must be an integer")
