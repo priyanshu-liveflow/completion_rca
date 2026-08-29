@@ -1,0 +1,15 @@
+.venv/
+.flow_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.env
+.env.*
+!.env.example
+logs/
+*.log
+uv.lock
+.DS_Store
