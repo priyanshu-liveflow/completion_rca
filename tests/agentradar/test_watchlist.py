@@ -55,9 +55,7 @@ def test_is_newer_rejects_invalid() -> None:
 def test_repo_pyproject_runtime_dependencies() -> None:
     watchlist = from_pyproject(REPO_PYPROJECT.read_text(encoding="utf-8"), "graph-rca")
     runtime = [
-        dep.name
-        for dep in watchlist.dependencies
-        if dep.source == "pyproject.toml"
+        dep.name for dep in watchlist.dependencies if dep.source == "pyproject.toml"
     ]
     assert runtime == EXPECTED_RUNTIME_DEPS
     assert watchlist.repo == "graph-rca"
@@ -149,8 +147,7 @@ def test_requirements_tab_inline_comment() -> None:
 
 def test_requirements_backslash_continuation() -> None:
     watchlist = from_requirements(
-        "wrapped==1.0.0\\\n"
-        "  --hash=sha256:deadbeef\n",
+        "wrapped==1.0.0\\\n  --hash=sha256:deadbeef\n",
         "wrap-app",
     )
     assert len(watchlist.dependencies) == 1
@@ -166,8 +163,7 @@ def test_wildcard_pin_has_no_current_version() -> None:
 
 def test_equivalent_distribution_names_deduplicate() -> None:
     watchlist = from_requirements(
-        "foo-bar==1.0.0\n"
-        "foo_bar>=2.0.0\n",
+        "foo-bar==1.0.0\nfoo_bar>=2.0.0\n",
         "dedupe-app",
     )
     assert [dep.name for dep in watchlist.dependencies] == ["foo-bar"]
