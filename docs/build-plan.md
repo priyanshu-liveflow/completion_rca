@@ -144,7 +144,7 @@ Three tiers, matched to how much *judgment* the PR needs versus how much is tran
 | 4 | `feat(core): graph-guided test selection` | A | **Sonnet 5** | 40m | **thesis** |
 | 5 | `feat(sandbox): native sandbox procedure + pytest parsing` | A | **Sonnet 5** | 55m | **thesis** |
 | 6 | `feat(web): bright data adapter + search/scrape MCP` | B | **Grok 4.6** | 50m | Bright Data track |
-| 7 | `feat(collectors): validate-then-heal` | B | **Sonnet 5** | 50m | Bright Data track |
+| 7 | `feat(collectors): validate-then-heal` | B | **Sonnet 5** | 50m | **Phase 1** · Bright Data track |
 | 8 | `feat(core): watchlist from dependency manifest` | B | **Composer** | 30m | |
 | 9 | `feat(store): mission state + evidence` | B | **Composer** | 40m | |
 | 10 | `feat(agents): conductor, prompts, seed` | both | **Sonnet 5** | 90m | Harness track |
@@ -593,9 +593,11 @@ Every subprocess call: explicit timeout, non-zero exit → typed error, **never*
 
 ---
 
-### PR7 — `feat(collectors): validate-then-heal`
+### PR7 — `feat(collectors): validate-then-heal` — **Phase 1, must ship**
 
 Branch `feat/collectors`. This is the Bright Data track's differentiator: **the scraper repairs itself on stage.**
+
+Build it immediately after PR6 and do not let it drift down the chain. It is one pure function plus one heal call — smaller than most of Phase 1 — and it is the only demo beat where the system recovers instead of succeeding. Judges will have watched a hundred happy paths by your slot.
 
 ```
 collectors/<dep>-releases.json                NEW
@@ -841,7 +843,7 @@ Run in order. Each maps to a PR.
 4. `get_class_info` / inheritance — callers + chains carry it
 5. Phase 3 tiered dispatch — already gated, cut without regret
 
-**Never cut:** the sandbox test run, the impact table, self-repair, the approval pause.
+**Never cut:** native sandbox execution, the full red-to-green loop, the impact table, **self-repair** (PR7), the approval pause, session recovery.
 
 ---
 

@@ -107,11 +107,19 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 
 | Phase | Contains | Gate |
 |---|---|---|
-| **1 — winning core** | WATCH → LOCATE → BLAST → **REPRODUCE → PATCH → VERIFY** → approval → PR | must ship; PR only opens on green |
-| **2 — supporting polish** | Bright Data self-repair, Slack, richer evidence views | H8, only if the core is repeatable |
-| **3 — upside** | Tiered dispatch + cost meter | H9, cut without regret |
+| **1 — winning core** | WATCH → LOCATE → BLAST → **REPRODUCE → PATCH → VERIFY** → approval → PR, **with Bright Data self-repair** | must ship; PR only opens on green |
+| **2 — supporting polish** | Slack, richer evidence views, cost meter | H9.5, only if the core is repeatable |
+| **3 — upside** | Tiered dispatch | H10, cut without regret |
 
 The red-to-green loop is the product, not an optional enhancement. A reproduce-only run is an honest contingency — *"here are the tests that fail under the new version"* — but it does not count as Phase 1 complete and does not unlock a PR.
+
+**Self-repair is Phase 1, not polish.** Three reasons it does not belong behind a gate:
+
+1. **It is a prize track's entire differentiator.** Everyone at this hackathon will call a scraper. The one that notices its own output degraded, heals the collector, and re-runs is the one the Bright Data judges remember. Scraping alone does not win that track.
+2. **It is cheap.** `core/health.py` is one pure function — rows plus spec in, verdict out — plus one `bdata scraper heal` call. It is smaller than most of what is already in Phase 1, and it unit-tests with no network.
+3. **It is the only beat in the demo where the system recovers instead of succeeding.** Every other minute shows things working. Judges have watched a hundred happy paths by then. A system that degrades honestly and repairs itself on stage is the thing they have not seen — and it costs twenty seconds of the three minutes.
+
+Gating it at H9.5 means cutting it, because H9.5 is where things get cut.
 
 ---
 
@@ -264,7 +272,7 @@ agentradar/                       # fork of graph_rca
 | `sandbox.created` | sandbox badge |
 | `tool.response` on native sandbox test run | **test output pane: red → green** |
 | `tool.response` on `save_patch` | diff view |
-| `tool.response` on `run_collector` degraded | self-repair banner *(Phase 2)* |
+| `tool.response` on `run_collector` degraded | self-repair banner |
 | `tool.approval_required` | approval queue item |
 
 ---
@@ -295,7 +303,7 @@ agentradar/                       # fork of graph_rca
 
 **H4–H6.5 — A: prompts + conductor.** `agents/prompts/impact-analysis.md` (locate → blast → select tests) and `repro-and-patch.md` (upgrade → run → read traceback → patch → re-run). Conductor manifest, `seed.ts` compiling prompts into `instructions`. Iterate inside the native sandbox until the entire red-to-green loop lands reliably — **no push needed per prompt edit.**
 
-**H4–H8 — B: the core dashboard** against fixtures — agent tree, impact table, **test output pane**, diff view, approval queue, brief card, and session recovery via `subscribe-to-a-running-turn`. The self-repair banner is Phase 2.
+**H4–H8 — B: the core dashboard** against fixtures — agent tree, impact table, **test output pane**, diff view, approval queue, brief card, and session recovery via `subscribe-to-a-running-turn`, and the self-repair banner.
 
 **H6.5 — CORE GATE.** The agent must reproduce, patch, and verify green in the native sandbox. If any part is unreliable, stop all supporting feature work and harden this loop until H8.5. A red-only result never unlocks the PR.
 
@@ -303,9 +311,9 @@ agentradar/                       # fork of graph_rca
 
 **H8.5–H9.5 — integrate.** Dashboard against the live agent. Fix contract drift. Re-run the complete path after a hard refresh to prove session recovery.
 
-**H9.5–H10 — Phase 2 only if green.** Add deterministic Bright Data self-repair or Slack only if the core has passed repeatedly.
+**H9.5–H10 — Phase 2 only if green.** Slack and richer evidence views, only if the core has passed repeatedly.
 
-**H10–H11 — rehearse the proof.** Run the full live path five times. **Time every native sandbox step** and remove anything that makes the red-to-green sequence unreliable. If Phase 2 landed, rehearse its failure beat only after the core passes.
+**H10–H11 — rehearse the proof.** Run the full live path five times. **Time every native sandbox step** and remove anything that makes the red-to-green sequence unreliable. **Break the collector on purpose and rehearse the heal until it is deterministic** — it is a demo beat now, so it has to land every time.
 
 **H11–H11.5 — Qodo pass.** Clear findings, merge.
 
@@ -324,10 +332,11 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 1. **0:00–0:20 — problem.** *You can't tell whether a release breaks you without running your code against it. So nobody does, until it breaks.*
 2. **0:20–0:35 — setup.** Indexed repo; watchlist came from its dependency manifest.
 3. **0:35–1:00 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 6 call sites. Hard-refresh once; the running mission restores. *"That's a guess so far. Watch."*
-4. **1:00–1:35 — REPRODUCE.** TrueForge's native sandbox installs the new version and runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
-5. **1:35–2:15 — PATCH + VERIFY.** The agent edits the sandbox working tree, re-runs the same tests, and they go **green**. This is the moment.
-6. **2:15–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
-7. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
+4. **1:00–1:20 — self-repair.** *"That release page changed its markup this morning."* Degradation verdict → heal → restored coverage, before and after on screen. **The only beat where the system recovers instead of succeeding — do not cut it.**
+5. **1:20–1:50 — REPRODUCE.** TrueForge's native sandbox installs the new version and runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
+6. **1:50–2:20 — PATCH + VERIFY.** The agent edits the sandbox working tree, re-runs the same tests, and they go **green**. This is the moment.
+7. **2:20–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
+8. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
 
 ---
 
@@ -335,12 +344,11 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 1. Phase 3 dispatcher (already gated)
 2. Slack target — keep in `policy.yaml`, unwired
-3. Bright Data self-repair — keep ordinary release retrieval
-4. Multi-site patching — patch **one** call site well rather than six badly
-5. `get_class_info` / inheritance — callers + chains carry it
-6. Evidence panel — fold into the brief
+3. Multi-site patching — patch **one** call site well rather than six badly
+4. `get_class_info` / inheritance — callers + chains carry it
+5. Evidence panel — fold into the brief
 
-**Never cut:** native TrueForge sandbox execution, the complete red-to-green loop, the impact table, the approval pause, and session recovery.
+**Never cut:** native TrueForge sandbox execution, the complete red-to-green loop, the impact table, **self-repair**, the approval pause, and session recovery.
 
 ---
 
@@ -376,7 +384,8 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 10. **Reproduce is honest:** restore the baseline version and assert the same tests pass. A repro that fails either way proves nothing.
 11. **Patch gate:** assert the PR tool is **unreachable** while tests are red.
 12. **Core repeatability:** run the complete live red-to-green path five consecutive times.
-13. **Bright Data:** release retrieval returns the selected version and migration evidence. Self-repair is Phase 2.
+13. **Bright Data:** release retrieval returns the selected version and migration evidence.
+14. **Self-repair:** a structurally changed page produces a degradation verdict, a heal, and restored coverage — before and after in one `CollectorRun`.
 14. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
 15. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane, and sandbox state restore.
 16. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
