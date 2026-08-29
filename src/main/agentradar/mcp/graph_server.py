@@ -5,10 +5,13 @@ Tools: find_contact_points, get_callers, get_call_chain, read_function_source.
 
 from __future__ import annotations
 
-from typing import Any
-
 from src.main.agentradar.adapters.graph import CodeGraph, FalkorCodeGraph
-from src.main.agentradar.contracts.impact import ContactPoint
+from src.main.agentradar.contracts.impact import (
+    ContactPointList,
+    FunctionSource,
+    GraphNode,
+    GraphNodeList,
+)
 from src.main.agentradar.mcp._server import serve, tool
 
 _graph: CodeGraph | None = None
@@ -42,14 +45,20 @@ def get_graph() -> CodeGraph:
                 "type": "string",
                 "description": "Last path segment of the indexed repo",
             },
-            "limit": {"type": "integer", "description": "Max hits. Default 15."},
+            "limit": {
+                "type": "integer",
+                "description": "Max hits. Default 15.",
+                "minimum": 1,
+                "maximum": 100,
+            },
         },
         "required": ["symbol", "repo"],
     },
 )
-def find_contact_points(symbol: str, repo: str, limit: int = 15) -> list[ContactPoint]:
+def find_contact_points(symbol: str, repo: str, limit: int = 15) -> ContactPointList:
     """Locate call sites that reference `symbol`."""
-    return get_graph().find_contact_points(symbol, repo, limit)
+    points = get_graph().find_contact_points(symbol, repo, limit)
+    return ContactPointList(contact_points=points)
 
 
 @tool(
@@ -61,19 +70,28 @@ def find_contact_points(symbol: str, repo: str, limit: int = 15) -> list[Contact
             "fid": {
                 "type": "integer",
                 "description": "Function ID from a prior find_contact_points hit",
+                "minimum": 1,
             },
             "repo": {
                 "type": "string",
                 "description": "Last path segment of the indexed repo",
             },
-            "limit": {"type": "integer", "description": "Max callers. Default 25."},
+            "limit": {
+                "type": "integer",
+                "description": "Max callers. Default 25.",
+                "minimum": 1,
+                "maximum": 100,
+            },
         },
         "required": ["fid", "repo"],
     },
 )
-def get_callers(fid: int, repo: str, limit: int = 25) -> list[dict[str, Any]]:
+def get_callers(fid: int, repo: str, limit: int = 25) -> GraphNodeList:
     """Blast-radius step: who calls this contact point."""
-    return get_graph().callers_of(fid, repo, limit)
+    rows = get_graph().callers_of(fid, repo, limit)
+    return GraphNodeList(
+        nodes=[GraphNode(name=str(row["name"]), fid=int(row["fid"])) for row in rows]
+    )
 
 
 @tool(
@@ -88,16 +106,24 @@ def get_callers(fid: int, repo: str, limit: int = 25) -> list[dict[str, Any]]:
                 "type": "string",
                 "description": "Last path segment of the indexed repo",
             },
-            "max_hops": {"type": "integer", "description": "Max depth. Default 4."},
+            "max_hops": {
+                "type": "integer",
+                "description": "Max depth. Default 4.",
+                "minimum": 1,
+                "maximum": 6,
+            },
         },
         "required": ["from_function", "to_function", "repo"],
     },
 )
 def get_call_chain(
     from_function: str, to_function: str, repo: str, max_hops: int = 4
-) -> list[dict[str, Any]]:
+) -> GraphNodeList:
     """How deep a site sits in the call graph."""
-    return get_graph().call_chain(from_function, to_function, repo, max_hops)
+    rows = get_graph().call_chain(from_function, to_function, repo, max_hops)
+    return GraphNodeList(
+        nodes=[GraphNode(name=str(row["name"]), fid=int(row["fid"])) for row in rows]
+    )
 
 
 @tool(
@@ -106,7 +132,11 @@ def get_call_chain(
     {
         "type": "object",
         "properties": {
-            "fid": {"type": "integer", "description": "Function ID (preferred)."},
+            "fid": {
+                "type": "integer",
+                "description": "Function ID (preferred).",
+                "minimum": 1,
+            },
             "repo": {
                 "type": "string",
                 "description": "Last path segment of the indexed repo",
@@ -114,14 +144,17 @@ def get_call_chain(
             "max_chars": {
                 "type": "integer",
                 "description": "Max characters to return. Default 1500.",
+                "minimum": 1,
+                "maximum": 20000,
             },
         },
         "required": ["fid", "repo"],
     },
 )
-def read_function_source(fid: int, repo: str, max_chars: int = 1500) -> str:
+def read_function_source(fid: int, repo: str, max_chars: int = 1500) -> FunctionSource:
     """Source context for patch-writing."""
-    return get_graph().read_source(fid, repo, max_chars)
+    source = get_graph().read_source(fid, repo, max_chars)
+    return FunctionSource(source=source)
 
 
 def main() -> None:

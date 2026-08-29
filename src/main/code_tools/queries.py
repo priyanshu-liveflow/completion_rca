@@ -205,19 +205,37 @@ def find_by_pattern(pattern: str, repo: str, limit: int = 15) -> list[dict]:
     """Search functions by name substring OR source code. Returns [{name, fid}, ...]."""
     g = get_graph()
     short = _short_name(pattern)
-    result = g.query(
-        'MATCH (f:Function) WHERE f.name CONTAINS $pattern AND f.path CONTAINS $repo RETURN DISTINCT f.name, id(f) LIMIT $lim',
-        params={"pattern": short, "repo": repo, "lim": limit}
-    )
-    if result.result_set:
-        return [{"name": r[0], "fid": r[1]} for r in result.result_set]
+    seen: set[int] = set()
+    out: list[dict] = []
 
-    # Fallback: grep source
-    result = g.query(
-        'MATCH (f:Function) WHERE f.source CONTAINS $pattern AND f.path CONTAINS $repo RETURN DISTINCT f.name, id(f) LIMIT $lim',
-        params={"pattern": pattern, "repo": repo, "lim": limit}
+    def collect(result) -> None:
+        if not result.result_set:
+            return
+        for row in result.result_set:
+            fid = row[1]
+            if fid in seen:
+                continue
+            seen.add(fid)
+            out.append({"name": row[0], "fid": fid})
+            if len(out) >= limit:
+                return
+
+    collect(
+        g.query(
+            "MATCH (f:Function) WHERE f.name CONTAINS $pattern AND f.path CONTAINS $repo "
+            "RETURN DISTINCT f.name, id(f) LIMIT $lim",
+            params={"pattern": short, "repo": repo, "lim": limit},
+        )
     )
-    return [{"name": r[0], "fid": r[1]} for r in result.result_set] if result.result_set else []
+    if len(out) < limit:
+        collect(
+            g.query(
+                "MATCH (f:Function) WHERE f.source CONTAINS $pattern AND f.path CONTAINS $repo "
+                "RETURN DISTINCT f.name, id(f) LIMIT $lim",
+                params={"pattern": pattern, "repo": repo, "lim": limit - len(out)},
+            )
+        )
+    return out
 
 
 def get_call_chain(from_function: str, to_function: str, repo: str, max_hops: int = 4) -> list[dict] | None:

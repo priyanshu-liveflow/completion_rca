@@ -1,0 +1,14 @@
+{
+  "description": "MCP response: function source text for patch context.",
+  "properties": {
+    "source": {
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "title": "FunctionSource",
+  "type": "object"
+}
