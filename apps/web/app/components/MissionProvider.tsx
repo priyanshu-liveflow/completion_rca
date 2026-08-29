@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useReducer } from "react";
+import { MissionAdapter } from "../lib/missionAdapter";
+import { fixtureMissionAdapter } from "../lib/fixtureMissionAdapter";
 import {
-  fixtureMissionAdapter,
-  MissionAdapter,
-} from "../lib/fixtureMissionAdapter";
-import {
+  canApproveMission,
   createInitialMissionState,
   missionReducer,
 } from "../lib/missionReducer";
@@ -13,12 +12,13 @@ import { MissionState, NodeId } from "../lib/types";
 
 interface MissionCtx {
   state: MissionState;
+  canApprove: boolean;
   selectNode: (id: NodeId | null) => void;
   toggleDock: () => void;
   setTab: (tab: MissionState["activeTab"]) => void;
   togglePopOut: () => void;
-  approve: () => void;
-  deny: () => void;
+  approve: () => Promise<boolean>;
+  deny: () => Promise<boolean>;
 }
 
 const MissionContext = React.createContext<MissionCtx | null>(null);
@@ -54,7 +54,12 @@ export function MissionProvider({
   const [state, dispatch] = useReducer(
     missionReducer,
     undefined,
-    () => createInitialMissionState(formatTime(), seed)
+    () =>
+      createInitialMissionState({
+        currentTime: formatTime(),
+        mode: adapter.mode,
+        seed,
+      })
   );
 
   // Live clock
@@ -83,17 +88,73 @@ export function MissionProvider({
     dispatch({ type: "popout.toggled" });
   }, []);
 
-  const approve = useCallback(() => {
-    dispatch({ type: "approval.approved" });
-  }, []);
+  const canApprove = useMemo(
+    () =>
+      canApproveMission(state) &&
+      (adapter.mode === "fixture" || Boolean(adapter.resolveApproval)),
+    [state, adapter]
+  );
 
-  const deny = useCallback(() => {
-    dispatch({ type: "approval.denied" });
-  }, []);
+  const approve = useCallback(async (): Promise<boolean> => {
+    if (!canApprove) return false;
+    dispatch({ type: "approval.submitting" });
+
+    if (adapter.mode === "live") {
+      dispatch({
+        type: "approval.failed",
+        message: "Live approval is not available in this build",
+      });
+      return false;
+    }
+
+    try {
+      if (adapter.resolveApproval && state.pendingApproval) {
+        await adapter.resolveApproval(state.pendingApproval, "approve");
+      }
+      dispatch({ type: "approval.resolved", decision: "approve" });
+      return true;
+    } catch (error) {
+      dispatch({
+        type: "approval.failed",
+        message: error instanceof Error ? error.message : "Approval failed",
+      });
+      return false;
+    }
+  }, [canApprove, state, adapter]);
+
+  const deny = useCallback(async (): Promise<boolean> => {
+    if (state.approved !== null || state.approvalSubmission === "submitting") {
+      return false;
+    }
+    dispatch({ type: "approval.submitting" });
+
+    if (adapter.mode === "live") {
+      dispatch({
+        type: "approval.failed",
+        message: "Live approval is not available in this build",
+      });
+      return false;
+    }
+
+    try {
+      if (adapter.resolveApproval && state.pendingApproval) {
+        await adapter.resolveApproval(state.pendingApproval, "deny");
+      }
+      dispatch({ type: "approval.resolved", decision: "deny" });
+      return true;
+    } catch (error) {
+      dispatch({
+        type: "approval.failed",
+        message: error instanceof Error ? error.message : "Denial failed",
+      });
+      return false;
+    }
+  }, [state, adapter]);
 
   const value = useMemo<MissionCtx>(
     () => ({
       state,
+      canApprove,
       selectNode,
       toggleDock,
       setTab,
@@ -101,7 +162,7 @@ export function MissionProvider({
       approve,
       deny,
     }),
-    [state, selectNode, toggleDock, setTab, togglePopOut, approve, deny]
+    [state, canApprove, selectNode, toggleDock, setTab, togglePopOut, approve, deny]
   );
 
   return (

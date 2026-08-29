@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Box,
@@ -19,7 +19,6 @@ import {
 import { useMission } from "./MissionProvider";
 import styles from "./MissionControlPage.module.css";
 import { TestLine } from "../lib/types";
-import { canApproveMission } from "../lib/missionReducer";
 
 const navItems = [
   { icon: Circle, label: "Mission Control", active: true },
@@ -76,23 +75,38 @@ function lineClass(kind: TestLine["kind"]) {
 
 export default function MissionControlPage({
   readOnly = false,
+  runtimeLabel = "fixture replay",
 }: {
   readOnly?: boolean;
+  runtimeLabel?: string;
 }) {
-  const { state, selectNode, toggleDock, setTab, togglePopOut, approve, deny } =
-    useMission();
+  const {
+    state,
+    canApprove,
+    selectNode,
+    toggleDock,
+    setTab,
+    togglePopOut,
+    approve,
+    deny,
+  } = useMission();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [popOutError, setPopOutError] = useState<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const popOutRef = useRef<Window | null>(null);
+  const isSubmitting = state.approvalSubmission === "submitting";
 
-  const canApprove = useMemo(() => canApproveMission(state), [state]);
+  const runtimeStatus = `${runtimeLabel} · ${state.runtime.status}`;
 
   const approvalGuard = !state.redObserved
     ? "Locked until a failing selected-test run is observed."
     : !state.greenObservedAfterRed
       ? "Locked while selected tests are red; waiting for green verification."
-      : "The PR tool stayed locked while tests were red.";
+      : state.approvalError
+        ? state.approvalError
+        : state.approvalSubmission === "failed"
+          ? "Approval resolution failed."
+          : "The PR tool stayed locked while tests were red.";
 
   // Scroll selected node transcript lines into view
   useEffect(() => {
@@ -160,9 +174,12 @@ export default function MissionControlPage({
   };
 
   const onApprove = () => setConfirmOpen(true);
-  const onConfirm = () => {
-    approve();
-    setConfirmOpen(false);
+  const onConfirm = async () => {
+    const success = await approve();
+    if (success) setConfirmOpen(false);
+  };
+  const onDeny = async () => {
+    await deny();
   };
 
   const selectedNodeObj = state.nodes.find((n) => n.id === state.selectedNode);
@@ -220,7 +237,7 @@ export default function MissionControlPage({
               ))}
             </div>
             <div className={styles.navPin}>
-              <span>State: fixture replay</span>
+              <span>Runtime: {runtimeStatus}</span>
               <span>Auto-refresh: on</span>
             </div>
           </nav>
@@ -280,7 +297,7 @@ export default function MissionControlPage({
                 <span className={styles.dockDot} />
                 <span>TrueForge-native Daytona</span>
               </span>
-              <span className={styles.dockMeta}>(read-only · fixture)</span>
+              <span className={styles.dockMeta}>(read-only · {runtimeStatus})</span>
               <div className={styles.dockSpacer} />
               {!readOnly && (
                 <button
@@ -406,17 +423,17 @@ export default function MissionControlPage({
             <div className={styles.actions}>
               <button
                 className={styles.btnPrimary}
-                disabled={!canApprove}
+                disabled={!canApprove || isSubmitting}
                 onClick={onApprove}
               >
-                Approve verified PR
+                {isSubmitting ? "Submitting..." : "Approve verified PR"}
               </button>
               <button
                 className={styles.btnSecondary}
-                onClick={deny}
-                disabled={state.approved !== null}
+                onClick={onDeny}
+                disabled={state.approved !== null || isSubmitting}
               >
-                Deny
+                {isSubmitting ? "Submitting..." : "Deny"}
               </button>
               <p className={styles.note}>No write to GitHub in this prototype</p>
             </div>
