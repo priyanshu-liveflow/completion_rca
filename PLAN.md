@@ -64,7 +64,18 @@ The demo claim is stronger for having measured it: *"Five test modules. The grap
 
 TrueForge's sandbox slot uses **Daytona**. It is the execution environment for the entire empirical loop: clone the pinned demo repository, install the changed dependency, run graph-selected tests, apply the agent-authored patch, and re-run the same tests. The product does not substitute a custom MCP test runner for the harness sandbox.
 
-Cold-cloning a repository and installing its full environment on stage is still too risky. The demo therefore uses a **prewarmed persistent TrueForge session**:
+**Measured, not feared.** The whole path was run in a real Daytona sandbox at H0 (`sandbox/timing_probe.py`, default image, Debian 13 / Python 3.14):
+
+| Phase | Steps | Time |
+|---|---|---|
+| **Cold** | create · clone at pinned commit · install deps · baseline green | **10.1s** |
+| **Live** | bump · red · patch · green | **6.1s** |
+
+Sandbox creation is **0.15–0.7s** — Daytona is snapshot-backed, not a VM boot. Cold-cloning was the risk this plan was most organised around, and it costs ten seconds.
+
+That changes the posture rather than the design. We still prewarm, because six seconds on stage beats sixteen and because a warm session shows its own history in the timeline. But **prewarming is now an optimisation, not a dependency**: if the session dies between rehearsal and the slot, recovery is ten seconds of setup, not a lost demo.
+
+The prewarm sequence:
 
 1. Provision the Daytona sandbox through TrueForge before the presentation.
 2. Shallow-clone the demo repository at the exact indexed commit.
@@ -74,7 +85,7 @@ Cold-cloning a repository and installing its full environment on stage is still 
 
 The warmup is setup, not evidence: its commands and baseline-green result remain visible in the session timeline, while every result used in the impact claim is produced live after the version change.
 
-Local Docker may be used during development and rehearsal, but it is only a fallback. A fixture replay can rescue a failed presentation; neither is represented as a live TrueForge sandbox run.
+Local Docker is no longer needed even for rehearsal — a full cold cycle in Daytona is ten seconds, which is a faster edit loop than rebuilding an image. `sandbox/Dockerfile` is dropped from PR5. A fixture replay still exists to rescue a failed presentation, and is never represented as a live sandbox run.
 
 Procedures still live in agent `instructions` rather than git-backed skills:
 
@@ -92,7 +103,7 @@ At four short, single-domain procedures, progressive disclosure does not justify
 
 **If challenged on not using skills:** *"Progressive disclosure buys nothing at single-domain scale. Here's the threshold where we'd switch."* That's judgment, not a gap.
 
-**Prewarm at H0:** provision the native sandbox, clone the exact commit used by the graph index, install the baseline environment, confirm green, and keep the session alive.
+**Prewarm at H0:** provision the native sandbox, clone the exact commit used by the graph index, install the baseline environment, confirm green, and keep the session alive. Budget ten seconds, not ten minutes.
 
 ---
 
@@ -104,7 +115,7 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 
 **Where it can still lose:**
 
-1. **Native sandbox latency.** Controlled — prewarm one persistent TrueForge session, use a small repository, shallow-clone, and run graph-selected tests only. Measure it; do not declare it solved until the full path is timed.
+1. ~~**Native sandbox latency.**~~ **Closed at H0 by measurement, not mitigation.** Cold path 10.1s, live path 6.1s, in a real Daytona sandbox. See *TrueForge's native sandbox is load-bearing* above.
 2. **Demo repo has no usable test suite.** This is now a hard selection criterion, not a nice-to-have.
 3. **Volume.** Still a lot for two people in a day. Phasing below is strict.
 
@@ -138,7 +149,7 @@ Gating it at H9.5 means cutting it, because H9.5 is where things get cut.
 |---|---|
 | Repo | **Fork of `graph_rca`**, history preserved, original untouched |
 | Harness | **Local** — `npx @truefoundry/trueforge`, SQLite, localhost:8790. No hosting |
-| Sandbox | **TrueForge-native Daytona sandbox**, mandatory for reproduce, patch, and verify. Prewarmed persistent session; local Docker is development-only fallback |
+| Sandbox | **TrueForge-native Daytona sandbox**, mandatory for reproduce, patch, and verify. Prewarmed session as an optimisation, not a dependency — cold recovery is 10s. No local Docker |
 | Procedures | Agent `instructions` compiled from `agents/prompts/*.md` — **not** git-backed skills |
 | Sandbox role | **Load-bearing and harness-native** — dependency upgrade, reproduce, patch, and verify all run through TrueForge sandbox tools |
 | Demo repo | Real OSS repo, real recent breaking change, **fast green test suite** |
@@ -365,7 +376,7 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 | Risk | Mitigation |
 |---|---|
-| **Native sandbox too slow on stage** | Prewarm one persistent TrueForge session; shallow-clone; small repo; graph-selected tests only; time every step at H10 |
+| ~~**Native sandbox too slow on stage**~~ | **Closed at H0 by measurement.** Real Daytona sandbox: cold 10.1s, live 6.1s. Re-time at H10 to catch regressions, but it is no longer a design constraint |
 | **Daytona or venue network unavailable** | Reconnect once, then use clearly labeled fixture replay for presentation continuity. Do not represent replay as live sandbox proof |
 | **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
 | ~~Recursive callers don't reach tests~~ | **Closed.** Measured at H0: `CALLS` reaches 0 for an import break, `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship, and `TestSelection.strategy` says which fired |

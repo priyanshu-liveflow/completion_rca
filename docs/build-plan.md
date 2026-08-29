@@ -105,18 +105,17 @@ None of this is a PR. It is machine setup, and it gates PR1/PR5. **Start 1, 2 an
 |---|---|---|---|---|
 | 1 | ~~Pick the demo repo~~ — **DONE.** `mvilanova/intervals-mcp-server` @ `cb1fbca`, breaking on MCP SDK v1→v2. Red/green proven by hand; `configs/demo.yaml` and `fixtures/pytest_output_{red,green}.txt` are committed | — | done | — |
 | 2 | ~~Index the demo repo~~ — **DONE.** `uv tool install codegraphcontext` (no pipx on this machine), `cgc index intervals-mcp-server`. 2.28s, 210 functions, 749 CALLS edges, 114 IMPORTS edges. FalkorDB Lite, `cgc doctor` all green | — | done | — |
-| 3 | **Daytona signup + API key**, wire it into TrueForge, and run a `sandbox.created` smoke test. Free tier, $200 compute, no credit card. **This is now on the demo path** — it is not optional | human | 20m | PR5, PR10, PR11 |
-| 4 | **Prewarm the native sandbox** per `sandbox/PREWARM.md`: clone the pinned commit, install baseline deps, confirm the selected tests are green, keep the session alive. Set `auto_stop`/`auto_archive` intervals explicitly and confirm it survives an idle gap | human | 40m | PR5 |
+| 3 | ~~Daytona signup + smoke test~~ — **DONE.** Key in `.env` (gitignored). `sandbox/timing_probe.py` ran the full red→green cycle in a real sandbox: cold 10.1s, live 6.1s | — | done | — |
+| 4 | **Prewarm the sandbox** before the slot: clone the pinned commit, install baseline deps, confirm green, keep it alive. Ten seconds of work. Set `auto_stop`/`auto_archive` explicitly | human | 5m | PR5 |
 | 5 | `BRIGHTDATA_API_KEY` — `bdata login`, confirm `bdata scraper run` works by hand once | human | 10m | PR6 |
 | 6 | NVIDIA NIM key (`https://integrate.api.nvidia.com/v1`, ~1000 free credits, 40 RPM) + OpenAI key. Into `.env` | human | 5m | PR2 |
 | 7 | Node 22.14+, then `npx @truefoundry/trueforge@latest` — confirm `localhost:8790` serves | human | 10m | PR10 |
 | 8 | Install the Qodo GitHub App at `https://github.com/apps/qodo-merge-pro`, grant this repo. Enable branch protection on `main` | human | 5m | all PRs |
 | 9 | `docker` running (rehearsal path only), `gh auth status` clean | human | 2m | PR5, PR12 |
 
-**Two H0 items can lose the demo:**
+**H0 items 1, 2 and 3 are complete.** Demo repo chosen and its break proven; graph indexed and selection measured; Daytona timed end to end. The three things the plan called its largest risks are all closed by measurement rather than mitigation.
 
-- **The demo repo choice (1).** Everything downstream reads `configs/demo.yaml`, so code can be written before the choice lands — but do not let it slip past H0.5.
-- **Sandbox survival (3 + 4).** With execution now harness-native and no custom image, a stopped or archived Daytona session between rehearsal and stage means cold-cloning on venue wifi in front of judges. Test the idle gap, not just the happy path.
+What remains genuinely open: TrueForge itself (item 7) is unverified, and it is now the only unmeasured dependency on the demo path.
 
 ---
 
@@ -537,14 +536,29 @@ Branch `feat/sandbox`. The demo's most latency-sensitive component.
 
 ```
 sandbox/PREWARM.md                            NEW  — the runbook, executed by hand at H0
-sandbox/Dockerfile                            NEW  — rehearsal only, NOT the demo path
+sandbox/timing_probe.py                       DONE — already committed, already run
 src/main/agentradar/adapters/sandbox.py       NEW
 src/main/agentradar/core/testreport.py        NEW
-fixtures/pytest_output_red.txt                NEW  (captured by hand)
-fixtures/pytest_output_green.txt              NEW
+fixtures/pytest_output_red.txt                DONE — captured by hand
+fixtures/pytest_output_green.txt              DONE
 tests/agentradar/test_testreport.py           NEW
 tests/agentradar/test_sandbox_adapter.py      NEW
 ```
+
+**`sandbox/Dockerfile` is cut.** A full cold cycle in Daytona is 10.1s — faster than rebuilding a local image, so Docker earns nothing even as a rehearsal path. One fewer thing to keep in sync with the indexed commit.
+
+#### Measured in a real Daytona sandbox at H0
+
+`sandbox/timing_probe.py`, default image (Debian 13, Python 3.14, ships git/pip/uv):
+
+| Phase | Steps | Time |
+|---|---|---|
+| **Cold** | create · clone · install · baseline green | **10.1s** |
+| **Live** | bump · red · patch · green | **6.1s** |
+
+Sandbox creation alone is **0.15–0.7s**. Red→green is proven end to end in the real execution environment, before any of this PR's code exists.
+
+Prewarming stays, because 6s on stage beats 16s and a warm session shows its history in the timeline — but it is an optimisation now, not a dependency.
 
 **`sandbox/PREWARM.md`** — the exact command sequence, so it is repeatable under pressure:
 
@@ -556,7 +570,7 @@ tests/agentradar/test_sandbox_adapter.py      NEW
 
 The warmup is setup, not evidence. Every number in the impact claim comes from a run *after* the version change.
 
-> **Verify at H0 and again at H8:** TrueForge's Daytona provider config carries `auto_stop_interval_in_minutes`, `auto_archive_interval_in_minutes`, `auto_delete_interval_in_minutes`. A "kept alive" session can be stopped out from under you between rehearsal and stage. Set these explicitly and confirm the sandbox survives an idle gap at least as long as the wait before your slot. **This is the single highest-risk item created by the native-sandbox decision — do not assume, test it.**
+> **Idle survival, now a minor concern rather than a major one.** TrueForge's Daytona provider config carries `auto_stop_interval_in_minutes`, `auto_archive_interval_in_minutes`, `auto_delete_interval_in_minutes`, and a "kept alive" session can still be stopped out from under you. Set them explicitly. But with cold recovery measured at 10.1s, a dead session costs ten seconds of setup rather than the demo. `sandbox/timing_probe.py --idle-minutes N` tests it directly.
 
 **`core/testreport.py`** — pure parser, no subprocess. This is where the value of this PR actually lives, and it is runner-agnostic by construction:
 
@@ -587,16 +601,16 @@ class SandboxRunner(Protocol):
     def apply_patch(self, diff: str) -> RawRun: ...
     def import_check(self, symbol: str, package: str) -> RawRun: ...   # UNCOVERED fallback
 
-class DockerRunner:  # rehearsal + CI timing only. `docker exec` into a warm container.
+class DaytonaRunner:  # the demo path. Reuses one prewarmed sandbox across calls.
 ```
 
-**`DockerRunner` is not the demo path and must not be presented as one.** It exists so you can iterate on selection and parsing without burning Daytona minutes or venue wifi, and so PR11's gate tests run in CI. If the native path is timed at H10 and drags, this is the one line you flip — the Protocol is what makes that a decision rather than a rewrite.
+**`DockerRunner` is cut** — a 10s cold cycle in Daytona beats maintaining a local image. The Protocol stays because PR11's gate tests need a fake, and because the sandbox decision has already flipped once today.
 
 **Do this by hand before any agent touches it:** in the native sandbox, bump the version → run the graph-selected tests → get a real traceback. Time it.
 
 **Acceptance:**
-- The native sandbox runs the green suite in **under 15s** on a prewarmed session — measured, not assumed.
-- The sandbox survives an idle gap longer than your wait before the slot.
+- Live path stays at or under the measured **6.1s** on a prewarmed session; cold path at or under **10.1s**. Regressions against those numbers are the thing to watch, not an abstract budget.
+- The sandbox survives an idle gap longer than your wait before the slot — or, failing that, cold recovery is confirmed still ~10s.
 - **Repro is honest:** revert the bump, run the same tests, assert they pass. A repro that fails either way proves nothing — write this as a test.
 - Parser tests pass on both captured fixtures, with no runner involved.
 - No secrets are passed into the sandbox. Ever.
@@ -870,7 +884,7 @@ Run in order. Each maps to a PR.
 | 3 | ~~Recursive `get_callers` reaches tests~~ — **measured.** `CALLS` reaches 0 for an import break; `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship | 4 |
 | 4 | `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK streams a trivial turn | 10 |
 | 5 | `mcp-graph` at a localhost URL returns real results from a TrueForge session — **no tunnel** | 3 |
-| 6 | Prewarmed **native** sandbox runs the green suite in under 15s — timed, and re-timed after an idle gap | 5 |
+| 6 | ~~Sandbox under 15s~~ — **measured: cold 10.1s, live 6.1s.** Re-time at H10 for regressions | 5 |
 | 7 | **Repro is honest:** revert the bump, same tests pass | 5 |
 | 8 | `sandbox.created` fires; test output appears in a tool result | 10 |
 | 9 | `run_collector` returns rows **plus** a health verdict | 7 |

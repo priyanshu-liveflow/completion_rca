@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 
 import yaml
-from daytona import CreateSandboxFromImageParams, Daytona, DaytonaConfig, Image
+from daytona import Daytona, DaytonaConfig
 
 
 @dataclass
@@ -89,10 +89,10 @@ def main() -> int:
 
     print("\nCOLD PATH — what a judge sees if the prewarmed session died\n")
     t0 = time.monotonic()
-    sandbox = daytona.create(
-        CreateSandboxFromImageParams(image=Image.debian_slim("3.12")),
-        timeout=300,
-    )
+    # Default image only. Daytona's provider config exposes no image field to
+    # TrueForge, so measuring against a custom one would measure a path we
+    # cannot actually take. It ships git, pip and uv on Debian 13 / Python 3.14.
+    sandbox = daytona.create(timeout=300)
     timings.add("create sandbox", time.monotonic() - t0, 0)
 
     try:
@@ -100,7 +100,7 @@ def main() -> int:
             f"git clone --filter=blob:none {repo} {workdir} "
             f"&& cd {workdir} && git checkout -q {commit}")
         run(sandbox, timings, "install baseline deps",
-            f'pip install -q -e ".[dev]" "{before}"', cwd=workdir)
+            f'pip install -q --break-system-packages -e ".[dev]" "{before}"', cwd=workdir)
         baseline = run(sandbox, timings, "baseline tests (expect GREEN)",
                        "python -m pytest -q", cwd=workdir)
 
@@ -124,7 +124,7 @@ def main() -> int:
 
         print("\nLIVE PATH — what runs on stage\n")
         run(sandbox, timings, "bump to breaking version",
-            f'pip install -q "{after}"', cwd=workdir)
+            f'pip install -q --break-system-packages "{after}"', cwd=workdir)
         red = run(sandbox, timings, "tests (expect RED)", "python -m pytest -q",
                   cwd=workdir, expect_zero=False)
         if red.exit_code == 0:

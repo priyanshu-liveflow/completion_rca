@@ -169,3 +169,59 @@ selection.
 
 Precision is the claim, not recall. Selecting all five would have run tests that
 could not fail and made the impact table meaningless.
+
+## Sandbox verification — run at H0 in a real Daytona sandbox
+
+`sandbox/timing_probe.py` against the default Daytona image (Debian 13,
+Python 3.14, ships `git`, `pip`, `uv`). Default image only — TrueForge's Daytona
+provider config exposes no image field, so measuring a custom one would measure
+a path we cannot take.
+
+```
+COLD PATH — what a judge sees if the prewarmed session died
+     0.32s  create sandbox                     ok
+     0.86s  clone at pinned commit             ok
+     6.48s  install baseline deps              ok
+     2.44s  baseline tests (expect GREEN)      ok
+
+LIVE PATH — what runs on stage
+     0.94s  bump to breaking version           ok
+     2.46s  tests (expect RED)                 exit 2
+     0.12s  apply patch                        ok
+     2.61s  tests (expect GREEN)               ok
+
+  COLD (prewarm, off-stage)     10.1s
+  LIVE (on stage)                6.1s
+```
+
+**Red → green proven in the real execution environment before a line of
+product code existed.**
+
+### What this closes
+
+Sandbox latency was the risk this plan was most organised around. Two full
+revisions argued about local Docker versus Daytona on the assumption that
+cold-cloning on stage would be minutes. It is **ten seconds**, and sandbox
+creation alone is 0.15–0.7s because Daytona is snapshot-backed rather than
+booting a VM.
+
+Consequences:
+
+- **`sandbox/Dockerfile` is cut.** A cold Daytona cycle is faster than
+  rebuilding a local image, so Docker earns nothing even as a rehearsal path —
+  and it removes a file that had to stay in sync with the indexed commit.
+- **Prewarming is an optimisation, not a dependency.** We still do it: 6s on
+  stage beats 16s, and a warm session shows its own history in the timeline.
+  But a session that dies between rehearsal and the slot costs ten seconds, not
+  the demo.
+- **The `auto_stop` / `auto_archive` worry is defanged.** Still set them
+  explicitly; `--idle-minutes N` tests survival directly. It is no longer the
+  highest-risk item on the board.
+
+### The lesson worth keeping
+
+Three of this plan's largest risks — no usable demo repo, callers not reaching
+tests, sandbox too slow — were closed at H0 by measuring rather than
+mitigating. Each measurement took minutes and each replaced a paragraph of
+hedging with a number. The one remaining unmeasured dependency on the demo path
+is TrueForge itself.
