@@ -67,17 +67,32 @@ def test_pyproject_sample_merges_sections() -> None:
     text = (MANIFESTS / "pyproject_sample.toml").read_text(encoding="utf-8")
     watchlist = from_pyproject(text, "sample-app")
     names = {dep.name.lower() for dep in watchlist.dependencies}
-    assert names == {"requests", "pydantic", "pytest", "ruff", "httpx", "rich"}
+    assert names == {"requests", "pydantic", "pytest", "ruff", "httpx", "rich", "mylib"}
     pydantic = next(dep for dep in watchlist.dependencies if dep.name == "pydantic")
     assert pydantic.current_version == "2.7.0"
     assert pydantic.source == "pyproject.toml"
     httpx = next(dep for dep in watchlist.dependencies if dep.name == "httpx")
+    assert httpx.current_spec == "httpx[http2]^0.27.0"
     assert httpx.source == "pyproject.toml:poetry"
+    mylib = next(dep for dep in watchlist.dependencies if dep.name == "mylib")
+    assert mylib.current_spec.startswith("mylib @ git+")
 
 
 def test_from_requirements_sample() -> None:
-    text = (MANIFESTS / "requirements_sample.txt").read_text(encoding="utf-8")
-    watchlist = from_requirements(text, "req-app")
+    files = {
+        "requirements.txt": (MANIFESTS / "requirements_sample.txt").read_text(
+            encoding="utf-8"
+        ),
+        "requirements_base.txt": (MANIFESTS / "requirements_base.txt").read_text(
+            encoding="utf-8"
+        ),
+    }
+    watchlist = from_requirements(
+        files["requirements.txt"],
+        "req-app",
+        source="requirements.txt",
+        files=files,
+    )
     names = [dep.name for dep in watchlist.dependencies]
     assert names == ["django", "celery", "pytest"]
     django = next(dep for dep in watchlist.dependencies if dep.name == "django")
@@ -96,9 +111,16 @@ def test_detect_and_parse_prefers_pyproject() -> None:
     assert "django" not in {dep.name for dep in watchlist.dependencies}
 
 
-def test_detect_and_parse_falls_back_to_requirements() -> None:
-    requirements = (MANIFESTS / "requirements_sample.txt").read_text(encoding="utf-8")
-    watchlist = detect_and_parse({"requirements.txt": requirements}, "req-app")
+def test_detect_and_parse_resolves_requirements_includes() -> None:
+    files = {
+        "requirements.txt": (MANIFESTS / "requirements_sample.txt").read_text(
+            encoding="utf-8"
+        ),
+        "requirements_base.txt": (MANIFESTS / "requirements_base.txt").read_text(
+            encoding="utf-8"
+        ),
+    }
+    watchlist = detect_and_parse(files, "req-app")
     names = [dep.name for dep in watchlist.dependencies]
     assert names == ["django", "celery", "pytest"]
 
@@ -106,3 +128,46 @@ def test_detect_and_parse_falls_back_to_requirements() -> None:
 def test_detect_and_parse_empty_when_no_manifest() -> None:
     watchlist = detect_and_parse({}, "empty")
     assert watchlist.dependencies == []
+
+
+def test_requirements_hash_options_are_preserved() -> None:
+    watchlist = from_requirements(
+        "securepkg==1.2.3 --hash=sha256:abcd\n",
+        "hash-app",
+    )
+    assert len(watchlist.dependencies) == 1
+    dep = watchlist.dependencies[0]
+    assert dep.name == "securepkg"
+    assert dep.current_version == "1.2.3"
+    assert dep.current_spec == "securepkg==1.2.3"
+
+
+def test_requirements_tab_inline_comment() -> None:
+    watchlist = from_requirements("tabbed==1.0.0\t# inline comment\n", "tab-app")
+    assert [dep.name for dep in watchlist.dependencies] == ["tabbed"]
+
+
+def test_requirements_backslash_continuation() -> None:
+    watchlist = from_requirements(
+        "wrapped==1.0.0\\\n"
+        "  --hash=sha256:deadbeef\n",
+        "wrap-app",
+    )
+    assert len(watchlist.dependencies) == 1
+    assert watchlist.dependencies[0].name == "wrapped"
+
+
+def test_wildcard_pin_has_no_current_version() -> None:
+    watchlist = from_requirements("prefixpkg==1.*\n", "wildcard-app")
+    dep = watchlist.dependencies[0]
+    assert dep.current_spec == "prefixpkg==1.*"
+    assert dep.current_version is None
+
+
+def test_equivalent_distribution_names_deduplicate() -> None:
+    watchlist = from_requirements(
+        "foo-bar==1.0.0\n"
+        "foo_bar>=2.0.0\n",
+        "dedupe-app",
+    )
+    assert [dep.name for dep in watchlist.dependencies] == ["foo-bar"]

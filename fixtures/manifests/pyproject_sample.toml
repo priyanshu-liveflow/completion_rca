@@ -9,7 +9,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    { include-group = "lint" },
     "pytest>=8.0.0",
+]
+lint = [
     "ruff>=0.4.0",
 ]
 
@@ -17,3 +20,4 @@ dev = [
 python = "^3.11"
 httpx = { version = "^0.27.0", extras = ["http2"] }
 rich = ">=13.0.0"
+mylib = { git = "https://github.com/example/mylib.git", rev = "abc123" }
