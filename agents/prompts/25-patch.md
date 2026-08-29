@@ -22,21 +22,24 @@ nothing to patch. A green after-bump is a brief, not a fix.
 3. **Write a unified diff** against the sandbox working tree, aimed at the
    traceback you just read. One rename, one import, one call-site change —
    whatever the traceback actually says.
-4. **Apply it** with the sandbox's own file and shell tools. Our code
-   validates; the sandbox executes. If `validate_patch` would reject the
-   diff, do not apply it by hand to get around that.
+4. **Apply it** with the sandbox's own file and shell tools. The sandbox
+   will apply whatever you give it — that is not the check.
 5. **Re-run exactly the same selected tests.** Same node ids as the green
    baseline and the red after-bump run. A different set makes the comparison
    meaningless, and a "fix" proven against a different suite is not a fix.
 6. **`save_verify`** with the red report as `before` and the post-patch report
    as `after`. The green baseline is *not* this `before`. `can_act` requires
    `before` broken and `after` green; handing it the baseline makes the gate
-   refuse, correctly.
+   refuse, correctly. `save_verify` re-parses the diff and runs
+   `validate_patch` against the files on the impact table. A test edit or an
+   out-of-radius file is refused there, so `can_act` never sees it. Only the
+   diff headers count — omitting a path from the payload does not sneak it
+   through.
 
 ## The rule this file exists to state
 
-Three things, all of which `core/patch.py::validate_patch` will also reject —
-but the conductor should never reach for them in the first place.
+Three things `save_verify` will refuse by running `validate_patch` on the
+diff itself. The conductor should never reach for them in the first place.
 
 - **Never edit a test to make it pass.** That includes a rename that moves a
   test file out of the way. An agent that "fixes" a failure by editing the

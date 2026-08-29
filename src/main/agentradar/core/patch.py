@@ -24,15 +24,19 @@ decisions only, both made from text and contracts already in hand:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 
 from ..contracts.evidence import TestReport
+from ..contracts.impact import ImpactRow
 from ..contracts.patch import Patch, VerifyResult
 
 __all__ = [
+    "allowed_files_from_impact",
     "build_verify_result",
     "can_act",
     "parse_diff",
     "validate_patch",
+    "validate_submitted_patch",
 ]
 
 # `diff --git a/path b/path` — the header every git-produced unified diff
@@ -140,6 +144,45 @@ def validate_patch(patch: Patch, allowed_files: list[str]) -> tuple[bool, str]:
         )
 
     return True, "patch touches only allowed, non-test files"
+
+
+def allowed_files_from_impact(rows: Iterable[ImpactRow]) -> list[str]:
+    """The blast radius, taken from evidence the store already holds.
+
+    `validate_patch` is only as trustworthy as the `allowed_files` it is
+    handed, so that list must not come from the same agent that wrote the
+    diff. These are the files the graph named during impact analysis and the
+    store persisted — the agent can widen its diff, but it cannot widen this.
+
+    A mission with no impact rows yields an empty list, which makes
+    `validate_patch` reject every patch. That is the intended answer: nothing
+    was ever located, so there is no site a patch could legitimately be
+    aimed at.
+    """
+    seen: set[str] = set()
+    files: list[str] = []
+    for row in rows:
+        path = row.contact_point.file_path
+        if path and path not in seen:
+            seen.add(path)
+            files.append(path)
+    return sorted(files)
+
+
+def validate_submitted_patch(
+    patch: Patch, allowed_files: list[str]
+) -> tuple[bool, str]:
+    """`validate_patch` for a patch whose `files` list came from the agent.
+
+    The file list is re-derived from the diff text and the supplied one is
+    discarded. `Patch.files` is an ordinary field, so anything reaching this
+    module through `VerifyResult.model_validate` on agent JSON can declare
+    `files: ["src/client.py"]` beside a diff that renames
+    `tests/test_server.py` away — passing both of `validate_patch`'s rules
+    while `git apply` deletes a test. Reading the diff is the only view of
+    the patch that `git apply` and this function share.
+    """
+    return validate_patch(parse_diff(patch.diff), allowed_files)
 
 
 def build_verify_result(

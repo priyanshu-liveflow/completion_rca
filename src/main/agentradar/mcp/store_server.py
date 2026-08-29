@@ -15,6 +15,10 @@ from src.main.agentradar.contracts.evidence import TestSelection
 from src.main.agentradar.contracts.impact import ImpactRow
 from src.main.agentradar.contracts.mission import Mission, MissionState
 from src.main.agentradar.contracts.patch import VerifyResult
+from src.main.agentradar.core.patch import (
+    allowed_files_from_impact,
+    validate_submitted_patch,
+)
 from src.main.agentradar.core.testreport import parse_pytest
 from src.main.agentradar.mcp._server import ToolError, serve, tool
 
@@ -242,8 +246,26 @@ def save_report(
     },
 )
 def save_verify(mission_id: str, result: dict[str, Any]) -> Mission:
-    """Persist a :class:`VerifyResult` and return the mission."""
+    """Persist a :class:`VerifyResult`, refusing a patch outside the blast radius.
+
+    This is the trust boundary: `result` is JSON the *agent* wrote.
+    `VerifyResult.verified` is a computed field, so a red run cannot be
+    talked into passing the gate — but until this check existed, nothing
+    stopped a patch that edited a test file or a file the graph never named
+    from being persisted and then read by `can_act` as actionable evidence.
+    `validate_patch` was a pure function with no production caller; a rule
+    only the prompt enforces is a rule the model can decline.
+
+    The allowed set is derived from the mission's own persisted impact rows,
+    never from the submitted payload, and the file list is re-derived from
+    the diff text rather than trusted from `patch.files`.
+    """
     verify = VerifyResult.model_validate(result)
+    mission = _mission_or_error(mission_id)
+    allowed = allowed_files_from_impact(mission.impact_rows)
+    ok, reason = validate_submitted_patch(verify.patch, allowed)
+    if not ok:
+        raise ToolError("patch_rejected", reason)
     return _mutate(
         mission_id,
         lambda: get_store().save_verify(mission_id, verify),
