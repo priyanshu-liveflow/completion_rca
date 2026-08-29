@@ -38,10 +38,28 @@ class TestReport(BaseModel):
     cases: list[TestCase]
     passed: int
     failed: int
+    errors: int = 0
     duration_s: float
     raw_tail: str
 
     @property
     def is_green(self) -> bool:
-        """True only when something ran and nothing failed."""
-        return self.failed == 0 and self.passed > 0
+        """True only when something ran and nothing failed or errored."""
+        return (
+            self.failed == 0
+            and self.errors == 0
+            and self.passed > 0
+            and not any(case.outcome == "error" for case in self.cases)
+        )
+
+    @property
+    def is_broken(self) -> bool:
+        """True when the run proved damage.
+
+        Failures or modules that would not import both count.
+        """
+        return (
+            self.failed > 0
+            or self.errors > 0
+            or any(case.outcome == "error" for case in self.cases)
+        )

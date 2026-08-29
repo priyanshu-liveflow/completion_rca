@@ -99,6 +99,11 @@
           "title": "Failed",
           "type": "integer"
         },
+        "errors": {
+          "default": 0,
+          "title": "Errors",
+          "type": "integer"
+        },
         "duration_s": {
           "title": "Duration S",
           "type": "number"
@@ -122,7 +127,7 @@
       "type": "object"
     }
   },
-  "description": "Before/after test reports for a patch. `verified` is the PR gate.",
+  "description": "Before/after test reports for a patch.\n\n`verified` is the PR gate and must be `before.is_broken and after.is_green`.\nDo not use `before.failed > 0`: a collection error is broken with failed=0.",
   "properties": {
     "patch": {
       "$ref": "#/$defs/Patch"

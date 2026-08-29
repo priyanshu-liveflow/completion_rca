@@ -72,6 +72,11 @@
       "title": "Failed",
       "type": "integer"
     },
+    "errors": {
+      "default": 0,
+      "title": "Errors",
+      "type": "integer"
+    },
     "duration_s": {
       "title": "Duration S",
       "type": "number"

@@ -71,9 +71,10 @@ class AzureProvider(BaseLLMProvider):
         messages: list[dict],
         tools: list[dict],
         system: str,
+        model_override: str = "",
     ) -> LLMResponse:
         client = await self._get_client()
-        model_id: str = self._cfg.get("main_model", "")
+        model_id: str = model_override or self._cfg.get("main_model", "")
         anthropic_messages = self._to_anthropic_messages(messages)
 
         # Cache the system prompt (one breakpoint)

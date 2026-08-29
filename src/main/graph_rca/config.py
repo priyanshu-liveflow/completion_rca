@@ -176,7 +176,10 @@ class DomainConfig:
         )
 
     def apply_runtime(self, runtime_path: str | Path | None = None):
-        """Overlay runtime config (models, budget) onto this config. Mutates self."""
+        """Overlay runtime config (models, budget, provider) onto this config. Mutates self.
+
+        Returns the loaded RuntimeConfig so callers can construct the matching provider.
+        """
         from .runtime_config import RuntimeConfig
         rt = RuntimeConfig.from_yaml(runtime_path) if runtime_path else RuntimeConfig.default()
         self.model_light = rt.model_light
@@ -189,6 +192,7 @@ class DomainConfig:
         self.budget_cap_usd = rt.budget_cap_usd
         self.early_exit_confidence = rt.early_exit_confidence
         self.skip_heavy_model_if_obvious = rt.skip_heavy_model_if_obvious
+        return rt
 
     @classmethod
     def minimal(cls, repo: str, entry_start: str = r"^\d{4}-\d{2}-\d{2}") -> "DomainConfig":

@@ -57,12 +57,30 @@ MODELS = (
 
 
 def main() -> int:
-    """Emit one JSON Schema file per contract model into contracts/schemas/."""
+    """Emit one JSON Schema file per contract model into contracts/schemas/.
+
+    Pass `--check` to fail if committed schemas drift from the models.
+    """
+    check = "--check" in sys.argv
     OUT.mkdir(parents=True, exist_ok=True)
+    drifted: list[str] = []
     for model in MODELS:
         path = OUT / f"{model.__name__}.json"
-        path.write_text(json.dumps(model.model_json_schema(), indent=2) + "\n", encoding="utf-8")
+        rendered = json.dumps(model.model_json_schema(), indent=2) + "\n"
+        if check:
+            if not path.exists() or path.read_text(encoding="utf-8") != rendered:
+                drifted.append(path.relative_to(ROOT).as_posix())
+            continue
+        path.write_text(rendered, encoding="utf-8")
         print(path.relative_to(ROOT).as_posix())
+    if check:
+        if drifted:
+            print("schema drift:", file=sys.stderr)
+            print("\n".join(drifted), file=sys.stderr)
+            print("Run `python scripts/export_schemas.py` and commit.", file=sys.stderr)
+            return 1
+        print("OK: schemas match models")
+        return 0
     return 0
 
 

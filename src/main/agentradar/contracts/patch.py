@@ -16,7 +16,11 @@ class Patch(BaseModel):
 
 
 class VerifyResult(BaseModel):
-    """Before/after test reports for a patch. `verified` is the PR gate."""
+    """Before/after test reports for a patch.
+
+    `verified` is the PR gate and must be `before.is_broken and after.is_green`.
+    Do not use `before.failed > 0`: a collection error is broken with failed=0.
+    """
 
     model_config = ConfigDict(frozen=True)
 

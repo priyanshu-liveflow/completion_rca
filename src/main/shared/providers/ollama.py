@@ -15,8 +15,9 @@ from .base import BaseLLMProvider, LLMResponse, ToolCall
 
 
 class OllamaProvider(BaseLLMProvider):
-    def __init__(self, base_url: str = "http://localhost:11434"):
+    def __init__(self, base_url: str = "http://localhost:11434", num_ctx: int = 32768):
         self._base_url = base_url
+        self._num_ctx = num_ctx
         self._client = httpx.Client(base_url=base_url, timeout=300.0)
 
     def get_tool_schemas(self, mcp_tools: list[dict]) -> list[dict]:
@@ -56,7 +57,7 @@ class OllamaProvider(BaseLLMProvider):
             "model": model,
             "messages": ollama_messages,
             "stream": False,
-            "options": {"num_ctx": 32768},
+            "options": {"num_ctx": self._num_ctx},
         }
         if tools:
             payload["tools"] = tools

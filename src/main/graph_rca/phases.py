@@ -187,8 +187,14 @@ async def investigate(
         run_trace_agent(a, config, ctx, prepared.repo, log_context=agent_contexts.get(a.id, ""))
         for a in dispatched
     ]
-    reports = await asyncio.gather(*tasks)
-    trace_reports = [r for r in reports if r]
+    reports = await asyncio.gather(*tasks, return_exceptions=True)
+    trace_reports = []
+    for report in reports:
+        if isinstance(report, BaseException):
+            log.warning("trace_agent_failed", error=str(report))
+            continue
+        if report:
+            trace_reports.append(report)
 
     return InvestigationResult(mode="rca", trace_reports=trace_reports, assignments=dispatched)
 

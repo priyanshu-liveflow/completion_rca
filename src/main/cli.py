@@ -376,11 +376,14 @@ def query(
     from src.main.graph_rca.config import DomainConfig
     from src.main.shared.base import BlockContext, RunMetrics
 
-    provider = make_provider()
-    ctx = BlockContext(provider=provider, metrics=RunMetrics(), verbose=verbose)
     domain_config = DomainConfig.from_yaml(config) if config else DomainConfig()
-    if runtime:
-        domain_config.apply_runtime(runtime)
+    rt = domain_config.apply_runtime(runtime) if runtime else None
+    provider = make_provider(
+        cloud_provider=rt.provider if rt else None,
+        ollama_base_url=rt.ollama_base_url if rt else None,
+        ollama_num_ctx=rt.num_ctx if rt else None,
+    )
+    ctx = BlockContext(provider=provider, metrics=RunMetrics(), verbose=verbose)
 
     async def _run():
         if interactive:

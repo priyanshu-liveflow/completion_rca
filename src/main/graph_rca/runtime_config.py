@@ -11,16 +11,19 @@ from pathlib import Path
 import yaml
 
 
+_DEFAULT_MODELS: dict[str, str] = {
+    "light": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "default": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "heavy": "us.anthropic.claude-opus-4-6-v1",
+    "router": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+}
+
+
 @dataclass
 class RuntimeConfig:
     """Provider, model, and budget settings. Shared across all repos."""
     provider: str = "aws"
-    models: dict[str, str] = field(default_factory=lambda: {
-        "light": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "default": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "heavy": "us.anthropic.claude-opus-4-6-v1",
-        "router": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    })
+    models: dict[str, str] = field(default_factory=lambda: dict(_DEFAULT_MODELS))
     max_trace_agents: int = 5
     max_turns_per_agent: int = 12
     extension_turns: int = 5
@@ -55,7 +58,7 @@ class RuntimeConfig:
             data = yaml.safe_load(f) or {}
         return cls(
             provider=data.get("provider", cls.provider),
-            models=data.get("models", {}),
+            models={**_DEFAULT_MODELS, **(data.get("models") or {})},
             max_trace_agents=data.get("budget", {}).get("max_trace_agents", cls.max_trace_agents),
             max_turns_per_agent=data.get("budget", {}).get("max_turns_per_agent", cls.max_turns_per_agent),
             extension_turns=data.get("budget", {}).get("extension_turns", cls.extension_turns),

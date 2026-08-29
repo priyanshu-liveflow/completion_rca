@@ -74,7 +74,9 @@ def _case(*, outcome: str = "failed") -> TestCase:
     )
 
 
-def _report(*, report_id: str, passed: int, failed: int, outcome: str) -> TestReport:
+def _report(
+    *, report_id: str, passed: int, failed: int, outcome: str, errors: int = 0
+) -> TestReport:
     return TestReport(
         id=report_id,
         package="mcp",
@@ -82,6 +84,7 @@ def _report(*, report_id: str, passed: int, failed: int, outcome: str) -> TestRe
         cases=[_case(outcome=outcome)],
         passed=passed,
         failed=failed,
+        errors=errors,
         duration_s=0.5,
         raw_tail="Interrupted: 2 errors during collection",
     )
@@ -186,7 +189,7 @@ def test_test_report_round_trip() -> None:
 
 def test_test_report_is_green() -> None:
     green = _report(report_id="rep_green", passed=61, failed=0, outcome="passed")
-    red = _report(report_id="rep_red", passed=0, failed=2, outcome="error")
+    red = _report(report_id="rep_red", passed=0, failed=2, outcome="failed")
     empty = TestReport(
         id="rep_empty",
         package="mcp",
@@ -194,12 +197,50 @@ def test_test_report_is_green() -> None:
         cases=[],
         passed=0,
         failed=0,
+        errors=0,
         duration_s=0.0,
         raw_tail="Interrupted: 2 errors during collection",
     )
+    collection = TestReport(
+        id="rep_collection",
+        package="mcp",
+        version="2.1.1",
+        cases=[],
+        passed=0,
+        failed=0,
+        errors=2,
+        duration_s=0.37,
+        raw_tail="Interrupted: 2 errors during collection",
+    )
+    mixed = TestReport(
+        id="rep_mixed",
+        package="mcp",
+        version="2.1.1",
+        cases=[
+            _case(outcome="passed"),
+            TestCase(
+                node_id="tests/test_server.py",
+                outcome="error",
+                duration_s=0.0,
+                traceback="collection error",
+            ),
+        ],
+        passed=1,
+        failed=0,
+        errors=0,
+        duration_s=0.5,
+        raw_tail="1 passed, 1 error",
+    )
     assert green.is_green is True
+    assert green.is_broken is False
     assert red.is_green is False
+    assert red.is_broken is True
     assert empty.is_green is False
+    assert empty.is_broken is False
+    assert collection.is_green is False
+    assert collection.is_broken is True
+    assert mixed.is_green is False
+    assert mixed.is_broken is True
 
 
 def test_patch_round_trip() -> None:
@@ -207,16 +248,35 @@ def test_patch_round_trip() -> None:
 
 
 def test_verify_result_round_trip() -> None:
-    before = _report(report_id="rep_red", passed=0, failed=2, outcome="error")
+    before = _report(report_id="rep_red", passed=0, failed=2, outcome="failed")
     after = _report(report_id="rep_green", passed=61, failed=0, outcome="passed")
     result = VerifyResult(
         patch=_patch(),
         before=before,
         after=after,
-        verified=after.is_green and before.failed > 0,
+        verified=before.is_broken and after.is_green,
     )
     _round_trip(result)
     assert result.verified is True
+
+
+def test_verify_result_collection_error_is_broken() -> None:
+    before = TestReport(
+        id="rep_collection",
+        package="mcp",
+        version="2.1.1",
+        cases=[],
+        passed=0,
+        failed=0,
+        errors=2,
+        duration_s=0.37,
+        raw_tail="Interrupted: 2 errors during collection",
+    )
+    after = _report(report_id="rep_green", passed=61, failed=0, outcome="passed")
+    assert before.is_broken is True
+    assert before.failed == 0
+    verified = before.is_broken and after.is_green
+    assert verified is True
 
 
 def test_collector_spec_round_trip() -> None:
