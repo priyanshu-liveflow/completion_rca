@@ -19,6 +19,8 @@ from src.main.agentradar.adapters.github import (
     pr_writer,
     reachable_tools,
 )
+from src.main.agentradar.adapters.store import SqliteStore
+from src.main.agentradar.contracts.dependency import ReleaseEvent
 from src.main.agentradar.contracts.evidence import TestReport
 from src.main.agentradar.contracts.patch import Patch, VerifyResult
 from src.main.agentradar.core.patch import build_verify_result
@@ -119,12 +121,37 @@ def host() -> RecordingHost:
     return RecordingHost()
 
 
+@pytest.fixture
+def store() -> SqliteStore:
+    return SqliteStore(":memory:")
+
+
+def _seed_mission(store: SqliteStore, verify: VerifyResult | None = None) -> str:
+    mission = store.create_mission(
+        ReleaseEvent(
+            dependency="mcp",
+            version="2.1.1",
+            published_at="2026-01-15T00:00:00Z",
+            title="MCP Python SDK 2.1.1",
+            body="FastMCP was renamed.",
+            url="https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.1.1",
+            breaking_hint=True,
+            source_collector="c_mcp_releases",
+        )
+    )
+    if verify is not None:
+        store.save_verify(mission.id, verify)
+    return mission.id
+
+
 @pytest.fixture(autouse=True)
-def _inject_host(host: RecordingHost) -> Iterator[None]:
+def _inject_host(host: RecordingHost, store: SqliteStore) -> Iterator[None]:
     github_server.set_host(host)
+    github_server.set_store(store)
     github_server.set_policy(_policy())
     yield
     github_server.set_host(host)
+    github_server.set_store(store)
     github_server.set_policy(_policy())
 
 
@@ -236,6 +263,37 @@ def test_approve_open_issue_returns_url(host: RecordingHost) -> None:
     assert host.pr_calls == []
 
 
+def test_mismatched_payload_diff_is_unreachable(
+    host: RecordingHost, verified: VerifyResult
+) -> None:
+    plan = plan_action(
+        "github_pr",
+        "open it",
+        {
+            "branch": "fix/x",
+            "title": "fix",
+            "diff": "not the verified patch",
+        },
+        _policy(),
+    )
+    with pytest.raises(GateClosed, match="does not match"):
+        execute(host, plan, approved=True, verify=verified)
+    assert host.pr_calls == []
+
+
+def test_execute_pr_uses_verified_patch_not_payload(
+    host: RecordingHost, verified: VerifyResult
+) -> None:
+    plan = plan_action(
+        "github_pr",
+        "open it",
+        {"branch": "fix/x", "title": "fix"},
+        _policy(),
+    )
+    execute(host, plan, approved=True, verify=verified)
+    assert host.pr_calls[0][3] == verified.patch.diff
+
+
 def test_pr_body_embeds_fixture_reports(
     verified: VerifyResult, red_report: TestReport, green_report: TestReport
 ) -> None:
@@ -301,40 +359,57 @@ def test_gh_client_raises_on_empty_stdout() -> None:
 
 def test_dispatch_github_pr_unreachable_when_not_verified(
     host: RecordingHost,
+    store: SqliteStore,
+    red_report: TestReport,
 ) -> None:
+    still_red = build_verify_result(_PATCH, before=red_report, after=red_report)
+    mission_id = _seed_mission(store, still_red)
     result = dispatch(
         "github_pr",
-        {
-            "branch": "fix/x",
-            "title": "fix",
-            "diff": _PATCH.diff,
-            "verify": {
-                "patch": _PATCH.model_dump(),
-                "before": parse_pytest(
-                    _fixture("green"), "mcp", "2.1.1", "b"
-                ).model_dump(),
-                "after": parse_pytest(
-                    _fixture("green"), "mcp", "2.1.1", "a"
-                ).model_dump(),
-            },
-        },
+        {"mission_id": mission_id, "branch": "fix/x", "title": "fix"},
     )
     assert result["error"]["type"] == "gate_closed"
     assert "unreachable" in result["error"]["message"]
     assert host.pr_calls == []
 
 
-def test_dispatch_github_pr_returns_action_plan(
-    host: RecordingHost, verified: VerifyResult
+def test_dispatch_github_pr_unreachable_without_saved_verify(
+    host: RecordingHost, store: SqliteStore
 ) -> None:
+    mission_id = _seed_mission(store)
+    result = dispatch(
+        "github_pr",
+        {"mission_id": mission_id, "branch": "fix/x", "title": "fix"},
+    )
+    assert result["error"]["type"] == "gate_closed"
+    assert host.pr_calls == []
+
+
+def test_dispatch_github_pr_rejects_caller_authored_verify() -> None:
     result = dispatch(
         "github_pr",
         {
+            "mission_id": "m1",
+            "branch": "fix/x",
+            "title": "fix",
+            "verify": {"verified": True},
+        },
+    )
+    assert result["error"]["type"] == "invalid_input"
+    assert "unexpected field" in result["error"]["message"]
+
+
+def test_dispatch_github_pr_returns_action_plan(
+    host: RecordingHost, store: SqliteStore, verified: VerifyResult
+) -> None:
+    mission_id = _seed_mission(store, verified)
+    result = dispatch(
+        "github_pr",
+        {
+            "mission_id": mission_id,
             "branch": "fix/mcp-v2",
             "title": "fix FastMCP",
             "summary": "Open the PR",
-            "diff": _PATCH.diff,
-            "verify": verified.model_dump(),
         },
     )
     assert "error" not in result
@@ -343,6 +418,7 @@ def test_dispatch_github_pr_returns_action_plan(
     assert result["payload"]["url"] == _PR_URL
     assert len(host.pr_calls) == 1
     assert "errors=2" in host.pr_calls[0][2]
+    assert host.pr_calls[0][3] == verified.patch.diff
 
 
 def test_dispatch_github_issue_returns_action_plan(host: RecordingHost) -> None:

@@ -193,10 +193,12 @@ def execute(
             raise GateClosed(
                 "github_pr is unreachable without a proven red-to-green transition"
             )
+        supplied = _optional_str(plan.payload, "diff")
+        if supplied and supplied != verify.patch.diff:
+            raise GateClosed("github_pr diff does not match the verified patch")
         branch = _need(plan.payload, "branch")
         title = _need(plan.payload, "title")
-        diff = _optional_str(plan.payload, "diff") or verify.patch.diff
-        return writer(branch, title, pr_body(plan.summary, verify), diff)
+        return writer(branch, title, pr_body(plan.summary, verify), verify.patch.diff)
 
     if plan.target == _ISSUE_TOOL:
         return host.open_issue(

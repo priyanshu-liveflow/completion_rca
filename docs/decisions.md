@@ -16,6 +16,16 @@ An empty section here is fine. An unresolved Qodo comment with no entry here is 
 
 ---
 
+### PR #18 — `gh pr create` does not apply the verified patch onto a new branch
+**Qodo said:** `github_pr` takes a caller-supplied `branch` (and used to take a separate `diff`), so a verified patch A can still open a PR from unrelated commits already on branch B.
+**We did:** partially addressed. The embedded diff is now always `mission.verify.patch.diff`; a payload diff that disagrees is a closed gate, and the MCP tool no longer accepts a caller `diff` or `VerifyResult` dump. We did not make `GhClient` `git apply` / commit / push.
+**Why:** `CodeHost.open_pr(branch, title, body, diff)` is the PR12 contract — `gh pr create --head` submits an already-pushed branch. Applying the patch in the adapter would mutate the harness checkout, and secrets must not enter the sandbox to push from there. The human approval pause is the remaining check that `--head` is the branch that actually carries the repair. Binding the write to a commit minted from the patch is follow-up work, not a silent extra git write in this PR.
+
+### PR #18 — sandbox-signed verification ids versus store-backed reports
+**Qodo said:** recomputing `verified` from caller-authored `TestReport` counts does not prove the tests ran; bind the write to an immutable run id produced by the sandbox.
+**We did:** partially addressed. `github_pr` now takes `mission_id` and reads `mission.verify` from the store — a fabricated dict on the tool call cannot open the gate. We did not add a signed run id to the frozen contracts.
+**Why:** `save_verify` already persists a `VerifyResult` whose `verified` field is computed, and `save_report` already parses pytest stdout rather than trusting a `failed=` integer. A cryptographic run id would reopen `contracts/patch.py` and `contracts/evidence.py`, which later PRs have been treating as frozen. The remaining hole (an agent posting invented pytest stdout through `save_report`) is the same one the rest of the pipeline lives with; closing it belongs with a sandbox-emitted artifact, not a GitHub-adapter special case.
+
 ### PR #12 — `reached_from` legibility versus the frozen contract
 **Qodo said:** the IMPORTS walk stored contact-point *file paths* in `reached_from` while the CALLS walk stored *function names*, so a union mixed two identifier namespaces.
 **We did:** fixed the inconsistency by moving IMPORTS onto function names, per `docs/build-plan.md:247` (`reached_from: list[str]  # contact point function names`). Also widened origin tracking from "first contact point to arrive" to the full set, since several contact points routinely share one module.

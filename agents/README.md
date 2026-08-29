@@ -47,15 +47,16 @@ npx tsx seed.ts
 
 Requires a local TrueForge on `localhost:8790` (`npx @truefoundry/trueforge@latest`,
 see `docs/runbook.md`) with both providers already configured
-(`python scripts/configure_trueforge.py`) and the three MCP servers running:
+(`python scripts/configure_trueforge.py`) and the four MCP servers running:
 
 ```bash
-python -m src.main.agentradar.mcp.graph_server --port 8765
-python -m src.main.agentradar.mcp.web_server   --port 8766
-python -m src.main.agentradar.mcp.store_server --port 8767
+python -m src.main.agentradar.mcp.graph_server  --port 8765
+python -m src.main.agentradar.mcp.web_server    --port 8766
+python -m src.main.agentradar.mcp.store_server  --port 8767
+python -m src.main.agentradar.mcp.github_server --port 8768
 ```
 
-`seed.ts` registers all three with TrueForge (`PUT /api/v1/settings/mcp-servers`,
+`seed.ts` registers all four with TrueForge (`PUT /api/v1/settings/mcp-servers`,
 idempotent) whether or not they are actually listening yet — registration
 does not health-check the URL. A server that isn't up yet will surface as a
 connection failure the first time the agent actually tries to call one of its
