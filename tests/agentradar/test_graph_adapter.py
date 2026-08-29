@@ -389,3 +389,25 @@ def test_dispatch_select_tests_rejects_missing_repo() -> None:
     result = dispatch("select_tests", {"symbol": "FastMCP"})
     assert result["error"]["type"] == "invalid_input"
     assert "repo" in result["error"]["message"]
+
+
+# -- select_tests input guards ----------------------------------------------
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_select_tests_rejects_blank_symbol(blank: str) -> None:
+    """A substring search for "" matches everything, so it must not run."""
+    payload = dispatch("select_tests", {"symbol": blank, "repo": "demo-repo"})
+
+    assert is_error_envelope(payload)
+    assert payload["error"]["type"] == "invalid_input"
+    assert "symbol" in payload["error"]["message"]
+
+
+def test_select_tests_rejects_blank_repo() -> None:
+    """Without a repo the traversal is unscoped across every indexed checkout."""
+    payload = dispatch("select_tests", {"symbol": "FastMCP", "repo": "  "})
+
+    assert is_error_envelope(payload)
+    assert payload["error"]["type"] == "invalid_input"
+    assert "repo" in payload["error"]["message"]

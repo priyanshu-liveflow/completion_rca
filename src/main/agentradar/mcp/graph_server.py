@@ -15,7 +15,7 @@ from src.main.agentradar.contracts.impact import (
     GraphNodeList,
 )
 from src.main.agentradar.core.selection import select_tests as _select_tests
-from src.main.agentradar.mcp._server import serve, tool
+from src.main.agentradar.mcp._server import ToolError, serve, tool
 
 _graph: CodeGraph | None = None
 
@@ -216,7 +216,17 @@ def select_tests(
     One call rather than two so the agent cannot skip the walk and guess. An
     empty `tests` list is a real answer meaning nothing covers these sites -
     report UNCOVERED and fall back to an import check, never assume safe.
+
+    A blank `symbol` is rejected rather than answered. The graph search is a
+    substring match, so `""` matches every function name and every source
+    body: the tool would return a confident-looking selection of arbitrary
+    tests instead of saying it was asked nothing. Same for `repo`, which
+    scopes the traversal to one indexed checkout.
     """
+    if not symbol.strip():
+        raise ToolError("invalid_input", "'symbol' must not be blank")
+    if not repo.strip():
+        raise ToolError("invalid_input", "'repo' must not be blank")
     graph = get_graph()
     points = graph.find_contact_points(symbol, repo, limit)
     return _select_tests(

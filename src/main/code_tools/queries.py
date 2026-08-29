@@ -14,6 +14,22 @@ import re
 from .graph_conn import get_graph
 
 
+def _repo_filter(repo: str) -> str:
+    """Wrap `repo` in slashes so `f.path CONTAINS` matches a directory boundary.
+
+    `repo` is documented as the last path segment of the checkout, but a bare
+    `CONTAINS` makes it a substring test: index both `app` and `myapp` and a
+    query scoped to `app` silently draws nodes out of `myapp`, mixing two
+    repos' tests into one selection. Indexed paths are absolute, so the repo
+    segment always sits between two separators and `/repo/` is exact.
+
+    Applied to the queries on the AgentRadar selection path only; the rest of
+    this inherited module is left as-is.
+    """
+    trimmed = repo.strip("/")
+    return f"/{trimmed}/" if trimmed else repo
+
+
 def _short_name(name: str) -> str:
     """Strip package/class prefix — graph stores short names."""
     parts = re.split(r'[.::\\\/]+', name)
@@ -41,14 +57,14 @@ def _resolve_function(g, repo: str, function_name: str | None = None, fid: int |
     if hint:
         result = g.query(
             'MATCH (f:Function) WHERE f.name = $name AND f.path CONTAINS $repo AND f.path CONTAINS $hint RETURN f.source, f.path, id(f), f.name',
-            params={"name": fname, "repo": repo, "hint": hint}
+            params={"name": fname, "repo": _repo_filter(repo), "hint": hint}
         )
         if result.result_set:
             return [(r[0], r[1], r[2], r[3]) for r in result.result_set]
 
     result = g.query(
         'MATCH (f:Function) WHERE f.name = $name AND f.path CONTAINS $repo RETURN f.source, f.path, id(f), f.name',
-        params={"name": fname, "repo": repo}
+        params={"name": fname, "repo": _repo_filter(repo)}
     )
     return [(r[0], r[1], r[2], r[3]) for r in result.result_set] if result.result_set else []
 
@@ -84,13 +100,13 @@ def get_callers(function_name: str, repo: str, limit: int = 10, fid: int | None 
     if fid is not None:
         result = g.query(
             'MATCH (caller:Function)-[:CALLS]->(f:Function) WHERE id(f) = $fid AND caller.path CONTAINS $repo OPTIONAL MATCH (k:Class)-[:CONTAINS]->(caller) RETURN DISTINCT caller.name, id(caller), caller.path, k.name LIMIT $lim',
-            params={"fid": fid, "repo": repo, "lim": limit}
+            params={"fid": fid, "repo": _repo_filter(repo), "lim": limit}
         )
     else:
         fname = _short_name(function_name)
         result = g.query(
             'MATCH (caller:Function)-[:CALLS]->(f:Function {name: $name}) WHERE caller.path CONTAINS $repo OPTIONAL MATCH (k:Class)-[:CONTAINS]->(caller) RETURN DISTINCT caller.name, id(caller), caller.path, k.name LIMIT $lim',
-            params={"name": fname, "repo": repo, "lim": limit}
+            params={"name": fname, "repo": _repo_filter(repo), "lim": limit}
         )
 
     if result.result_set:
@@ -114,7 +130,7 @@ def get_import_edges(repo: str, limit: int = 2000) -> list[dict]:
     g = get_graph()
     result = g.query(
         'MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path CONTAINS $repo RETURN f.path, m.name LIMIT $lim',
-        params={"repo": repo, "lim": limit}
+        params={"repo": _repo_filter(repo), "lim": limit}
     )
     return [{"file_path": r[0], "imported": r[1]} for r in result.result_set] if result.result_set else []
 
@@ -130,7 +146,7 @@ def get_functions_in_file(file_path: str, repo: str, limit: int = 500) -> list[d
         'MATCH (f:Function) WHERE f.path CONTAINS $path AND f.path CONTAINS $repo '
         'OPTIONAL MATCH (c:Class)-[:CONTAINS]->(f) '
         'RETURN f.name, id(f), f.path, c.name LIMIT $lim',
-        params={"path": file_path, "repo": repo, "lim": limit}
+        params={"path": file_path, "repo": _repo_filter(repo), "lim": limit}
     )
     return [{"name": r[0], "fid": r[1], "path": r[2], "class_name": r[3]} for r in result.result_set] if result.result_set else []
 
@@ -233,7 +249,15 @@ def get_db_tables(function_name: str, repo: str, fid: int | None = None) -> dict
 
 
 def find_by_pattern(pattern: str, repo: str, limit: int = 15) -> list[dict]:
-    """Search functions by name substring OR source code. Returns [{name, fid}, ...]."""
+    """Search functions by name substring OR source code. Returns [{name, fid}, ...].
+
+    Both searches always run and each is given the full ``limit``; the cap is
+    applied to the deduplicated union afterwards. Running the source search
+    only when the name search came up short meant a repo with ``limit``
+    functions merely *named* after the symbol hid every site that actually
+    *imports* it -- and for a dependency break the import sites are the whole
+    point. Name matches still come first: they are the stronger signal.
+    """
     g = get_graph()
     short = _short_name(pattern)
     seen: set[int] = set()
@@ -248,25 +272,16 @@ def find_by_pattern(pattern: str, repo: str, limit: int = 15) -> list[dict]:
                 continue
             seen.add(fid)
             out.append({"name": row[0], "fid": fid})
-            if len(out) >= limit:
-                return
 
-    collect(
-        g.query(
-            "MATCH (f:Function) WHERE f.name CONTAINS $pattern AND f.path CONTAINS $repo "
-            "RETURN DISTINCT f.name, id(f) LIMIT $lim",
-            params={"pattern": short, "repo": repo, "lim": limit},
-        )
-    )
-    if len(out) < limit:
+    for field, needle in (("f.name", short), ("f.source", pattern)):
         collect(
             g.query(
-                "MATCH (f:Function) WHERE f.source CONTAINS $pattern AND f.path CONTAINS $repo "
+                f"MATCH (f:Function) WHERE {field} CONTAINS $pattern AND f.path CONTAINS $repo "
                 "RETURN DISTINCT f.name, id(f) LIMIT $lim",
-                params={"pattern": pattern, "repo": repo, "lim": limit - len(out)},
+                params={"pattern": needle, "repo": _repo_filter(repo), "lim": limit},
             )
         )
-    return out
+    return out[:limit]
 
 
 def get_call_chain(from_function: str, to_function: str, repo: str, max_hops: int = 4) -> list[dict] | None:
