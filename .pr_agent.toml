@@ -1,0 +1,69 @@
+# Qodo Merge configuration — completion_rca
+# Docs: https://qodo-merge-docs.qodo.ai/usage-guide/configuration_options/
+# Only overrides live here. Anything absent uses Qodo's defaults.
+
+[config]
+# Qodo reads these as review context, so the rules written in CLAUDE.md become rules
+# Qodo enforces. The Bright Data constraint in particular is unenforceable by a linter
+# but trivially catchable by a reviewer that knows the rule exists.
+repo_context_files = ["CLAUDE.md", "AGENTS.md"]
+repo_context_from_default_branch = true
+
+# Skip PRs that aren't asking to be reviewed yet.
+ignore_pr_title = ["^\\[Auto\\]", "^Auto", "^WIP", "^wip", "^\\[WIP\\]"]
+
+[pr_reviewer]
+require_security_review = true
+require_tests_review = true
+require_estimate_effort_to_review = true
+require_can_be_split_review = true      # small PRs are the plan; call it out when we drift
+num_max_findings = 4
+persistent_comment = true
+
+extra_instructions = """
+Project-specific rules. Flag violations of these as high severity — they are architectural
+invariants, not style preferences.
+
+1. ALL outbound web access must go through Bright Data (packages/mcp-web). Direct `fetch`,
+   `requests`, `httpx`, `urllib`, `curl`, or any unproxied HTTP client anywhere in application
+   code is a defect, including in tests and scripts. Bright Data CLI invocations are the only
+   sanctioned path.
+
+2. Approval-gated tools must be unreachable while a verification step is failing. If a code path
+   can reach a GitHub write (PR, issue, commit) without a passing test run in evidence, that is
+   a correctness bug, not a design opinion.
+
+3. Secrets must never enter the sandbox. The harness holds credentials; the sandbox gets code,
+   files and shell only. Flag any code that passes an API key, token, or connection string into
+   sandbox execution.
+
+4. MCP tool handlers must validate their inputs against the shared schemas in packages/contracts
+   before use. An unvalidated tool argument reaching a shell command or a graph query is a
+   severity-raising finding.
+
+5. Collector definitions in collectors/*.json are the version-controlled contract for scrapers.
+   Flag hardcoded selectors, URLs, or field names that bypass them.
+
+6. This repo is polyglot (Python for the graph and MCP layer, TypeScript for the web app and
+   MCP servers). Judge each file by its own language's idioms; do not suggest porting between
+   them.
+
+Do not raise findings about the inherited graph_rca modules unless the PR actually changes them.
+"""
+
+[pr_code_suggestions]
+focus_only_on_problems = true
+suggestions_score_threshold = 5    # cut low-value noise; we act on what survives
+num_code_suggestions_per_chunk = 3
+persistent_comment = true
+
+[pr_description]
+publish_labels = true
+
+[ignore]
+glob = [
+  'fixtures/**',        # recorded event streams — machine output, not authored code
+  '**/*.lock',
+  '**/package-lock.json',
+  '**/uv.lock',
+]
