@@ -1,0 +1,3 @@
+# runtime pins
+-r requirements_base.txt
+pytest>=8.0.0

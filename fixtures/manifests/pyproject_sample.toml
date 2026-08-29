@@ -1,0 +1,23 @@
+[project]
+name = "sample-app"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+    "pydantic==2.7.0",
+]
+
+[dependency-groups]
+dev = [
+    { include-group = "lint" },
+    "pytest>=8.0.0",
+]
+lint = [
+    "ruff>=0.4.0",
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+httpx = { version = "^0.27.0", extras = ["http2"] }
+rich = ">=13.0.0"
+mylib = { git = "https://github.com/example/mylib.git", rev = "abc123" }
