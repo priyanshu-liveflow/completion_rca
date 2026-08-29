@@ -78,23 +78,23 @@ def read_source(function_name: str, repo: str, max_chars: int = 1000, offset: in
 
 
 def get_callers(function_name: str, repo: str, limit: int = 10, fid: int | None = None) -> list[dict]:
-    """Get functions that call this function. Returns [{name, fid}, ...]."""
+    """Get functions that call this function. Returns [{name, fid, path, class_name}, ...]."""
     g = get_graph()
 
     if fid is not None:
         result = g.query(
-            'MATCH (caller:Function)-[:CALLS]->(f:Function) WHERE id(f) = $fid AND caller.path CONTAINS $repo RETURN DISTINCT caller.name, id(caller) LIMIT $lim',
+            'MATCH (caller:Function)-[:CALLS]->(f:Function) WHERE id(f) = $fid AND caller.path CONTAINS $repo OPTIONAL MATCH (k:Class)-[:CONTAINS]->(caller) RETURN DISTINCT caller.name, id(caller), caller.path, k.name LIMIT $lim',
             params={"fid": fid, "repo": repo, "lim": limit}
         )
     else:
         fname = _short_name(function_name)
         result = g.query(
-            'MATCH (caller:Function)-[:CALLS]->(f:Function {name: $name}) WHERE caller.path CONTAINS $repo RETURN DISTINCT caller.name, id(caller) LIMIT $lim',
+            'MATCH (caller:Function)-[:CALLS]->(f:Function {name: $name}) WHERE caller.path CONTAINS $repo OPTIONAL MATCH (k:Class)-[:CONTAINS]->(caller) RETURN DISTINCT caller.name, id(caller), caller.path, k.name LIMIT $lim',
             params={"name": fname, "repo": repo, "lim": limit}
         )
 
     if result.result_set:
-        return [{"name": r[0], "fid": r[1]} for r in result.result_set]
+        return [{"name": r[0], "fid": r[1], "path": r[2], "class_name": r[3]} for r in result.result_set]
 
     # Fallback: grep for name references
     fname = _short_name(function_name) if function_name else ""
@@ -102,6 +102,37 @@ def get_callers(function_name: str, repo: str, limit: int = 10, fid: int | None 
         refs = _grep_source_for_refs(fname, repo, g, limit)
         return [{"name": n, "fid": None} for n in refs]
     return []
+
+
+def get_import_edges(repo: str, limit: int = 2000) -> list[dict]:
+    """Every IMPORTS edge in the repo. Returns [{file_path, imported}, ...].
+
+    Edges run File -> Module and the Module nodes are leaves, so a transitive
+    walk has to rejoin names to files in code. There were 183 edges for the
+    demo repo, so one fetch beats a query per hop.
+    """
+    g = get_graph()
+    result = g.query(
+        'MATCH (f:File)-[:IMPORTS]->(m:Module) WHERE f.path CONTAINS $repo RETURN f.path, m.name LIMIT $lim',
+        params={"repo": repo, "lim": limit}
+    )
+    return [{"file_path": r[0], "imported": r[1]} for r in result.result_set] if result.result_set else []
+
+
+def get_functions_in_file(file_path: str, repo: str, limit: int = 500) -> list[dict]:
+    """Function nodes in one file. Returns [{name, fid, path, class_name}, ...].
+
+    Method names are stored bare, with ownership on a separate Class CONTAINS
+    edge, so `class_name` is what makes a runnable pytest node id possible.
+    """
+    g = get_graph()
+    result = g.query(
+        'MATCH (f:Function) WHERE f.path CONTAINS $path AND f.path CONTAINS $repo '
+        'OPTIONAL MATCH (c:Class)-[:CONTAINS]->(f) '
+        'RETURN f.name, id(f), f.path, c.name LIMIT $lim',
+        params={"path": file_path, "repo": repo, "lim": limit}
+    )
+    return [{"name": r[0], "fid": r[1], "path": r[2], "class_name": r[3]} for r in result.result_set] if result.result_set else []
 
 
 def get_callees(function_name: str, repo: str, limit: int = 15, fid: int | None = None) -> list[dict]:

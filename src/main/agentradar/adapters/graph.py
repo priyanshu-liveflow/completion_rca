@@ -23,6 +23,10 @@ class CodeGraph(Protocol):
         self, fid: int, repo: str, limit: int = 25
     ) -> list[dict[str, Any]]: ...
 
+    def import_edges(self, repo: str) -> list[dict[str, Any]]: ...
+
+    def functions_in(self, file_path: str, repo: str) -> list[dict[str, Any]]: ...
+
     def call_chain(
         self, frm: str, to: str, repo: str, max_hops: int = 4
     ) -> list[dict[str, Any]]: ...
@@ -81,8 +85,44 @@ class FalkorCodeGraph:
         return points
 
     def callers_of(self, fid: int, repo: str, limit: int = 25) -> list[dict[str, Any]]:
-        """Functions that call `fid`. BFS callers live in core/selection (PR4)."""
-        return list(queries.get_callers("", repo, limit=limit, fid=fid))
+        """Functions that call `fid`, each with a repo-relative `file_path`.
+
+        The path is what lets `core.selection` tell a test caller from a source
+        caller. Without it every real caller fails `is_test_node` and the CALLS
+        strategy silently selects nothing.
+        """
+        rows = queries.get_callers("", repo, limit=limit, fid=fid)
+        return [
+            {
+                "name": row.get("name"),
+                "fid": row.get("fid"),
+                "file_path": _relative_to_repo(str(row.get("path") or ""), repo),
+                "class_name": row.get("class_name"),
+            }
+            for row in rows
+        ]
+
+    def import_edges(self, repo: str) -> list[dict[str, Any]]:
+        """Every IMPORTS edge as `{file_path, imported}`, paths repo-relative."""
+        return [
+            {
+                "file_path": _relative_to_repo(str(row.get("file_path") or ""), repo),
+                "imported": str(row.get("imported") or ""),
+            }
+            for row in queries.get_import_edges(repo)
+        ]
+
+    def functions_in(self, file_path: str, repo: str) -> list[dict[str, Any]]:
+        """Function nodes declared in one file. `file_path` is repo-relative."""
+        return [
+            {
+                "name": row.get("name"),
+                "fid": row.get("fid"),
+                "file_path": _relative_to_repo(str(row.get("path") or ""), repo),
+                "class_name": row.get("class_name"),
+            }
+            for row in queries.get_functions_in_file(file_path, repo)
+        ]
 
     def call_chain(
         self, frm: str, to: str, repo: str, max_hops: int = 4

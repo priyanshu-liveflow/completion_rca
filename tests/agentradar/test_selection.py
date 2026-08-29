@@ -308,10 +308,34 @@ def test_callers_reaches_zero_for_this_break() -> None:
     assert selection.tests == []
 
 
-def test_selection_records_the_files_it_came_from() -> None:
-    selection = select_tests(demo_selection_graph(), _demo_points(), REPO)
-    assert set(selection.reached_from) <= set(DEMO["expected_contact_points"])
-    assert selection.reached_from
+def test_selection_records_the_contact_points_it_came_from() -> None:
+    """Function names, per the contract — the same namespace CALLS uses."""
+    points = _demo_points()
+    selection = select_tests(demo_selection_graph(), points, REPO)
+    assert set(selection.reached_from) <= {p.function_name for p in points}
+    # Both matching contact points are kept, not just the first to arrive.
+    assert selection.reached_from == ["client", "tools_init"]
+
+
+def test_every_contact_point_sharing_a_module_is_recorded() -> None:
+    """Real graphs put several contact points in one file; all of them reached
+    the tests, so reporting one would under-report provenance."""
+    graph = FakeCodeGraph(
+        imports=[{"file_path": "tests/test_a.py", "imported": "pkg.thing"}],
+        functions={
+            "tests/test_a.py": [
+                {"name": "test_a", "fid": 1, "file_path": "tests/test_a.py"}
+            ]
+        },
+    )
+    points = [
+        _point(10, "src/pkg/thing.py", name="<module>"),
+        _point(11, "src/pkg/thing.py", name="start_server"),
+    ]
+    assert select_tests_by_imports(graph, points, REPO).reached_from == [
+        "<module>",
+        "start_server",
+    ]
 
 
 def test_empty_contact_points_return_an_empty_selection() -> None:
@@ -384,6 +408,59 @@ def test_fake_satisfies_the_protocol() -> None:
 
 
 # --- select_tests_by_path -------------------------------------------------
+
+
+def test_class_based_tests_get_a_runnable_node_id() -> None:
+    """The graph stores method names bare and hangs the class off a separate
+    edge, so `path::test_method` would not resolve in the sandbox."""
+    graph = FakeCodeGraph(
+        imports=[{"file_path": "tests/test_a.py", "imported": "pkg.thing"}],
+        functions={
+            "tests/test_a.py": [
+                {
+                    "name": "test_method",
+                    "fid": 1,
+                    "file_path": "tests/test_a.py",
+                    "class_name": "TestThing",
+                },
+                {"name": "test_plain", "fid": 2, "file_path": "tests/test_a.py"},
+            ]
+        },
+    )
+    selection = select_tests(graph, [_point(9, "src/pkg/thing.py")], REPO)
+    assert selection.tests == [
+        "tests/test_a.py::TestThing::test_method",
+        "tests/test_a.py::test_plain",
+    ]
+
+
+def test_to_node_ids_qualifies_only_class_owned_rows() -> None:
+    rows: list[dict[str, Any]] = [
+        {"name": "test_a", "file_path": "tests/t.py", "class_name": None},
+        {"name": "test_b", "file_path": "tests/t.py", "class_name": "TestB"},
+        {"name": "test_c", "file_path": "tests/t.py", "class_name": ""},
+    ]
+    assert to_node_ids(rows) == [
+        "tests/t.py::test_a",
+        "tests/t.py::TestB::test_b",
+        "tests/t.py::test_c",
+    ]
+
+
+@pytest.mark.parametrize("limit", [-1, -5])
+def test_a_negative_limit_selects_nothing(limit: int) -> None:
+    """`rows[:-1]` would return almost everything and call it truncated."""
+    selection = select_tests(
+        demo_selection_graph(), _demo_points(), REPO, max_tests=limit
+    )
+    assert selection.tests == []
+    assert selection.truncated is True
+
+
+def test_zero_limit_selects_nothing() -> None:
+    selection = select_tests(demo_selection_graph(), _demo_points(), REPO, max_tests=0)
+    assert selection.tests == []
+    assert selection.truncated is True
 
 
 def test_path_strategy_matches_the_test_file_mirror() -> None:

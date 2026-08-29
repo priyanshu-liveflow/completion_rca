@@ -19,17 +19,20 @@ connect to any file node, so a transitive Cypher walk dies after one hop. The
 name-to-file join is done here, in pure code.
 
 The `CodeGraph` Protocol below is declared in `core/` rather than imported from
-`adapters/`, because rule 1 forbids the import. Adapters satisfy it
-structurally. Three of its methods are not yet on `FalkorCodeGraph`, and wiring
-them is a follow-up of one query each:
+`adapters/`, because rule 1 forbids the import. `FalkorCodeGraph` satisfies it
+structurally. Rows are dicts so core stays free of adapter types:
 
-* `callers_of` must add the caller's path to what it returns —
-  `code_tools.queries.get_callers` selects only the name and the id, so callers
-  currently arrive without a `file_path` and cannot be classified as tests.
-* `import_edges` needs the repo's `IMPORTS` edges as
-  `{"file_path": importer, "imported": module_name}`. There were 114 of them at
-  H0, so fetching all of them once beats a query per hop.
-* `functions_in` needs a file's function nodes as `{"name", "fid"}`.
+* `callers_of` -> `{"name", "fid", "file_path", "class_name"}`. The path is what
+  separates a test caller from a source caller; without it every real caller
+  fails `is_test_node` and the CALLS strategy silently selects nothing.
+* `import_edges` -> `{"file_path", "imported"}`, every IMPORTS edge in the repo.
+  183 of them for the demo repo, so one fetch beats a query per hop.
+* `functions_in` -> `{"name", "fid", "file_path", "class_name"}`.
+
+`class_name` is load-bearing. The graph stores method names bare and puts
+ownership on a separate `Class-CONTAINS->Function` edge, so a test method inside
+a class would otherwise be emitted as `path::test_method` — which pytest cannot
+run. `file_path` is repo-relative on every row.
 """
 
 from __future__ import annotations
@@ -107,18 +110,24 @@ def is_test_node(name: str, file_path: str, test_root: str) -> bool:
 
 
 def to_node_ids(functions: list[dict[str, Any]]) -> list[str]:
-    """Graph nodes to pytest node ids `'path::name'`.
+    """Graph nodes to pytest node ids: `'path::name'`, or `'path::Class::name'`.
 
-    Rows without both halves are dropped: a node id missing its path is not a
-    thing pytest can run, and emitting one would fail in the sandbox instead of
-    here.
+    A test method inside a class needs the class segment. The graph stores
+    method names bare and hangs ownership off a separate edge, so dropping
+    `class_name` yields an id that pytest cannot resolve — it would fail in the
+    sandbox, several minutes later, looking like a broken test rather than a
+    broken selector.
+
+    Rows without both a path and a name are dropped for the same reason.
     """
     ids: list[str] = []
     for row in functions:
         path = str(row.get("file_path") or "")
         name = str(row.get("name") or "")
-        if path and name:
-            ids.append(f"{path}::{name}")
+        if not (path and name):
+            continue
+        owner = str(row.get("class_name") or "")
+        ids.append(f"{path}::{owner}::{name}" if owner else f"{path}::{name}")
     return ids
 
 
@@ -128,17 +137,31 @@ def _ordered(found: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _reached_from(rows: list[dict[str, Any]]) -> list[str]:
-    """The contact points that actually reached these rows."""
-    return sorted({str(row.get("origin") or "") for row in rows} - {""})
+    """Contact-point *function names* that reached these rows.
+
+    Function names, not file paths, because that is what the contract says
+    `TestSelection.reached_from` holds — and both walks must agree, or a union
+    mixes two identifier namespaces and correlates back to nothing. For an
+    import-shaped break these are mostly `<module>` nodes, since the contact
+    point is a module-level import; `ContactPoint.file_path` is where a
+    consumer gets the file.
+
+    Every contributing contact point is kept, not just the first to arrive: two
+    of them routinely share one module.
+    """
+    names: set[str] = set()
+    for row in rows:
+        names.update(row.get("origins") or ())
+    return sorted(names - {""})
 
 
 def _tests_in_files(
     graph: CodeGraph,
-    files: dict[str, str],
+    files: dict[str, set[str]],
     repo: str,
     test_root: str,
 ) -> dict[int, dict[str, Any]]:
-    """Test functions inside `files`, keyed by fid. `files` maps path to origin."""
+    """Test functions inside `files`, keyed by fid. `files` maps path to origins."""
     found: dict[int, dict[str, Any]] = {}
     for path in sorted(files):
         for row in graph.functions_in(path, repo):
@@ -147,15 +170,17 @@ def _tests_in_files(
             node_path = str(row.get("file_path") or path)
             if fid is None or not is_test_node(name, node_path, test_root):
                 continue
-            found.setdefault(
-                int(fid),
-                {
-                    "name": name,
-                    "fid": int(fid),
-                    "file_path": node_path,
-                    "origin": files[path],
-                },
-            )
+            existing = found.get(int(fid))
+            if existing is not None:
+                existing["origins"].update(files[path])
+                continue
+            found[int(fid)] = {
+                "name": name,
+                "fid": int(fid),
+                "file_path": node_path,
+                "class_name": row.get("class_name"),
+                "origins": set(files[path]),
+            }
     return found
 
 
@@ -167,12 +192,12 @@ def _callers_walk(
     test_root: str,
 ) -> list[dict[str, Any]]:
     """BFS up CALLS from every contact point. Cycle-safe, depth-limited."""
-    origin: dict[int, str] = {}
+    origins: dict[int, set[str]] = {}
     for point in sorted(contact_points, key=lambda p: (p.fid, p.function_name)):
-        origin.setdefault(point.fid, point.function_name)
+        origins.setdefault(point.fid, set()).add(point.function_name)
 
-    visited = set(origin)
-    frontier = sorted(origin)
+    visited = set(origins)
+    frontier = sorted(origins)
     found: dict[int, dict[str, Any]] = {}
 
     for _ in range(max_depth):
@@ -189,7 +214,7 @@ def _callers_walk(
                     continue
                 visited.add(caller)
                 following.append(caller)
-                origin.setdefault(caller, origin.get(fid, ""))
+                origins.setdefault(caller, set()).update(origins.get(fid, set()))
                 name = str(row.get("name") or "")
                 path = str(row.get("file_path") or "")
                 if is_test_node(name, path, test_root):
@@ -199,7 +224,8 @@ def _callers_walk(
                             "name": name,
                             "fid": caller,
                             "file_path": path,
-                            "origin": origin[caller],
+                            "class_name": row.get("class_name"),
+                            "origins": set(origins[caller]),
                         },
                     )
         frontier = sorted(following)
@@ -227,38 +253,40 @@ def _imports_walk(
         for edge in graph.import_edges(repo)
     )
 
-    frontier: dict[str, str] = {}
+    frontier: dict[str, set[str]] = {}
     for point in sorted(contact_points, key=lambda p: (p.file_path, p.fid)):
         if not point.file_path:
             continue
         name = module_name_for(point.file_path, source_root)
         if name:
-            frontier.setdefault(name, point.file_path)
+            frontier.setdefault(name, set()).add(point.function_name)
 
     seen_modules = set(frontier)
-    reached: dict[str, str] = {}
+    reached: dict[str, set[str]] = {}
 
     for _ in range(max_depth):
         if not frontier:
             break
-        following: dict[str, str] = {}
+        following: dict[str, set[str]] = {}
         for importer, imported in edges:
             if not importer or importer in reached:
                 continue
-            for module, source in frontier.items():
-                if not module_matches(imported, module):
-                    continue
-                reached.setdefault(importer, source)
-                name = module_name_for(importer, source_root)
-                if name and name not in seen_modules:
-                    seen_modules.add(name)
-                    following.setdefault(name, source)
-                break
+            matched: set[str] = set()
+            for module, sources in frontier.items():
+                if module_matches(imported, module):
+                    matched.update(sources)
+            if not matched:
+                continue
+            reached[importer] = matched
+            name = module_name_for(importer, source_root)
+            if name and name not in seen_modules:
+                seen_modules.add(name)
+                following.setdefault(name, set()).update(matched)
         frontier = following
 
     test_files = {
-        path: source
-        for path, source in reached.items()
+        path: sources
+        for path, sources in reached.items()
         if test_root in _parts(path)[:-1]
     }
     return _ordered(_tests_in_files(graph, test_files, repo, test_root))
@@ -380,11 +408,21 @@ def select_tests(
 
     merged: dict[int, dict[str, Any]] = {}
     for row in [*callers, *imports]:
-        merged.setdefault(int(row["fid"]), row)
+        fid = int(row["fid"])
+        existing = merged.get(fid)
+        if existing is None:
+            merged[fid] = dict(row, origins=set(row.get("origins") or ()))
+        else:
+            # A test both walks reached was reached from both sets of contact
+            # points. Keeping only the first would under-report provenance.
+            existing["origins"].update(row.get("origins") or ())
     rows = _ordered(merged)
 
-    truncated = len(rows) > max_tests
-    kept = rows[:max_tests]
+    # A negative limit would slice from the end and quietly return almost
+    # everything. Clamp: asking for fewer than zero tests means zero.
+    limit = max(0, max_tests)
+    truncated = len(rows) > limit
+    kept = rows[:limit]
     return TestSelection(
         tests=to_node_ids(kept),
         strategy=_strategy_that_fired(callers, imports),

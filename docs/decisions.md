@@ -16,6 +16,11 @@ An empty section here is fine. An unresolved Qodo comment with no entry here is 
 
 ---
 
+### PR #12 — `reached_from` legibility versus the frozen contract
+**Qodo said:** the IMPORTS walk stored contact-point *file paths* in `reached_from` while the CALLS walk stored *function names*, so a union mixed two identifier namespaces.
+**We did:** fixed the inconsistency by moving IMPORTS onto function names, per `docs/build-plan.md:247` (`reached_from: list[str]  # contact point function names`). Also widened origin tracking from "first contact point to arrive" to the full set, since several contact points routinely share one module.
+**Why:** worth recording that function names are the *less* legible choice here. For an import-shaped break the contact points are module-level import nodes, so the real graph reports `['<module>', 'register_tools', 'setup_api_client', 'start_server']` — the `<module>` entry says little on its own. File paths would read better in the UI, but the contract documents function names, PR9 persists this field, and one namespace that is consistent beats two that are not. Consumers that want the file already have `ContactPoint.file_path`.
+
 ### PR #4 — timing probe labels every exec failure as auto-stop
 **Qodo said:** The idle probe caught all exceptions from `process.exec` and reported auto-stop recovery even for unrelated API or network failures.
 **We did:** declined — reverted the auto-stop recovery block in `886ae57` (`182df98`). The probe now only checks whether `true` still runs after the idle gap.
