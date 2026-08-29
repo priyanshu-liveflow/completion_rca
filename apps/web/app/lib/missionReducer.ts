@@ -6,7 +6,10 @@ import {
   NodeStatus,
 } from "./types";
 
-export function createInitialMissionState(currentTime = "—"): MissionState {
+export function createInitialMissionState(
+  currentTime = "—",
+  seed: Partial<MissionState> = {}
+): MissionState {
   return {
     ...fixtureMission,
     nodes: fixtureMission.nodes.map((node) => ({ ...node, status: "pending" })),
@@ -22,6 +25,7 @@ export function createInitialMissionState(currentTime = "—"): MissionState {
     approved: null,
     currentTime,
     restored: true,
+    ...seed,
   };
 }
 

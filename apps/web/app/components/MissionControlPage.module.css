@@ -140,6 +140,10 @@
   min-height: 0;
 }
 
+.workspaceSandbox {
+  grid-template-columns: 1fr;
+}
+
 @media (max-width: 1023px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -299,6 +303,10 @@
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+.dockBodyHidden {
+  display: none;
 }
 
 .transcript {

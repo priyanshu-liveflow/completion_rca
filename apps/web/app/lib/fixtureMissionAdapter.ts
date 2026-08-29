@@ -242,3 +242,7 @@ export function createFixtureMissionAdapter(
 }
 
 export const fixtureMissionAdapter = createFixtureMissionAdapter();
+
+export const noOpAdapter: MissionAdapter = {
+  subscribe: () => () => {},
+};

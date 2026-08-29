@@ -74,7 +74,11 @@ function lineClass(kind: TestLine["kind"]) {
   }
 }
 
-export default function MissionControlPage() {
+export default function MissionControlPage({
+  readOnly = false,
+}: {
+  readOnly?: boolean;
+}) {
   const { state, selectNode, toggleDock, setTab, togglePopOut, approve, deny } =
     useMission();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -110,6 +114,19 @@ export default function MissionControlPage() {
     };
   }, []);
 
+  // Detect if the user closed the pop-out via browser chrome.
+  useEffect(() => {
+    if (!state.popOutOpen || !popOutRef.current) return;
+    const id = window.setInterval(() => {
+      if (popOutRef.current?.closed) {
+        popOutRef.current = null;
+        setPopOutError(null);
+        togglePopOut();
+      }
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [state.popOutOpen, togglePopOut]);
+
   const onTogglePopOut = () => {
     if (state.popOutOpen) {
       if (popOutRef.current && !popOutRef.current.closed) {
@@ -121,8 +138,15 @@ export default function MissionControlPage() {
       return;
     }
 
+    try {
+      localStorage.setItem("ar-mission-snapshot", JSON.stringify(state));
+      localStorage.setItem("ar-mission-snapshot-at", Date.now().toString());
+    } catch {
+      // localStorage may be unavailable in a sandbox; still open a default view
+    }
+
     const popOut = window.open(
-      "/",
+      "/sandbox",
       "AgentRadarSandbox",
       "width=900,height=600,menubar=no,toolbar=no,location=no"
     );
@@ -144,53 +168,72 @@ export default function MissionControlPage() {
   const selectedNodeObj = state.nodes.find((n) => n.id === state.selectedNode);
 
   return (
-    <div className={styles.shell}>
+    <div className={readOnly ? `${styles.shell} ${styles.sandboxShell}` : styles.shell}>
       <header className={styles.header}>
         <div className={styles.logo}>
           <div className={styles.logoDot} />
           <span>AGENTRADAR</span>
         </div>
-        <div className={styles.repo}>
-          <GitBranch size={12} />
-          <span>mvilanova/intervals-mcp-server</span>
-        </div>
-        <div className={styles.missionId}>{state.id}</div>
-        {state.restored && (
-          <div className={styles.restored}>
-            <RefreshCw size={10} />
-            <span>Session restored</span>
+        {!readOnly && (
+          <>
+            <div className={styles.repo}>
+              <GitBranch size={12} />
+              <span>mvilanova/intervals-mcp-server</span>
+            </div>
+            <div className={styles.missionId}>{state.id}</div>
+            {state.restored && (
+              <div className={styles.restored}>
+                <RefreshCw size={10} />
+                <span>Session restored</span>
+              </div>
+            )}
+          </>
+        )}
+        {readOnly && (
+          <div className={styles.dockConnected}>
+            <span className={styles.dockDot} />
+            <span>TrueForge-native Daytona sandbox · read-only</span>
           </div>
         )}
         <div className={styles.spacer} />
         <div className={styles.time}>{state.currentTime}</div>
-        <div className={styles.docs}>DOCS</div>
-        <Settings size={15} color="var(--ink-quiet)" />
+        {!readOnly && <div className={styles.docs}>DOCS</div>}
+        {!readOnly && <Settings size={15} color="var(--ink-quiet)" />}
       </header>
 
       <main className={styles.main}>
-        <nav className={styles.nav}>
-          <div className={styles.navList}>
-            {navItems.map((it) => (
-              <div
-                key={it.label}
-                className={
-                  it.active
-                    ? `${styles.navItem} ${styles.navItemActive}`
-                    : styles.navItem
-                }
-              >
-                <it.icon size={13} />
-                <span>{it.label}</span>
-              </div>
-            ))}
-          </div>
-          <div className={styles.navPin}>
-            <span>State: fixture replay</span>
-            <span>Auto-refresh: on</span>
-          </div>
-        </nav>
+        {!readOnly && (
+          <nav className={styles.nav}>
+            <div className={styles.navList}>
+              {navItems.map((it) => (
+                <div
+                  key={it.label}
+                  className={
+                    it.active
+                      ? `${styles.navItem} ${styles.navItemActive}`
+                      : styles.navItem
+                  }
+                >
+                  <it.icon size={13} />
+                  <span>{it.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.navPin}>
+              <span>State: fixture replay</span>
+              <span>Auto-refresh: on</span>
+            </div>
+          </nav>
+        )}
 
-        <div className={styles.workspace}>
+        <div
+          className={[
+            styles.workspace,
+            readOnly && styles.workspaceSandbox,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <section className={styles.map}>
             <h2 className={styles.mapTitle}>
               Dependency upgrade proof chain
@@ -239,22 +282,31 @@ export default function MissionControlPage() {
               </span>
               <span className={styles.dockMeta}>(read-only · fixture)</span>
               <div className={styles.dockSpacer} />
-              <button
-                className={styles.dockBtn}
-                onClick={onTogglePopOut}
-                title="Pop out sandbox"
-              >
-                <Maximize size={14} />
-              </button>
+              {!readOnly && (
+                <button
+                  className={styles.dockBtn}
+                  onClick={onTogglePopOut}
+                  title="Pop out sandbox"
+                >
+                  <Maximize size={14} />
+                </button>
+              )}
               <button
                 className={styles.dockBtn}
                 onClick={toggleDock}
-                title="Collapse sandbox"
+                title={state.dockOpen ? "Collapse sandbox" : "Expand sandbox"}
               >
-                <Minus size={14} />
+                {state.dockOpen ? <Minus size={14} /> : "+"}
               </button>
             </div>
-            <div className={styles.dockBody}>
+            <div
+              className={[
+                styles.dockBody,
+                !state.dockOpen && styles.dockBodyHidden,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div ref={transcriptRef} className={styles.transcript}>
                 {state.transcript.map((line) => (
                   <div
@@ -298,7 +350,7 @@ export default function MissionControlPage() {
             </div>
           </section>
 
-          <aside className={styles.rail}>
+          {!readOnly && <aside className={styles.rail}>
             <div className={styles.railTitle}>Human approval required</div>
             <div className={styles.railSection}>
               <div className={styles.railHeading}>Verified patch receipt</div>
@@ -368,7 +420,7 @@ export default function MissionControlPage() {
               </button>
               <p className={styles.note}>No write to GitHub in this prototype</p>
             </div>
-          </aside>
+          </aside>}
         </div>
       </main>
 

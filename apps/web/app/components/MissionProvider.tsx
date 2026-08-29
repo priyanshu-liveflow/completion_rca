@@ -43,16 +43,18 @@ function formatTime() {
 interface MissionProviderProps {
   children: React.ReactNode;
   adapter?: MissionAdapter;
+  seed?: Partial<MissionState>;
 }
 
 export function MissionProvider({
   children,
   adapter = fixtureMissionAdapter,
+  seed,
 }: MissionProviderProps) {
   const [state, dispatch] = useReducer(
     missionReducer,
     undefined,
-    () => createInitialMissionState(formatTime())
+    () => createInitialMissionState(formatTime(), seed)
   );
 
   // Live clock
