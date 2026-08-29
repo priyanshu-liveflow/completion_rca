@@ -31,6 +31,10 @@ from src.main.agentradar.contracts.evidence import (  # noqa: E402
 from src.main.agentradar.contracts.impact import (  # noqa: E402
     BlastRadius,
     ContactPoint,
+    ContactPointList,
+    FunctionSource,
+    GraphNode,
+    GraphNodeList,
     ImpactRow,
 )
 from src.main.agentradar.contracts.mission import ActionPlan, Mission  # noqa: E402
@@ -46,8 +50,12 @@ MODELS = (
     Watchlist,
     ReleaseEvent,
     ContactPoint,
+    ContactPointList,
     BlastRadius,
     ImpactRow,
+    GraphNode,
+    GraphNodeList,
+    FunctionSource,
     TestSelection,
     TestCase,
     TestReport,

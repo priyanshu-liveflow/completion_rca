@@ -3,7 +3,16 @@
 from .collector import CollectorRun, CollectorSpec, HealthVerdict
 from .dependency import Dependency, ReleaseEvent, Watchlist
 from .evidence import TestCase, TestReport, TestSelection
-from .impact import BlastRadius, ContactPoint, ImpactRow, Verdict
+from .impact import (
+    BlastRadius,
+    ContactPoint,
+    ContactPointList,
+    FunctionSource,
+    GraphNode,
+    GraphNodeList,
+    ImpactRow,
+    Verdict,
+)
 from .mission import ActionPlan, Mission, MissionState
 from .patch import Patch, VerifyResult
 from .web import PageContent, SearchHit, SearchResults
@@ -14,7 +23,11 @@ __all__ = [
     "CollectorRun",
     "CollectorSpec",
     "ContactPoint",
+    "ContactPointList",
     "Dependency",
+    "FunctionSource",
+    "GraphNode",
+    "GraphNodeList",
     "HealthVerdict",
     "ImpactRow",
     "Mission",

@@ -75,6 +75,14 @@ explicit_package_bases = true
 mypy_path = "."
 files = ["src/main/agentradar"]
 
+[[tool.mypy.overrides]]
+module = ["mcp.*", "starlette.*", "uvicorn"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["src.main.code_tools", "src.main.code_tools.*"]
+follow_imports = "skip"
+
 # `daytona` is an optional extra and is absent in CI. It is imported lazily,
 # inside DaytonaRunner.connect, so nothing else in the package depends on it.
 [[tool.mypy.overrides]]
