@@ -141,6 +141,65 @@ Observed on our key: `sandbox.create` and `snapshot.list` succeed,
 **Regenerate the Daytona key with all scopes enabled** rather than hunting a
 credential problem that does not exist.
 
+## Sessions and turns — the shapes that cost me the most probing
+
+```jsonc
+POST /api/v1/sessions
+{ "agent": { "name": "conductor" } }          // NAME ref, not id, not a bare string
+```
+
+`agent` is a union of a name reference and `{ "spec": <AgentSpec> }`, so a
+session can also carry an inline agent. `{"agent_id": ...}`, `{"agent": "<id>"}`
+and `{"agent": {"id": ...}}` are all rejected.
+
+```jsonc
+POST /api/v1/sessions/{session_id}/turns     // returns an SSE stream
+{ "input": [ { "type": "user.message", "content": "..." } ] }
+```
+
+**`input` is an array of discriminated objects, not a string**, and the
+discriminator is `type`, one of `user.message` · `user.tool_approval` ·
+`user.tool_response`.
+
+The trap: `{"message": "..."}` and `{"prompt": "..."}` are accepted by the route
+and produce a **200 with a live SSE stream**, which then fails at
+`turn.done` with `Invalid prompt: messages must not be empty` and zero tokens.
+An unrecognised key looks like a working call right up until the model gets
+nothing. Only `input` is validated at the boundary.
+
+### Verified end to end
+
+Against `nvidia-nim/kimi-k3` on this machine:
+
+```
+turn.created
+model.message
+model.message.delta  x29
+turn.done: done      tokens in/out: 1287 / 41
+```
+
+Event names observed: `turn.created`, `model.message`, `model.message.delta`,
+`turn.done`.
+
+## Agent config defaults
+
+Creating an agent with `"config": {}` returns these resolved defaults. Two matter:
+
+```jsonc
+{
+  "iteration_limit": 100,
+  "sandbox": { "enabled": false, "file_downloads": true },   // OFF by default
+  "dynamic_sub_agents": { "enabled": true },                 // ON by default
+  "context_management": { "compaction": { "enabled": true }, ... }
+}
+```
+
+**`sandbox.enabled` is false by default.** The sandbox is load-bearing for
+reproduce/patch/verify, so `seed.ts` must set it explicitly — an agent that
+silently has no sandbox fails at the most important step of the demo.
+
+`dynamic_sub_agents` is already on, which is what the fan-out relies on.
+
 ## What this means for PR10
 
 1. `seed.ts` writes `model: { name: "provider/model" }`, never a bare string.
