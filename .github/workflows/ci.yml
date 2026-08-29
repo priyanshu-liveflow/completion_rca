@@ -16,7 +16,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install agentradar CI tools
-        run: uv pip install pydantic pytest ruff mypy
+        run: uv pip install pydantic pytest ruff mypy mcp
 
       - name: Ruff lint
         run: uv run ruff check src/main/agentradar tests/agentradar
