@@ -1,0 +1,16 @@
+{
+    "cloud_provider": {
+        "env": "CLOUD_PROVIDER",
+        "default": "aws"
+    },
+    "max_turns": {
+        "env": "ANALYZER_MAX_TURNS",
+        "default": "50",
+        "type": "int"
+    },
+    "max_tokens": {
+        "env": "ANTHROPIC_MAX_TOKENS",
+        "default": "4096",
+        "type": "int"
+    }
+}
