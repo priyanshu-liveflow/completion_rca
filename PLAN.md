@@ -51,13 +51,23 @@ This is the thing only this architecture can do: the graph makes the sandbox aff
 
 *Verify at H2 that `codegraphcontext` indexes test functions and that recursive callers actually reach them. If not, fall back to path-based selection (tests importing the touched modules) — still far better than the whole suite.*
 
-### One local runner, Daytona optional
+### TrueForge's native sandbox is load-bearing
 
-TrueForge's sandbox slot accepts **only Daytona**, which is cloud-only with no custom image (confirmed: the provider API exposes `{type, auth.api_key, exec_timeout_ms, auto_stop/archive/delete_interval}` — no image or snapshot field). Cold-cloning a repo and pip-installing on stage is the single most likely way this demo drags.
+TrueForge's sandbox slot uses **Daytona**. It is the execution environment for the entire empirical loop: clone the pinned demo repository, install the changed dependency, run graph-selected tests, apply the agent-authored patch, and re-run the same tests. The product does not substitute a custom MCP test runner for the harness sandbox.
 
-So the repro loop runs in **`packages/mcp-sandbox`** — a local Docker test runner exposed as an MCP server, backed by a pre-baked image with the demo repo and deps already installed. On stage it bumps one package and runs N tests. Seconds, not minutes.
+Cold-cloning a repository and installing its full environment on stage is still too risky. The demo therefore uses a **prewarmed persistent TrueForge session**:
 
-**Daytona gets configured but nothing depends on it.** Once the test runner is local, its only remaining job was skills — and skills don't earn a network hop here:
+1. Provision the Daytona sandbox through TrueForge before the presentation.
+2. Shallow-clone the demo repository at the exact indexed commit.
+3. Install its pinned baseline dependencies and confirm the selected tests are green.
+4. Keep that session and sandbox alive through the demo.
+5. Perform the dependency upgrade, red test run, patch, and green verification live.
+
+The warmup is setup, not evidence: its commands and baseline-green result remain visible in the session timeline, while every result used in the impact claim is produced live after the version change.
+
+Local Docker may be used during development and rehearsal, but it is only a fallback. A fixture replay can rescue a failed presentation; neither is represented as a live TrueForge sandbox run.
+
+Procedures still live in agent `instructions` rather than git-backed skills:
 
 | Skills claim to give | At our scale |
 |---|---|
@@ -65,17 +75,15 @@ So the repro loop runs in **`packages/mcp-sandbox`** — a local Docker test run
 | Git-versioned prompts | `agents/*.json` is already in the repo. Wash |
 | Harness-track credibility | Real, but small |
 
-…and they cost a Daytona sandbox spin-up at mission start, on venue wifi, to clone a skill repo. That's the latency we just engineered away, reintroduced for near-zero gain.
-
-**So: procedures live in agent `instructions`**, compiled from `agents/prompts/*.md` by `seed.ts`. Version-controlled, Qodo-reviewable, no cloud dependency. Sandbox stays *enabled* for agent-authored scratch code, so it demonstrably works if a judge probes it.
+At four short, single-domain procedures, progressive disclosure does not justify another moving part. They are compiled from `agents/prompts/*.md` by `seed.ts`: version-controlled, Qodo-reviewable, and easy to tune. This decision does not weaken the sandbox story; the native sandbox remains mandatory for all code and test execution.
 
 **Bonus: iteration gets faster.** Skills materialize from git, so every prompt edit needs a commit and push. Instructions don't. That's the difference between a 20-second edit loop and a 2-minute one, for the thing you'll tune most.
 
-**The result is a demo that runs entirely offline** except for the Bright Data calls and model inference — a real advantage at a venue.
+**The external dependencies are explicit:** Daytona for native sandbox execution, Bright Data for release evidence, the model provider, and GitHub for the approved action. Fixture replay exists for presentation recovery, not as the primary proof.
 
 **If challenged on not using skills:** *"Progressive disclosure buys nothing at single-domain scale. Here's the threshold where we'd switch."* That's judgment, not a gap.
 
-**Pre-bake at H0:** `sandbox/Dockerfile` with the demo repo cloned and deps installed at the *current pinned* version, test suite confirmed green inside the image.
+**Prewarm at H0:** provision the native sandbox, clone the exact commit used by the graph index, install the baseline environment, confirm green, and keep the session alive.
 
 ---
 
@@ -87,7 +95,7 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 
 **Where it can still lose:**
 
-1. **Sandbox latency.** Solved — the repro loop runs in a pre-baked local container and nothing on the demo path touches Daytona.
+1. **Native sandbox latency.** Controlled — prewarm one persistent TrueForge session, use a small repository, shallow-clone, and run graph-selected tests only. Measure it; do not declare it solved until the full path is timed.
 2. **Demo repo has no usable test suite.** This is now a hard selection criterion, not a nice-to-have.
 3. **Volume.** Still a lot for two people in a day. Phasing below is strict.
 
@@ -99,11 +107,11 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 
 | Phase | Contains | Gate |
 |---|---|---|
-| **1 — core** | WATCH → LOCATE → BLAST → **REPRODUCE** → brief → approval → PR | must ship |
-| **2 — the moment** | **PATCH → VERIFY**, PR only opens on green | H7, ship if 1 is solid |
+| **1 — winning core** | WATCH → LOCATE → BLAST → **REPRODUCE → PATCH → VERIFY** → approval → PR | must ship; PR only opens on green |
+| **2 — supporting polish** | Bright Data self-repair, Slack, richer evidence views | H8, only if the core is repeatable |
 | **3 — upside** | Tiered dispatch + cost meter | H9, cut without regret |
 
-If Phase 2 slips, the demo still works: *"here are 3 tests that fail under the new version — here's the issue."* If Phase 2 lands, it becomes: *"...and here's the patch that makes them pass."*
+The red-to-green loop is the product, not an optional enhancement. A reproduce-only run is an honest contingency — *"here are the tests that fail under the new version"* — but it does not count as Phase 1 complete and does not unlock a PR.
 
 ---
 
@@ -113,9 +121,9 @@ If Phase 2 slips, the demo still works: *"here are 3 tests that fail under the n
 |---|---|
 | Repo | **Fork of `graph_rca`**, history preserved, original untouched |
 | Harness | **Local** — `npx @truefoundry/trueforge`, SQLite, localhost:8790. No hosting |
-| Sandbox | **Local Docker `mcp-sandbox`** for the repro loop. Daytona configured but nothing depends on it |
+| Sandbox | **TrueForge-native Daytona sandbox**, mandatory for reproduce, patch, and verify. Prewarmed persistent session; local Docker is development-only fallback |
 | Procedures | Agent `instructions` compiled from `agents/prompts/*.md` — **not** git-backed skills |
-| Sandbox | **Load-bearing** — reproduce, patch, verify |
+| Sandbox role | **Load-bearing and harness-native** — dependency upgrade, reproduce, patch, and verify all run through TrueForge sandbox tools |
 | Demo repo | Real OSS repo, real recent breaking change, **fast green test suite** |
 | Primary UI | Ops dashboard — missions as jobs, drill into agent tree |
 | Actions | GitHub + Slack + export, policy-driven, approval-gated |
@@ -161,7 +169,7 @@ TrueForge — LOCAL (npx, SQLite, localhost:8790)
   └── CONDUCTOR agent
         instructions: impact-analysis + repro-and-patch + verification + brief
         tools:   mcp-graph (localhost) · mcp-web · mcp-store · github/slack (catalog)
-                 mcp-sandbox (local Docker test runner) · Daytona (optional, scratch)
+        sandbox: Daytona through TrueForge — mandatory for dependency install, tests, patch, verify
         config:  dynamic_sub_agents ON, sandbox ON, approvals on write tools
 ```
 
@@ -177,15 +185,13 @@ Native `create_sub_agent` fan-out: several locating contact points, several walk
 | `read_function_source` | context for patch-writing |
 | `get_class_info`, `get_inheritance` | subclassing breakage |
 
-**Infra — everything local except the sandbox.**
+**Infra — the harness and graph are local; execution is in the native Daytona sandbox.**
 
 `npx @truefoundry/trueforge@latest` (Node 22.14+) runs UI + backend + SDK endpoint in one process on `localhost:8790`, persisting to SQLite. No TrueFoundry deployment, no Postgres, no Redis.
 
-The harness calls MCP servers from its own process — the sandbox is used only for code, files, and shell. So `mcp/graph_server.py` talks to the FalkorDB unix socket at `~/.codegraphcontext/global/db/falkordb.sock` on the same machine. **No tunnel.**
+The harness calls MCP servers from its own process, while the native sandbox handles code, files, packages, and shell execution. `mcp/graph_server.py` talks to the FalkorDB unix socket at `~/.codegraphcontext/global/db/falkordb.sock` on the same machine. **No tunnel.**
 
-**The exception: the sandbox is not local.** Daytona is the only supported provider and it is cloud-only. It needs an API key with *Sandboxes* access and *Snapshots* write. Free tier is $200 compute + 5GB storage, no credit card — cost is a non-issue, but it is a signup you must complete at H0.
-
-**But nothing on the demo path depends on it.** Daytona would only be needed for skills, and we put procedures in `instructions` instead — see *One local runner, Daytona optional* above.
+Daytona is cloud-hosted and therefore a real demo dependency. It needs an API key with sandbox access. Complete signup and a TrueForge-triggered `sandbox.created` smoke test before feature work. Because TrueForge does not expose a custom demo image in the selected provider configuration, speed comes from retaining a prewarmed mission sandbox rather than rebuilding the environment during the presentation.
 
 ---
 
@@ -233,8 +239,7 @@ agentradar/                       # fork of graph_rca
 │   ├── shared/providers/         # EXTEND — openai_compat
 │   └── graph_rca/                # keep: standalone CLI
 ├── mcp/graph_server.py           # NEW — MCP over code_tools
-├── packages/mcp-sandbox/         # NEW — local Docker test runner
-├── sandbox/Dockerfile            # NEW — pre-baked demo repo image
+├── sandbox/bootstrap.sh          # NEW — idempotent native-sandbox warmup and baseline-green check
 ├── configs/runtime/nvidia.yaml
 ├── apps/web/                     # Next.js ops dashboard
 ├── packages/{mcp-web,mcp-store,contracts,dispatch}/   # dispatch = Phase 3
@@ -257,21 +262,21 @@ agentradar/                       # fork of graph_rca
 | `thread.created` / `thread.done` | subagent node appears / completes |
 | `tool.response` on `save_impact` | impact table row: `file:line`, verdict, why |
 | `sandbox.created` | sandbox badge |
-| `tool.response` on sandbox test run | **test output pane: red → green** |
+| `tool.response` on native sandbox test run | **test output pane: red → green** |
 | `tool.response` on `save_patch` | diff view |
-| `tool.response` on `run_collector` degraded | self-repair banner |
+| `tool.response` on `run_collector` degraded | self-repair banner *(Phase 2)* |
 | `tool.approval_required` | approval queue item |
 
 ---
 
 ## Hour-by-hour
 
-**H0 — together, 45 min.** Fork cloned and pushed. `contracts` frozen. `CLAUDE.md`. Branch protection.
+**H0 — together, 45 min.** Fork cloned and pushed. `contracts` frozen. `CLAUDE.md`. Branch protection. Start TrueForge locally and begin the mandatory Daytona connection.
 
 **H0 — three things started immediately.**
-- **Daytona signup + API key** — 5 minutes, so the sandbox demonstrably works if probed. Nothing blocks on it; skip if the signup fights you.
+- **Daytona signup + API key is mandatory.** Configure it in TrueForge and prove a trivial native sandbox command works. If this fails, escalate immediately; the winning path is blocked.
 - Index the demo repo (`pipx install codegraphcontext`). I/O-bound, blocks nothing.
-- **Build `sandbox/Dockerfile`**: demo repo cloned, deps installed at current pinned version, **test suite confirmed green inside the image.** If it isn't green, pick a different repo now rather than at H4.
+- **Prewarm the native sandbox:** shallow-clone the exact indexed commit, install current pinned dependencies, and confirm the selected tests are green. Keep this TrueForge session alive for the demo. If it is not green, pick a different repository now rather than at H4.
 
 > **Demo repo criteria** — timebox to 30 min, all four required: Python; public; indexes well under an hour; **has a fast test suite that currently passes**; depends on something with a *real* recent breaking change. Verify the change is real before committing. Fallback: a deprecation rather than a break.
 
@@ -279,28 +284,28 @@ agentradar/                       # fork of graph_rca
 
 **H0.5–H2 — B: shell.** Next.js, mission queue, mission detail, agent tree, **test output pane** against fake events.
 
-**H1.5–H2.5 — A: harness up + graph MCP.** `npx @truefoundry/trueforge@latest`. Register the NVIDIA provider, add the Daytona key, enable the sandbox, connect catalog MCP servers. Build `mcp/graph_server.py` pointed at localhost, register it. **Verify `find_function_by_pattern` through TrueForge, and verify recursive `get_callers` reaches test functions.**
+**H1.5–H2.5 — A: graph MCP + persistent sandbox.** With TrueForge and Daytona already connected, register the NVIDIA provider and catalog MCP servers. Build `mcp/graph_server.py` pointed at localhost and register it. **Verify `find_function_by_pattern` through TrueForge, verify recursive `get_callers` reaches test functions, and verify sandbox commands execute in the same persistent session.**
 *Was a 1.5h deployment block. Local mode makes it ~1h of configuration.*
 
-**H2.5–H3.5 — A: `mcp-sandbox` + repro loop.** Build the local Docker test runner as an MCP server. Prove the repro by hand: bump version → run graph-selected tests → capture traceback. Time it. **Before any agent touches it.**
+**H2.5–H3.5 — A: native sandbox repro loop.** Inside the prewarmed TrueForge sandbox, prove the complete case by hand: baseline green → bump version → graph-selected tests red → apply a known manual patch → the same tests green. Reset to the baseline-ready state and time every command. **Do this before any agent touches it.**
 
 **H3.5 — A: fixture recorder.** Hand B a real stream. *Non-negotiable.*
 
-**H3.5–H4.5 — A: Bright Data.** Collectors for the dependency's release pages; `mcp-web` with validate-then-heal.
+**H3.5–H4 — A: minimum release evidence.** Connect Bright Data only far enough to retrieve the chosen release and migration evidence through `mcp-web`. Self-healing waits until the core is repeatable.
 
-**H4.5–H6.5 — A: prompts + conductor.** `agents/prompts/impact-analysis.md` (locate → blast → select tests) and `repro-and-patch.md` (run → read traceback → patch → re-run → only report green). Conductor manifest, `seed.ts` compiling prompts into `instructions`. Iterate until reproduce lands reliably — **no push needed per edit.**
+**H4–H6.5 — A: prompts + conductor.** `agents/prompts/impact-analysis.md` (locate → blast → select tests) and `repro-and-patch.md` (upgrade → run → read traceback → patch → re-run). Conductor manifest, `seed.ts` compiling prompts into `instructions`. Iterate inside the native sandbox until the entire red-to-green loop lands reliably — **no push needed per prompt edit.**
 
-**H4–H8 — B: the whole dashboard** against fixtures — agent tree, impact table, **test output pane**, diff view, approval queue, brief card, self-repair banner, session recovery via `subscribe-to-a-running-turn`.
+**H4–H8 — B: the core dashboard** against fixtures — agent tree, impact table, **test output pane**, diff view, approval queue, brief card, and session recovery via `subscribe-to-a-running-turn`. The self-repair banner is Phase 2.
 
-**H6.5 — GATE: Phase 2.** Reproduce solid? Then patch + verify until H8.5. If not, skip and harden reproduce.
+**H6.5 — CORE GATE.** The agent must reproduce, patch, and verify green in the native sandbox. If any part is unreliable, stop all supporting feature work and harden this loop until H8.5. A red-only result never unlocks the PR.
 
-*Local mode freed roughly 90 minutes of deployment work. It goes here — Phase 2 is the thing most worth having, and it now gets a real shot.*
+**H6.5–H7.5 — A: actions, only after the core gate passes.** Compile `actions/policy.yaml`; verify the pause and that denial blocks the write. If the core is not green, this work waits.
 
-**H6.5–H7.5 — A: actions.** `actions/policy.yaml` compiled; verify the pause, and that denial blocks the write.
+**H8.5–H9.5 — integrate.** Dashboard against the live agent. Fix contract drift. Re-run the complete path after a hard refresh to prove session recovery.
 
-**H8.5–H10 — integrate.** Dashboard against the live agent. Fix contract drift.
+**H9.5–H10 — Phase 2 only if green.** Add deterministic Bright Data self-repair or Slack only if the core has passed repeatedly.
 
-**H10–H11 — rehearse failure beats.** Break the scraper on purpose until self-repair is deterministic. Run the full demo path five times; **time the sandbox steps** and trim anything over 15s.
+**H10–H11 — rehearse the proof.** Run the full live path five times. **Time every native sandbox step** and remove anything that makes the red-to-green sequence unreliable. If Phase 2 landed, rehearse its failure beat only after the core passes.
 
 **H11–H11.5 — Qodo pass.** Clear findings, merge.
 
@@ -318,12 +323,11 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 1. **0:00–0:20 — problem.** *You can't tell whether a release breaks you without running your code against it. So nobody does, until it breaks.*
 2. **0:20–0:35 — setup.** Indexed repo; watchlist came from its dependency manifest.
-3. **0:35–1:05 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 6 call sites. *"That's a guess so far. Watch."*
-4. **1:05–1:20 — self-repair.** "That release page changed its markup this morning." Degradation → heal → restored coverage.
-5. **1:20–1:50 — REPRODUCE.** Sandbox bumps the version, runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
-6. **1:50–2:20 — PATCH + VERIFY.** Agent writes the fix, re-runs. **Green.** This is the moment.
-7. **2:20–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
-8. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
+3. **0:35–1:00 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 6 call sites. Hard-refresh once; the running mission restores. *"That's a guess so far. Watch."*
+4. **1:00–1:35 — REPRODUCE.** TrueForge's native sandbox installs the new version and runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
+5. **1:35–2:15 — PATCH + VERIFY.** The agent edits the sandbox working tree, re-runs the same tests, and they go **green**. This is the moment.
+6. **2:15–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
+7. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
 
 ---
 
@@ -331,11 +335,12 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 1. Phase 3 dispatcher (already gated)
 2. Slack target — keep in `policy.yaml`, unwired
-3. Multi-site patching — patch **one** call site well rather than six badly
-4. `get_class_info` / inheritance — callers + chains carry it
-5. Evidence panel — fold into the brief
+3. Bright Data self-repair — keep ordinary release retrieval
+4. Multi-site patching — patch **one** call site well rather than six badly
+5. `get_class_info` / inheritance — callers + chains carry it
+6. Evidence panel — fold into the brief
 
-**Never cut:** the sandbox test run, the impact table, self-repair, the approval pause, session recovery.
+**Never cut:** native TrueForge sandbox execution, the complete red-to-green loop, the impact table, the approval pause, and session recovery.
 
 ---
 
@@ -343,15 +348,15 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 | Risk | Mitigation |
 |---|---|
-| **Sandbox too slow on stage** | Pre-baked local image; graph-selected tests only; time every step at H10 |
+| **Native sandbox too slow on stage** | Prewarm one persistent TrueForge session; shallow-clone; small repo; graph-selected tests only; time every step at H10 |
+| **Daytona or venue network unavailable** | Reconnect once, then use clearly labeled fixture replay for presentation continuity. Do not represent replay as live sandbox proof |
 | **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
 | **Recursive callers don't reach tests** | Verify at H2; fall back to path-based test selection |
 | Indexing fails or is slow | Start H0 background; small repo; checkpoint H2 |
 | No clean real breaking change | 30-min timebox; fall back to a deprecation |
-| Patch step unreliable | Phase 2 is gated — reproduce alone still demos |
-| **Judge asks why the sandbox isn't native** | Daytona is configured and works; the test runner is pre-baked because rebuilding a test env per run is wrong. Have this ready |
+| Patch step unreliable | Stop supporting work at H6.5 and harden one call site until the same selected tests pass consistently |
 | Instructions bloat the context | 4 procedures ≈ 3–6k tokens. Measure at H6.5; if it hurts, that is the threshold where skills earn their keep |
-| Docker image drifts from the indexed repo | Build the image from the same commit you indexed; pin it |
+| Sandbox checkout drifts from the indexed repo | Bootstrap from the exact indexed commit; record and display the commit SHA |
 | NVIDIA credits exhausted | Fixture replay from H3; OpenAI for patch-writing only |
 | Live demo fails on stage | Fixture replay behind a keyboard shortcut |
 
@@ -364,14 +369,14 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 3. **Test selection:** recursive `get_callers` from a contact point reaches test functions.
 4. **Harness local:** `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK connects and streams a trivial turn.
 5. **No tunnel needed:** `mcp-graph` registered at a localhost URL returns real results from a TrueForge session.
-6. **Daytona optional:** sandbox provider configured and a trivial exec works — but confirm the demo path passes with it *disabled*.
-7. **Local runner:** `mcp-sandbox` runs the green test suite inside the pre-baked image in under 15s.
-8. **Sandbox by hand:** bump the version, run selected tests, get a real traceback — before any agent is involved.
-9. **Sandbox by agent:** `sandbox.created` fires and test output appears in a tool result.
-10. **Reproduce is honest:** revert the version bump; assert the same tests pass. A repro that fails either way proves nothing.
+6. **Native sandbox:** TrueForge provisions Daytona and emits `sandbox.created`; a trivial command succeeds.
+7. **Prewarm:** the sandbox checks out the indexed commit, installs the baseline environment, and records a green selected-test run.
+8. **Sandbox by hand:** inside that same sandbox, bump the version, run selected tests red, apply the known patch, and run the same tests green — before any agent is involved.
+9. **Sandbox by agent:** the agent performs upgrade, reproduce, patch, and verify through native sandbox tools; output appears in the event stream.
+10. **Reproduce is honest:** restore the baseline version and assert the same tests pass. A repro that fails either way proves nothing.
 11. **Patch gate:** assert the PR tool is **unreachable** while tests are red.
-12. **Bright Data:** `run_collector` returns rows plus a health verdict.
-13. **Self-repair:** structurally changed page → degradation → heal → restored coverage. Rehearse until deterministic.
+12. **Core repeatability:** run the complete live red-to-green path five consecutive times.
+13. **Bright Data:** release retrieval returns the selected version and migration evidence. Self-repair is Phase 2.
 14. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
-15. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane restore.
+15. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane, and sandbox state restore.
 16. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
