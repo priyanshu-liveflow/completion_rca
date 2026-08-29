@@ -98,7 +98,6 @@ def _verify() -> VerifyResult:
         patch=_patch(),
         before=before,
         after=after,
-        verified=before.is_broken and after.is_green,
     )
 
 
