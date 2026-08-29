@@ -140,15 +140,11 @@ def build_verify_result(
 ) -> VerifyResult:
     """Assemble before/after evidence and compute the one gate that matters.
 
-    `verified` is `before.is_broken and after.is_green` — never
-    `before.failed > 0`. See this module's docstring for why.
+    `VerifyResult.verified` is a computed field — `before.is_broken and
+    after.is_green`, never `before.failed > 0` — so it cannot be supplied
+    here or anywhere else. See this module's docstring for why.
     """
-    return VerifyResult(
-        patch=patch,
-        before=before,
-        after=after,
-        verified=before.is_broken and after.is_green,
-    )
+    return VerifyResult(patch=patch, before=before, after=after)
 
 
 def can_act(verify: VerifyResult | None) -> bool:

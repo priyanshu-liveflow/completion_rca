@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from src.main.agentradar.contracts.evidence import TestReport
-from src.main.agentradar.contracts.patch import Patch
+from src.main.agentradar.contracts.patch import Patch, VerifyResult
 from src.main.agentradar.core.patch import build_verify_result, can_act
 from src.main.agentradar.core.testreport import parse_pytest
 
@@ -89,3 +89,23 @@ def test_collection_error_counts_as_broken_and_opens_the_gate(
     verify = build_verify_result(_PATCH, before=red_report, after=green_report)
     assert verify.verified is True
     assert can_act(verify) is True
+
+
+def test_verified_cannot_be_forged_through_model_validate() -> None:
+    """An agent-supplied `verified: true` must not open the gate.
+
+    `mcp/store_server.py::save_verify` does `VerifyResult.model_validate` on a
+    dict the agent wrote. If `verified` were an ordinary field, the one actor
+    the gate exists to constrain could simply assert its own success.
+    """
+    payload = {
+        "patch": {"diff": "", "files": ["src/a.py"], "rationale": ""},
+        "before": parse_pytest(_fixture("green"), "mcp", "2.1.1", "f_b").model_dump(),
+        "after": parse_pytest(_fixture("red"), "mcp", "2.1.1", "f_a").model_dump(),
+        "verified": True,
+    }
+
+    forged = VerifyResult.model_validate(payload)
+
+    assert forged.verified is False
+    assert can_act(forged) is False

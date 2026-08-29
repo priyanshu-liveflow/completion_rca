@@ -255,7 +255,6 @@ def test_verify_result_round_trip() -> None:
         patch=_patch(),
         before=before,
         after=after,
-        verified=before.is_broken and after.is_green,
     )
     _round_trip(result)
     assert result.verified is True
