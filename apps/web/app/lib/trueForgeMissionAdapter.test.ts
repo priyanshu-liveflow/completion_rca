@@ -6,24 +6,64 @@ import {
 import { TrueForgeTransport, TrueForgeTurnInput } from "./trueForgeTransport";
 import { MissionEvent } from "./types";
 
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve: (value: T) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+interface FakeTransportOptions {
+  sessionId?: string;
+  createSessionDelay?: boolean;
+  createSessionError?: Error;
+  chunks?: string[];
+  turnError?: Error;
+}
+
 function createFakeTransport(
-  chunks: string[] = []
+  options: FakeTransportOptions = {}
 ): TrueForgeTransport & { chunks: string[] } {
-  const sessionId = "session-1";
-  return {
-    chunks,
-    createSession: () => Promise.resolve(sessionId),
+  const sessionId = options.sessionId ?? "session-1";
+  const createSessionDeferred = createDeferred<string>();
+
+  const transport = {
+    chunks: options.chunks ?? [],
+    createSession: () => {
+      if (options.createSessionError) {
+        return Promise.reject(options.createSessionError);
+      }
+      if (options.createSessionDelay) {
+        return createSessionDeferred.promise;
+      }
+      return Promise.resolve(sessionId);
+    },
     getSessionId: () => sessionId,
     startTurn: async (
       _input: TrueForgeTurnInput[] | undefined,
-      onChunk: (chunk: string) => void
+      onChunk: (chunk: string) => void,
+      _signal?: AbortSignal
     ) => {
-      for (const chunk of chunks) {
+      if (options.turnError) {
+        throw options.turnError;
+      }
+      for (const chunk of options.chunks ?? []) {
+        if (_signal?.aborted) throw new DOMException("Aborted", "AbortError");
         onChunk(chunk);
       }
     },
-    resolveApproval: () => Promise.resolve(),
   } as unknown as TrueForgeTransport & { chunks: string[] };
+
+  return Object.assign(transport, {
+    resolveSession: createSessionDeferred.resolve,
+  });
 }
 
 function missionSnapshot(
@@ -70,15 +110,29 @@ const greenReport = {
   raw_tail: "ok",
 };
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("TrueForgeMissionAdapter", () => {
+  it("exposes mode: live and no resolveApproval", () => {
+    const adapter = new TrueForgeMissionAdapter(
+      createFakeTransport() as unknown as TrueForgeTransport
+    );
+    expect(adapter.mode).toBe("live");
+    expect("resolveApproval" in adapter).toBe(false);
+  });
+
   it("emits a connected runtime lifecycle for a no-event turn", async () => {
-    const transport = createFakeTransport([]);
-    const adapter = createTrueForgeMissionAdapter(transport);
+    const transport = createFakeTransport();
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
     const events: MissionEvent[] = [];
 
     adapter.subscribe((event) => events.push(event));
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flushMicrotasks();
 
     expect(events.some((e) => e.type === "runtime.connecting")).toBe(true);
     expect(events.some((e) => e.type === "runtime.connected")).toBe(true);
@@ -86,13 +140,14 @@ describe("TrueForgeMissionAdapter", () => {
 
   it("emits a sandbox connected event when sandbox.created is streamed", async () => {
     const chunk = `event: sandbox.created\ndata: {"sandbox_id": "sxn-live"}\n\nevent: turn.done\ndata: done\n\n`;
-    const transport = createFakeTransport([chunk]);
-    const adapter = createTrueForgeMissionAdapter(transport);
+    const transport = createFakeTransport({ chunks: [chunk] });
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
     const events: MissionEvent[] = [];
 
     adapter.subscribe((event) => events.push(event));
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flushMicrotasks();
 
     expect(events.some((e) => e.type === "sandbox.connected")).toBe(true);
     expect(
@@ -116,13 +171,14 @@ describe("TrueForgeMissionAdapter", () => {
       }
     );
     const chunk = `event: sandbox.created\ndata: {"sandbox_id": "sxn-live"}\n\nevent: tool.response\ndata: ${broken}\n\nevent: tool.response\ndata: ${green}\n\n`;
-    const transport = createFakeTransport([chunk]);
-    const adapter = createTrueForgeMissionAdapter(transport);
+    const transport = createFakeTransport({ chunks: [chunk] });
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
     const events: MissionEvent[] = [];
 
     adapter.subscribe((event) => events.push(event));
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flushMicrotasks();
 
     const red = events.find((e) => e.type === "tests.red_observed");
     const greenEvent = events.find((e) => e.type === "tests.green_observed");
@@ -130,9 +186,88 @@ describe("TrueForgeMissionAdapter", () => {
     expect(greenEvent).toBeDefined();
   });
 
-  it("exposes mode: live", () => {
-    const transport = createFakeTransport([]);
-    const adapter = new TrueForgeMissionAdapter(transport);
-    expect(adapter.mode).toBe("live");
+  it("aborts before createSession resolves and emits no later event", async () => {
+    const transport = createFakeTransport({ createSessionDelay: true });
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
+    const events: MissionEvent[] = [];
+
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+    unsubscribe();
+    (
+      transport as unknown as { resolveSession: (id: string) => void }
+    ).resolveSession("session-2");
+    await flushMicrotasks();
+
+    expect(events.some((e) => e.type === "runtime.connected")).toBe(false);
+  });
+
+  it("starts only the final session after rapid subscribe/unsubscribe/subscribe", async () => {
+    const transport = createFakeTransport();
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
+    const events: MissionEvent[] = [];
+
+    const unsub1 = adapter.subscribe((event) => events.push(event));
+    const unsub2 = adapter.subscribe((event) => events.push(event));
+    unsub1();
+    const unsub3 = adapter.subscribe((event) => events.push(event));
+    unsub2();
+    await flushMicrotasks();
+
+    expect(events.filter((e) => e.type === "runtime.connected").length).toBe(
+      1
+    );
+    unsub3();
+  });
+
+  it("does not emit runtime.failed for a cleanup AbortError", async () => {
+    const transport = createFakeTransport();
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
+    const events: MissionEvent[] = [];
+
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+    await flushMicrotasks();
+    unsubscribe();
+    await flushMicrotasks();
+
+    expect(events.some((e) => e.type === "runtime.failed")).toBe(false);
+  });
+
+  it("emits trailing SSE data through parser.end()", async () => {
+    const partial = `event: sandbox.created\ndata: {"sandbox_id": "sxn-tail"}`;
+    const transport = createFakeTransport({ chunks: [partial] });
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
+    const events: MissionEvent[] = [];
+
+    adapter.subscribe((event) => events.push(event));
+    await flushMicrotasks();
+
+    expect(events.some((e) => e.type === "sandbox.connected")).toBe(true);
+  });
+
+  it("surfaces a 503 as a failed runtime with the upstream message", async () => {
+    const transport = createFakeTransport({
+      createSessionError: new Error(
+        "Failed to create session: 503 Service Unavailable"
+      ),
+    });
+    const adapter = createTrueForgeMissionAdapter(
+      transport as unknown as TrueForgeTransport
+    );
+    const events: MissionEvent[] = [];
+
+    adapter.subscribe((event) => events.push(event));
+    await flushMicrotasks();
+
+    const failed = events.find((e) => e.type === "runtime.failed");
+    expect(failed).toBeDefined();
+    expect((failed as { message: string }).message).toMatch(/503/);
   });
 });
