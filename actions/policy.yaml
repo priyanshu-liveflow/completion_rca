@@ -1,0 +1,39 @@
+# Approval policy for conductor action targets.
+#
+# `agents/seed.ts` compiles this into `require_approval_for_tools` on every
+# MCP server entry in the conductor's manifest — see agents/README.md for why
+# it lands per-server rather than as a single top-level manifest field (the
+# real API has no such field; a bare top-level key is silently dropped).
+#
+# `target` values match `ActionPlan.target` in
+# `src/main/agentradar/contracts/mission.py`. None of these are live MCP tool
+# names yet on `graph`, `web`, or `store` — the actions/GitHub layer lands in
+# a later PR. Naming them here now means the policy is already correct the
+# moment that tool exists, without anyone having to remember to come back and
+# gate it.
+
+targets:
+  github_pr:
+    approval: required
+    description: >
+      Opens a pull request carrying a patch. Must never be reachable without
+      a test-verified red-to-green transition already in evidence.
+
+  github_issue:
+    approval: required
+    description: >
+      Files an issue for a call site the reproduction step proved broken.
+
+  slack:
+    approval: required
+    description: >
+      Wired here for the policy record only — cut item #2. There is no Slack
+      tool in this build. Kept required so that if one is ever added, it
+      fails safe from the first commit rather than needing this file edited
+      under pressure.
+
+  export:
+    approval: none
+    description: >
+      Writes a markdown report. No external system is mutated, so there is
+      nothing here for a human to gate.

@@ -1,0 +1,32 @@
+{
+  "name": "conductor",
+  "model": {
+    "name": "nvidia-nim/kimi-k3"
+  },
+  "mcp_servers": [
+    {
+      "name": "graph",
+      "url": "http://localhost:8765/sse",
+      "description": "Code graph: find_contact_points, get_callers, get_call_chain, read_function_source. select_tests lands here in a later PR."
+    },
+    {
+      "name": "web",
+      "url": "http://localhost:8766/sse",
+      "description": "Bright Data: web_search, scrape_page, run_collector."
+    },
+    {
+      "name": "store",
+      "url": "http://localhost:8767/sse",
+      "description": "Mission store: create_mission, get_mission, set_state, save_impact, save_selection, save_report, save_verify."
+    }
+  ],
+  "skills": [],
+  "config": {
+    "sandbox": {
+      "enabled": true
+    },
+    "dynamic_sub_agents": {
+      "enabled": true
+    }
+  }
+}

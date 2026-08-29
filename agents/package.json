@@ -1,0 +1,19 @@
+{
+  "name": "agentradar-agents",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Seeds the AgentRadar conductor agent into a local TrueForge instance.",
+  "scripts": {
+    "seed": "tsx seed.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
