@@ -282,3 +282,61 @@ def test_live_fastmcp_contact_points() -> None:
 
     assert {p.file_path for p in points} == set(demo["expected_contact_points"])
     assert all(not p.file_path.startswith("/") for p in points)
+
+
+def test_real_adapter_satisfies_the_selection_protocol() -> None:
+    """Structural, so it runs with no graph.
+
+    `select_tests` calls `import_edges` and `functions_in` unconditionally.
+    When only the fake implemented them, passing the real adapter raised
+    AttributeError at the one moment the demo depends on.
+    """
+    from src.main.agentradar.core.selection import CodeGraph
+
+    assert isinstance(FalkorCodeGraph(), CodeGraph)
+
+
+@pytest.mark.skipif(
+    not _LIVE, reason="no live FalkorDB Lite worker; run `cgc api start`"
+)
+def test_live_selection_is_exact() -> None:
+    """The acceptance, against FalkorDB rather than a fake.
+
+    The fake encodes the import table from `docs/demo-repo.md`, and the doc is
+    slightly off: the real graph reports `intervals_mcp_server.utils.formatting`
+    where the table says `utils.formatting`, and `test_make_intervals_request`
+    also imports bare `intervals_mcp_server`, which is a dot-boundary prefix of
+    every contact-point module. The selection survives all of that, but only a
+    live run proves it.
+    """
+    import yaml
+
+    from src.main.agentradar.core.selection import select_tests
+
+    demo = yaml.safe_load(Path("configs/demo.yaml").read_text())["demo"]
+    graph = FalkorCodeGraph()
+    points = graph.find_contact_points(demo["symbol"], demo["repo_key"], limit=15)
+
+    selection = select_tests(graph, points, demo["repo_key"], max_tests=100)
+    files = {node_id.split("::")[0] for node_id in selection.tests}
+
+    assert files == set(demo["expected_test_selection"])
+    assert files.isdisjoint(demo["not_selected"])
+    assert selection.strategy == demo["expected_selection_strategy"]
+    assert selection.tests
+
+
+@pytest.mark.skipif(
+    not _LIVE, reason="no live FalkorDB Lite worker; run `cgc api start`"
+)
+def test_live_callers_carry_a_repo_relative_path() -> None:
+    """Without the path every real caller fails `is_test_node` and the CALLS
+    strategy silently selects nothing."""
+    graph = FalkorCodeGraph()
+    points = graph.find_contact_points("make_intervals_request", "intervals-mcp-server")
+    assert points, "expected the demo repo to be indexed"
+    callers = graph.callers_of(points[0].fid, "intervals-mcp-server", limit=5)
+    assert callers, "expected make_intervals_request to have callers"
+    for row in callers:
+        assert row["file_path"], f"caller {row['name']!r} arrived without a path"
+        assert not row["file_path"].startswith("/")

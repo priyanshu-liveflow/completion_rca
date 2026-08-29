@@ -16,6 +16,10 @@ An empty section here is fine. An unresolved Qodo comment with no entry here is 
 
 ---
 
+### PR #12 — `reached_from` legibility versus the frozen contract
+**Qodo said:** the IMPORTS walk stored contact-point *file paths* in `reached_from` while the CALLS walk stored *function names*, so a union mixed two identifier namespaces.
+**We did:** fixed the inconsistency by moving IMPORTS onto function names, per `docs/build-plan.md:247` (`reached_from: list[str]  # contact point function names`). Also widened origin tracking from "first contact point to arrive" to the full set, since several contact points routinely share one module.
+**Why:** worth recording that function names are the *less* legible choice here. For an import-shaped break the contact points are module-level import nodes, so the real graph reports `['<module>', 'register_tools', 'setup_api_client', 'start_server']` — the `<module>` entry says little on its own. File paths would read better in the UI, but the contract documents function names, PR9 persists this field, and one namespace that is consistent beats two that are not. Consumers that want the file already have `ContactPoint.file_path`.
 ### PR #11 — collector manifests are absent from a built wheel
 **Qodo said:** `COLLECTOR_DIR` resolves beside the installed package, but `[tool.hatch.build.targets.wheel] packages = ["src"]` ships only `src`, so in a wheel install every `run_collector` lookup returns `unknown_collector` while source-checkout tests pass.
 **We did:** declined for this phase.
