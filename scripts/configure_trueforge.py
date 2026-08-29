@@ -30,6 +30,17 @@ NIM_MODELS = [
     ("meta/llama-3.2-11b-vision-instruct", "llama-3-2-11b", 131072),
 ]
 
+# A second provider so a NIM quota wall is a one-line model swap in
+# `agents/conductor.json` rather than a dead demo. NIM's free tier answers an
+# exhausted quota with a bare `429` and zero tokens in ~170ms — indistinguishable
+# from rate limiting until you notice it never recovers. Optional: the script
+# skips this block when OPENAI_API_KEY is absent, so nothing here is required
+# to run.
+OPENAI_MODELS = [
+    ("gpt-4.1", "gpt-4-1", 1_047_576),
+    ("gpt-4.1-mini", "gpt-4-1-mini", 1_047_576),
+]
+
 
 def load_env() -> dict[str, str]:
     """Parse .env without importing dotenv — this script must run anywhere."""
@@ -86,6 +97,32 @@ def configure_models(api_key: str) -> bool:
     return False
 
 
+def configure_openai(api_key: str) -> bool:
+    """Register OpenAI as a fallback model provider. Same shape as NIM."""
+    status, body = call("POST", "/api/v1/settings/model-providers", {
+        "manifest": {
+            "type": "custom",
+            "name": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"api_key": api_key},
+            "models": [
+                {"model_id": mid, "name": name,
+                 "properties": {"context_length": ctx, "max_output_tokens": 8192}}
+                for mid, name, ctx in OPENAI_MODELS
+            ],
+        }
+    })
+    if status < 300:
+        print(f"openai provider  ready ({len(OPENAI_MODELS)} models)")
+        return True
+    message = body.get("error", {}).get("message", "")
+    if "already exists" in message.lower() or status == 409:
+        print("openai provider  already configured")
+        return True
+    print(f"openai provider  FAILED {status}: {message[:200]}")
+    return False
+
+
 def configure_sandbox(api_key: str) -> bool:
     # PUT, not POST. auto_stop defaults to 5 minutes, which is shorter than the
     # wait before a demo slot — set every interval explicitly.
@@ -128,8 +165,12 @@ def main() -> int:
         print(f"missing from .env: {', '.join(missing)}")
         return 2
     ok = configure_models(env["NIM_KEY"])
+    if env.get("OPENAI_API_KEY"):
+        ok = configure_openai(env["OPENAI_API_KEY"]) and ok
+    else:
+        print("openai provider  skipped (no OPENAI_API_KEY in .env)")
     ok = configure_sandbox(env["DAYTONA_API_KEY"]) and ok
-    print("\nboth providers ready" if ok else "\nsomething is not ready — see above")
+    print("\nproviders ready" if ok else "\nsomething is not ready — see above")
     return 0 if ok else 1
 
 

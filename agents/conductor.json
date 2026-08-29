@@ -1,7 +1,7 @@
 {
   "name": "conductor",
   "model": {
-    "name": "nvidia-nim/kimi-k3"
+    "name": "openai/gpt-4-1"
   },
   "mcp_servers": [
     {
