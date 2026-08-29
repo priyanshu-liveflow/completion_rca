@@ -51,13 +51,22 @@ This is the thing only this architecture can do: the graph makes the sandbox aff
 
 *Verify at H2 that `codegraphcontext` indexes test functions and that recursive callers actually reach them. If not, fall back to path-based selection (tests importing the touched modules) — still far better than the whole suite.*
 
-### Warming the sandbox
+### Two sandboxes, on purpose
 
-Cloning and installing on stage is death — and Daytona gives no control over the snapshot contents (confirmed: the provider API has no image or snapshot field). So you cannot bake a pre-built image.
+TrueForge's sandbox slot accepts **only Daytona**, and Daytona is cloud-only with no custom image (confirmed: the provider API exposes `{type, auth.api_key, exec_timeout_ms, auto_stop/archive/delete_interval}` — no image or snapshot field). Cloning a repo and installing deps in a cold cloud sandbox on stage is the single most likely way this demo drags.
 
-**The lever you do have is timing.** Sandboxes persist across turns within a session, so warm it at *mission start* rather than at repro time: clone the repo and install deps at the current pinned version while the scouts are still doing web work. By the time the graph has picked the call sites, the sandbox is ready and the only remaining work is bumping one package and running N tests.
+So split it by what each is actually good at:
 
-The latency is hidden behind work the audience is already watching. Also set `exec_timeout_ms` generously — a killed `pip install` reads as a broken agent.
+| | Provider | Used for | Why |
+|---|---|---|---|
+| **Harness sandbox** | Daytona (cloud) | skills, Code Mode, large-tool-response offload | Skills are cloned *into* it — no sandbox, no skills. Cloning a small skill repo is fast, so cold start is tolerable |
+| **Test runner** | **local Docker, via `mcp-sandbox`** | clone → install → bump → run tests → patch → re-run | Pre-baked image with the repo and deps already installed. Seconds, not minutes. Full control |
+
+This isn't a workaround dressed up as a design. A purpose-built test environment *should* be pre-baked — you don't want your test runner rebuilt from scratch on every invocation. And the isolation requirement is proportionate: the agent runs a test suite we chose against a dependency bump, not arbitrary untrusted third-party code.
+
+**The honest cost:** "sandboxed execution" is a headline TrueForge feature, and doing the heavy lifting in our own runner is one less native feature exercised. Mitigated by keeping Daytona genuinely in use for skills and offload — it isn't disabled, it's just not doing the part it's bad at. Be ready to say that out loud if a judge asks.
+
+**Pre-bake at H0:** `sandbox/Dockerfile` with the demo repo cloned and deps installed at the *current pinned* version, test suite confirmed green. On stage the container only bumps one package and runs N tests.
 
 ---
 
@@ -69,7 +78,7 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 
 **Where it can still lose:**
 
-1. **Sandbox latency.** Daytona is cloud-only with no custom snapshot, so warming has to be done by timing rather than by image. Still the thing most likely to make the demo drag.
+1. **Sandbox latency.** Largely solved by running the repro loop in a pre-baked local container instead of Daytona. Daytona cold start remains for skills, where it is tolerable.
 2. **Demo repo has no usable test suite.** This is now a hard selection criterion, not a nice-to-have.
 3. **Volume.** Still a lot for two people in a day. Phasing below is strict.
 
@@ -95,7 +104,7 @@ If Phase 2 slips, the demo still works: *"here are 3 tests that fail under the n
 |---|---|
 | Repo | **Fork of `graph_rca`**, history preserved, original untouched |
 | Harness | **Local** — `npx @truefoundry/trueforge`, SQLite, localhost:8790. No hosting |
-| Sandbox provider | **Daytona cloud** — only option, and mandatory because skills need it |
+| Sandbox | **Split** — Daytona for skills/offload, local Docker `mcp-sandbox` for the repro loop |
 | Sandbox | **Load-bearing** — reproduce, patch, verify |
 | Demo repo | Real OSS repo, real recent breaking change, **fast green test suite** |
 | Primary UI | Ops dashboard — missions as jobs, drill into agent tree |
@@ -142,7 +151,7 @@ TrueForge — LOCAL (npx, SQLite, localhost:8790)
   └── CONDUCTOR agent
         skills:  impact-analysis · repro-and-patch · evidence-verification · decision-brief
         tools:   mcp-graph (localhost) · mcp-web · mcp-store · github/slack (catalog)
-                 SANDBOX (Daytona cloud — the one thing not local)
+                 sandbox: Daytona (skills, offload) + mcp-sandbox (local Docker, tests)
         config:  dynamic_sub_agents ON, sandbox ON, approvals on write tools
 ```
 
@@ -214,6 +223,8 @@ agentradar/                       # fork of graph_rca
 │   ├── shared/providers/         # EXTEND — openai_compat
 │   └── graph_rca/                # keep: standalone CLI
 ├── mcp/graph_server.py           # NEW — MCP over code_tools
+├── packages/mcp-sandbox/         # NEW — local Docker test runner
+├── sandbox/Dockerfile            # NEW — pre-baked demo repo image
 ├── configs/runtime/nvidia.yaml
 ├── apps/web/                     # Next.js ops dashboard
 ├── packages/{mcp-web,mcp-store,contracts,dispatch}/   # dispatch = Phase 3
@@ -248,9 +259,9 @@ agentradar/                       # fork of graph_rca
 **H0 — together, 45 min.** Fork cloned and pushed. `contracts` frozen. `CLAUDE.md`. Branch protection.
 
 **H0 — three things started immediately.**
-- **Daytona signup + API key** (Sandboxes access, Snapshots write). Do this first; skills and sandbox both block on it.
+- **Daytona signup + API key** (Sandboxes access, Snapshots write). Needed for skills. Not on the demo's hot path any more, but still a blocker for skills.
 - Index the demo repo (`pipx install codegraphcontext`). I/O-bound, blocks nothing.
-- Clone the demo repo locally, install deps at the current pinned version, **confirm the test suite passes.** If it doesn't, pick a different repo now rather than at H4.
+- **Build `sandbox/Dockerfile`**: demo repo cloned, deps installed at current pinned version, **test suite confirmed green inside the image.** If it isn't green, pick a different repo now rather than at H4.
 
 > **Demo repo criteria** — timebox to 30 min, all four required: Python; public; indexes well under an hour; **has a fast test suite that currently passes**; depends on something with a *real* recent breaking change. Verify the change is real before committing. Fallback: a deprecation rather than a break.
 
@@ -261,7 +272,7 @@ agentradar/                       # fork of graph_rca
 **H1.5–H2.5 — A: harness up + graph MCP.** `npx @truefoundry/trueforge@latest`. Register the NVIDIA provider, add the Daytona key, enable the sandbox, connect catalog MCP servers. Build `mcp/graph_server.py` pointed at localhost, register it. **Verify `find_function_by_pattern` through TrueForge, and verify recursive `get_callers` reaches test functions.**
 *Was a 1.5h deployment block. Local mode makes it ~1h of configuration.*
 
-**H2.5–H3.5 — A: sandbox loop.** Prove the repro by hand *inside a real Daytona sandbox*: clone → install → bump version → run graph-selected tests → capture traceback. Time it. **Before any agent touches it.**
+**H2.5–H3.5 — A: `mcp-sandbox` + repro loop.** Build the local Docker test runner as an MCP server. Prove the repro by hand: bump version → run graph-selected tests → capture traceback. Time it. **Before any agent touches it.**
 
 **H3.5 — A: fixture recorder.** Hand B a real stream. *Non-negotiable.*
 
@@ -322,16 +333,15 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 | Risk | Mitigation |
 |---|---|
-| **Sandbox too slow on stage** | Warm at mission start not repro time; graph-selected tests only; time every step at H10 |
+| **Sandbox too slow on stage** | Pre-baked local image; graph-selected tests only; time every step at H10 |
 | **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
 | **Recursive callers don't reach tests** | Verify at H2; fall back to path-based test selection |
 | Indexing fails or is slow | Start H0 background; small repo; checkpoint H2 |
 | No clean real breaking change | 30-min timebox; fall back to a deprecation |
 | Patch step unreliable | Phase 2 is gated — reproduce alone still demos |
-| **Daytona signup/key blocks everything** | Do it at H0 before anything else — skills and sandbox both depend on it |
-| **Sandbox cold-start drags the demo** | Warm the sandbox at mission start, not at repro time — clone + install overlaps the scout phase |
-| Daytona snapshot contents not customizable | Confirmed: no image/snapshot field in the provider API. Warming early is the only lever |
-| Sandbox `exec_timeout_ms` too low for install | Set it generously at H2.5; a killed `pip install` looks like a broken agent |
+| Daytona key missing → no skills | H0 signup; fallback is moving procedures from `SKILL.md` into agent `instructions` |
+| **Judge asks why the sandbox isn't native** | Have the answer ready: Daytona is used for skills and offload; the test runner is pre-baked because rebuilding a test env per run is wrong |
+| Docker image drifts from the indexed repo | Build the image from the same commit you indexed; pin it |
 | NVIDIA credits exhausted | Fixture replay from H3; OpenAI for patch-writing only |
 | Live demo fails on stage | Fixture replay behind a keyboard shortcut |
 
@@ -344,13 +354,14 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 3. **Test selection:** recursive `get_callers` from a contact point reaches test functions.
 4. **Harness local:** `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK connects and streams a trivial turn.
 5. **No tunnel needed:** `mcp-graph` registered at a localhost URL returns real results from a TrueForge session.
-6. **Daytona wired:** sandbox provider configured, and a skill actually materializes — that is the real test that the key has Snapshots write.
-7. **Sandbox by hand:** bump the version, run selected tests, get a real traceback — before any agent is involved.
-8. **Sandbox by agent:** `sandbox.created` fires and test output appears in a tool result.
-9. **Reproduce is honest:** revert the version bump; assert the same tests pass. A repro that fails either way proves nothing.
-10. **Patch gate:** assert the PR tool is **unreachable** while tests are red.
-11. **Bright Data:** `run_collector` returns rows plus a health verdict.
-12. **Self-repair:** structurally changed page → degradation → heal → restored coverage. Rehearse until deterministic.
-13. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
-14. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane restore.
-15. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
+6. **Daytona wired:** sandbox provider configured, and a skill actually materializes — the real test that the key has Snapshots write.
+7. **Local runner:** `mcp-sandbox` runs the green test suite inside the pre-baked image in under 15s.
+8. **Sandbox by hand:** bump the version, run selected tests, get a real traceback — before any agent is involved.
+9. **Sandbox by agent:** `sandbox.created` fires and test output appears in a tool result.
+10. **Reproduce is honest:** revert the version bump; assert the same tests pass. A repro that fails either way proves nothing.
+11. **Patch gate:** assert the PR tool is **unreachable** while tests are red.
+12. **Bright Data:** `run_collector` returns rows plus a health verdict.
+13. **Self-repair:** structurally changed page → degradation → heal → restored coverage. Rehearse until deterministic.
+14. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
+15. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane restore.
+16. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
