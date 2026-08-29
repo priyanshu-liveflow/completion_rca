@@ -132,3 +132,58 @@ describe("RuntimeIndicator", () => {
     expect(screen.queryByText("connected")).not.toBeInTheDocument();
   });
 });
+
+describe("ApprovalRail", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows the confirmation dialog with accessible attributes and focus", () => {
+    vi.useFakeTimers();
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(3260);
+    });
+
+    const approveButton = screen.getByRole("button", {
+      name: "Approve verified PR",
+    });
+    fireEvent.click(approveButton);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("aria-labelledby");
+
+    const cancelButton = screen.getByRole("button", { name: "Cancel" });
+    expect(document.activeElement).toBe(cancelButton);
+  });
+
+  it("closes the dialog on Escape and restores focus to Approve", () => {
+    vi.useFakeTimers();
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(3260);
+    });
+
+    const approveButton = screen.getByRole("button", {
+      name: "Approve verified PR",
+    });
+    fireEvent.click(approveButton);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(approveButton);
+  });
+});

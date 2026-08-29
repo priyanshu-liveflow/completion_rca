@@ -17,6 +17,7 @@ import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
 import SandboxDock from "./SandboxDock";
+import ApprovalRail from "./ApprovalRail";
 import styles from "./MissionControlPage.module.css";
 import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
 
@@ -47,21 +48,8 @@ export default function MissionControlPage({
     approve,
     deny,
   } = useMission();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [popOutError, setPopOutError] = useState<string | null>(null);
   const popOutRef = useRef<Window | null>(null);
-
-  const isSubmitting = state.approvalSubmission === "submitting";
-
-  const approvalGuard = !state.redObserved
-    ? "Locked until a failing selected-test run is observed."
-    : !state.greenObservedAfterRed
-      ? "Locked while selected tests are red; waiting for green verification."
-      : state.approvalError
-        ? state.approvalError
-        : state.approvalSubmission === "failed"
-          ? "Approval resolution failed."
-          : "The PR tool stayed locked while tests were red.";
 
   // Close the external window if this screen unmounts.
   useEffect(() => {
@@ -127,16 +115,8 @@ export default function MissionControlPage({
     togglePopOut();
   };
 
-  const onApprove = () => setConfirmOpen(true);
-  const onConfirm = async () => {
-    const success = await approve();
-    if (success) setConfirmOpen(false);
-  };
-  const onDeny = async () => {
-    await deny();
-  };
-
-  const selectedNodeObj = state.nodes.find((n) => n.id === state.selectedNode);
+  const selectedNode =
+    state.nodes.find((n) => n.id === state.selectedNode) ?? null;
 
   return (
     <div className={styles.shell}>
@@ -221,121 +201,17 @@ export default function MissionControlPage({
           />
 
           {!readOnly && (
-            <aside className={styles.rail}>
-              <div className={styles.railTitle}>Human approval required</div>
-              <div className={styles.railSection}>
-                <div className={styles.railHeading}>Verified patch receipt</div>
-                <div className={styles.railRow}>
-                  Base commit: <code>{state.indexedCommit.slice(0, 12)}</code>
-                </div>
-                <div className={styles.railRow}>
-                  Dependency: {state.dependency}{" "}
-                  <code>
-                    {state.baselineVersion} → {state.breakingVersion}
-                  </code>
-                </div>
-                <div className={styles.railRow}>
-                  Files changed: <strong>4</strong>
-                </div>
-                <div className={styles.railRow}>
-                  Before: <span style={{ color: "var(--oxide)" }}>exit 2</span>
-                </div>
-                <div className={styles.railRow}>
-                  After: <span style={{ color: "var(--mineral)" }}>61 passed</span>
-                </div>
-              </div>
-              <div className={styles.guard} aria-live="polite">
-                {approvalGuard}
-              </div>
-              {selectedNodeObj && (
-                <div className={styles.railSection}>
-                  <div className={styles.railHeading}>Selected</div>
-                  <div className={styles.railRow}>
-                    {selectedNodeObj.role}: {selectedNodeObj.label}
-                  </div>
-                </div>
-              )}
-              {state.approved !== null && (
-                <div
-                  className={styles.railSection}
-                  style={{
-                    color: state.approved ? "var(--mineral)" : "var(--oxide)",
-                  }}
-                >
-                  <div className={styles.railHeading}>Decision</div>
-                  <div className={styles.railRow}>
-                    {state.approved
-                      ? "Approved — local state only"
-                      : "Denied"}
-                  </div>
-                </div>
-              )}
-              {popOutError && (
-                <div className={styles.railSection}>
-                  <div className={styles.railHeading}>Pop-out</div>
-                  <div className={styles.railRow}>{popOutError}</div>
-                </div>
-              )}
-              <div className={styles.actions}>
-                <button
-                  className={styles.btnPrimary}
-                  disabled={!canApprove || isSubmitting}
-                  onClick={onApprove}
-                >
-                  {isSubmitting ? "Submitting..." : "Approve verified PR"}
-                </button>
-                <button
-                  className={styles.btnSecondary}
-                  onClick={onDeny}
-                  disabled={state.approved !== null || isSubmitting}
-                >
-                  {isSubmitting ? "Submitting..." : "Deny"}
-                </button>
-                <p className={styles.note}>
-                  No write to GitHub in this prototype
-                </p>
-              </div>
-            </aside>
+            <ApprovalRail
+              state={state}
+              canApprove={canApprove}
+              selectedNode={selectedNode}
+              popOutError={popOutError}
+              onApprove={approve}
+              onDeny={deny}
+            />
           )}
         </div>
       </main>
-
-      {confirmOpen && (
-        <div
-          className={styles.dialogOverlay}
-          onClick={(e) => e.currentTarget === e.target && setConfirmOpen(false)}
-        >
-          <div className={styles.dialog}>
-            <h3>Approve verified pull request</h3>
-            <div className={styles.dialogRow}>
-              Repository: <code>{state.repo}</code>
-            </div>
-            <div className={styles.dialogRow}>
-              Target branch: <code>main</code>
-            </div>
-            <div className={styles.dialogRow}>
-              Patch summary: import path update for 4 files
-            </div>
-            <div className={styles.dialogRow}>
-              Test receipt: <code>61 passed</code> after red reproduction
-            </div>
-            {state.approvalError && (
-              <div className={styles.dialogRow}>{state.approvalError}</div>
-            )}
-            <div className={styles.dialogActions}>
-              <button
-                className={styles.btnSecondary}
-                onClick={() => setConfirmOpen(false)}
-              >
-                Cancel
-              </button>
-              <button className={styles.btnPrimary} onClick={onConfirm}>
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
