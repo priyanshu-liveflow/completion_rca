@@ -141,6 +141,48 @@ Observed on our key: `sandbox.create` and `snapshot.list` succeed,
 **Regenerate the Daytona key with all scopes enabled** rather than hunting a
 credential problem that does not exist.
 
+## Registering the sandbox provider — what the error is really telling you
+
+The PUT handler calls **`provider.buildImage()`**, which creates a Daytona
+**snapshot**. That needs snapshot **write**, not read. A key with read-only
+snapshot access lists sandboxes and snapshots fine, creates sandboxes fine, and
+still fails registration:
+
+```
+{"error":{"message":"Daytona rejected the API key — check the credentials"}}
+```
+
+Because `isDaytonaAuthError` maps **any 401 or 403** to that message, a missing
+scope is indistinguishable from a wrong key. Measured on the read-only key:
+
+| Operation | Result |
+|---|---|
+| `sandbox.list`, `sandbox.create`, `snapshot.list` | OK |
+| **`snapshot.create`** | **403 Access denied** |
+| `volume.list` | 403 |
+
+Reissuing with full access fixes it. Registration then returns
+`status: "pending"`, `"Sandbox image build in progress"`, and reaches `ready`
+after a minute or so — **the provider is unusable until it does**, so poll
+rather than assuming the 200 means done.
+
+`scripts/configure_trueforge.py` does all of this idempotently, including the
+poll.
+
+### Verified end to end
+
+Agent with `config.sandbox.enabled = true`, one turn:
+
+```
+sandbox.created  sandbox_id: v1:daytona:default.35127884-…
+tool.response    {"success":true,"response":{"exitCode":0,"result":"3.13.15\n"}}
+turn.done        done
+```
+
+Real Daytona sandbox, real execution, real output. Note the image ships
+**Python 3.13**, not the 3.14 in Daytona's own default image — the demo repo
+needs >=3.12, so this is fine, but do not assume the two images match.
+
 ## Sessions and turns — the shapes that cost me the most probing
 
 ```jsonc
