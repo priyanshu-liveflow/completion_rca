@@ -16,7 +16,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install agentradar CI tools
-        run: uv pip install pydantic pytest ruff mypy mcp
+        run: uv pip install pydantic pytest pytest-asyncio ruff mypy mcp langchain-openai python-dotenv
 
       - name: Ruff lint
         run: uv run ruff check src/main/agentradar tests/agentradar
@@ -33,5 +33,7 @@ jobs:
       - name: Schemas
         run: uv run python scripts/export_schemas.py --check
 
+      # tests/shared covers the LLM providers. Without it here, PR7's entire
+      # suite - including the bind_tools regression - never runs in CI.
       - name: Pytest
-        run: uv run pytest tests/agentradar -q
+        run: uv run pytest tests/agentradar tests/shared -q
