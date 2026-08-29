@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "ContactPoint": {
+      "description": "A call site in the indexed repo that references a dependency symbol.",
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "function_name": {
+          "title": "Function Name",
+          "type": "string"
+        },
+        "fid": {
+          "title": "Fid",
+          "type": "integer"
+        },
+        "file_path": {
+          "title": "File Path",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line"
+        }
+      },
+      "required": [
+        "symbol",
+        "function_name",
+        "fid",
+        "file_path",
+        "line"
+      ],
+      "title": "ContactPoint",
+      "type": "object"
+    }
+  },
+  "description": "Callers walked from a contact point, in BFS order.",
+  "properties": {
+    "contact_point": {
+      "$ref": "#/$defs/ContactPoint"
+    },
+    "callers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Callers",
+      "type": "array"
+    },
+    "depth_reached": {
+      "title": "Depth Reached",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "contact_point",
+    "callers",
+    "depth_reached"
+  ],
+  "title": "BlastRadius",
+  "type": "object"
+}

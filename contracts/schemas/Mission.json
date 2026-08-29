@@ -1,0 +1,406 @@
+{
+  "$defs": {
+    "ContactPoint": {
+      "description": "A call site in the indexed repo that references a dependency symbol.",
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "function_name": {
+          "title": "Function Name",
+          "type": "string"
+        },
+        "fid": {
+          "title": "Fid",
+          "type": "integer"
+        },
+        "file_path": {
+          "title": "File Path",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line"
+        }
+      },
+      "required": [
+        "symbol",
+        "function_name",
+        "fid",
+        "file_path",
+        "line"
+      ],
+      "title": "ContactPoint",
+      "type": "object"
+    },
+    "ImpactRow": {
+      "description": "One row of the impact table: a site, a verdict, and why.",
+      "properties": {
+        "contact_point": {
+          "$ref": "#/$defs/ContactPoint"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        },
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Evidence Ref"
+        }
+      },
+      "required": [
+        "contact_point",
+        "verdict",
+        "why",
+        "evidence_ref"
+      ],
+      "title": "ImpactRow",
+      "type": "object"
+    },
+    "MissionState": {
+      "description": "Lifecycle of a mission as the conductor walks the pipeline.",
+      "enum": [
+        "watching",
+        "locating",
+        "reproducing",
+        "patching",
+        "awaiting_approval",
+        "done",
+        "failed"
+      ],
+      "title": "MissionState",
+      "type": "string"
+    },
+    "Patch": {
+      "description": "Unified diff the agent authored against the sandbox working tree.",
+      "properties": {
+        "diff": {
+          "title": "Diff",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "diff",
+        "files",
+        "rationale"
+      ],
+      "title": "Patch",
+      "type": "object"
+    },
+    "ReleaseEvent": {
+      "description": "A published version the scouts retrieved for a watched dependency.",
+      "properties": {
+        "dependency": {
+          "title": "Dependency",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "published_at": {
+          "title": "Published At",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "breaking_hint": {
+          "default": false,
+          "title": "Breaking Hint",
+          "type": "boolean"
+        },
+        "source_collector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Collector"
+        }
+      },
+      "required": [
+        "dependency",
+        "version",
+        "published_at",
+        "title",
+        "body",
+        "url"
+      ],
+      "title": "ReleaseEvent",
+      "type": "object"
+    },
+    "TestCase": {
+      "description": "One pytest node and its outcome.",
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Traceback"
+        }
+      },
+      "required": [
+        "node_id",
+        "outcome",
+        "duration_s",
+        "traceback"
+      ],
+      "title": "TestCase",
+      "type": "object"
+    },
+    "TestReport": {
+      "description": "Parsed result of one sandbox test run against a package version.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "package": {
+          "title": "Package",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/TestCase"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "integer"
+        },
+        "failed": {
+          "title": "Failed",
+          "type": "integer"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "raw_tail": {
+          "title": "Raw Tail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "package",
+        "version",
+        "cases",
+        "passed",
+        "failed",
+        "duration_s",
+        "raw_tail"
+      ],
+      "title": "TestReport",
+      "type": "object"
+    },
+    "TestSelection": {
+      "description": "The tests chosen to exercise a set of contact points.",
+      "properties": {
+        "tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tests",
+          "type": "array"
+        },
+        "strategy": {
+          "enum": [
+            "callers",
+            "imports",
+            "path",
+            "manual"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "reached_from": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reached From",
+          "type": "array"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "tests",
+        "strategy",
+        "reached_from"
+      ],
+      "title": "TestSelection",
+      "type": "object"
+    },
+    "Verdict": {
+      "description": "Empirical status of a contact point under the new dependency version.",
+      "enum": [
+        "unknown",
+        "broken",
+        "safe",
+        "uncovered"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "VerifyResult": {
+      "description": "Before/after test reports for a patch. `verified` is the PR gate.",
+      "properties": {
+        "patch": {
+          "$ref": "#/$defs/Patch"
+        },
+        "before": {
+          "$ref": "#/$defs/TestReport"
+        },
+        "after": {
+          "$ref": "#/$defs/TestReport"
+        },
+        "verified": {
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "patch",
+        "before",
+        "after",
+        "verified"
+      ],
+      "title": "VerifyResult",
+      "type": "object"
+    }
+  },
+  "description": "Mutable mission record. The store persists this; the dashboard renders it.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "release": {
+      "$ref": "#/$defs/ReleaseEvent"
+    },
+    "state": {
+      "$ref": "#/$defs/MissionState"
+    },
+    "impact_rows": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ImpactRow"
+      },
+      "title": "Impact Rows",
+      "type": "array"
+    },
+    "selection": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TestSelection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "reports": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TestReport"
+      },
+      "title": "Reports",
+      "type": "array"
+    },
+    "verify": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VerifyResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "id",
+    "release",
+    "state"
+  ],
+  "title": "Mission",
+  "type": "object"
+}

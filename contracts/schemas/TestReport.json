@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "TestCase": {
+      "description": "One pytest node and its outcome.",
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Traceback"
+        }
+      },
+      "required": [
+        "node_id",
+        "outcome",
+        "duration_s",
+        "traceback"
+      ],
+      "title": "TestCase",
+      "type": "object"
+    }
+  },
+  "description": "Parsed result of one sandbox test run against a package version.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "package": {
+      "title": "Package",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/TestCase"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "integer"
+    },
+    "failed": {
+      "title": "Failed",
+      "type": "integer"
+    },
+    "duration_s": {
+      "title": "Duration S",
+      "type": "number"
+    },
+    "raw_tail": {
+      "title": "Raw Tail",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "package",
+    "version",
+    "cases",
+    "passed",
+    "failed",
+    "duration_s",
+    "raw_tail"
+  ],
+  "title": "TestReport",
+  "type": "object"
+}

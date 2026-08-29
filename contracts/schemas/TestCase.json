@@ -1,0 +1,42 @@
+{
+  "description": "One pytest node and its outcome.",
+  "properties": {
+    "node_id": {
+      "title": "Node Id",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "passed",
+        "failed",
+        "error",
+        "skipped"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "duration_s": {
+      "title": "Duration S",
+      "type": "number"
+    },
+    "traceback": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Traceback"
+    }
+  },
+  "required": [
+    "node_id",
+    "outcome",
+    "duration_s",
+    "traceback"
+  ],
+  "title": "TestCase",
+  "type": "object"
+}

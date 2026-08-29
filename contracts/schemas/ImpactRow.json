@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "ContactPoint": {
+      "description": "A call site in the indexed repo that references a dependency symbol.",
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "function_name": {
+          "title": "Function Name",
+          "type": "string"
+        },
+        "fid": {
+          "title": "Fid",
+          "type": "integer"
+        },
+        "file_path": {
+          "title": "File Path",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Line"
+        }
+      },
+      "required": [
+        "symbol",
+        "function_name",
+        "fid",
+        "file_path",
+        "line"
+      ],
+      "title": "ContactPoint",
+      "type": "object"
+    },
+    "Verdict": {
+      "description": "Empirical status of a contact point under the new dependency version.",
+      "enum": [
+        "unknown",
+        "broken",
+        "safe",
+        "uncovered"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "description": "One row of the impact table: a site, a verdict, and why.",
+  "properties": {
+    "contact_point": {
+      "$ref": "#/$defs/ContactPoint"
+    },
+    "verdict": {
+      "$ref": "#/$defs/Verdict"
+    },
+    "why": {
+      "title": "Why",
+      "type": "string"
+    },
+    "evidence_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Evidence Ref"
+    }
+  },
+  "required": [
+    "contact_point",
+    "verdict",
+    "why",
+    "evidence_ref"
+  ],
+  "title": "ImpactRow",
+  "type": "object"
+}

@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "HealthVerdict": {
+      "description": "Coverage check against a spec. `symptom` is fed verbatim to heal.",
+      "properties": {
+        "healthy": {
+          "title": "Healthy",
+          "type": "boolean"
+        },
+        "rows_returned": {
+          "title": "Rows Returned",
+          "type": "integer"
+        },
+        "missing_field_ratio": {
+          "title": "Missing Field Ratio",
+          "type": "number"
+        },
+        "missing_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Fields",
+          "type": "array"
+        },
+        "symptom": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Symptom"
+        }
+      },
+      "required": [
+        "healthy",
+        "rows_returned",
+        "missing_field_ratio",
+        "missing_fields",
+        "symptom"
+      ],
+      "title": "HealthVerdict",
+      "type": "object"
+    }
+  },
+  "description": "One collector invocation, including a heal-and-rerun if it degraded.",
+  "properties": {
+    "spec_id": {
+      "title": "Spec Id",
+      "type": "string"
+    },
+    "rows": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Rows",
+      "type": "array"
+    },
+    "health": {
+      "$ref": "#/$defs/HealthVerdict"
+    },
+    "healed": {
+      "default": false,
+      "title": "Healed",
+      "type": "boolean"
+    },
+    "health_after_heal": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HealthVerdict"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "spec_id",
+    "rows",
+    "health"
+  ],
+  "title": "CollectorRun",
+  "type": "object"
+}

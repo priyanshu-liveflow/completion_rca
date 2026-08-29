@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  agentradar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install agentradar CI tools
+        run: uv pip install --system pydantic pytest ruff mypy
+
+      - name: Ruff lint
+        run: ruff check src/main/agentradar tests/agentradar
+
+      - name: Ruff format
+        run: ruff format --check src/main/agentradar tests/agentradar
+
+      - name: Layering
+        run: python scripts/check_layering.py
+
+      - name: Mypy
+        run: mypy --strict src/main/agentradar
+
+      - name: Pytest
+        run: pytest tests/agentradar -q

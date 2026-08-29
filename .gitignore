@@ -4,6 +4,7 @@
 
 # Python
 .venv/
+.venv-ci/
 venv/
 .flow_cache/
 __pycache__/

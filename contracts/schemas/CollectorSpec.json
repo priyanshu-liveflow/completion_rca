@@ -1,0 +1,42 @@
+{
+  "description": "Version-controlled scraper definition. Collector IDs survive healing.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "required_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Fields",
+      "type": "array"
+    },
+    "min_rows": {
+      "default": 5,
+      "title": "Min Rows",
+      "type": "integer"
+    },
+    "max_missing_field_ratio": {
+      "default": 0.2,
+      "title": "Max Missing Field Ratio",
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "url",
+    "description",
+    "required_fields"
+  ],
+  "title": "CollectorSpec",
+  "type": "object"
+}

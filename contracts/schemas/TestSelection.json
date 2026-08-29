@@ -1,0 +1,41 @@
+{
+  "description": "The tests chosen to exercise a set of contact points.",
+  "properties": {
+    "tests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tests",
+      "type": "array"
+    },
+    "strategy": {
+      "enum": [
+        "callers",
+        "imports",
+        "path",
+        "manual"
+      ],
+      "title": "Strategy",
+      "type": "string"
+    },
+    "reached_from": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reached From",
+      "type": "array"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tests",
+    "strategy",
+    "reached_from"
+  ],
+  "title": "TestSelection",
+  "type": "object"
+}

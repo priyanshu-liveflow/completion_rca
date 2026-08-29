@@ -24,10 +24,10 @@ extra_instructions = """
 Project-specific rules. Flag violations of these as high severity — they are architectural
 invariants, not style preferences.
 
-1. ALL outbound web access must go through Bright Data (packages/mcp-web). Direct `fetch`,
-   `requests`, `httpx`, `urllib`, `curl`, or any unproxied HTTP client anywhere in application
-   code is a defect, including in tests and scripts. Bright Data CLI invocations are the only
-   sanctioned path.
+1. ALL outbound web access must go through Bright Data (`src/main/agentradar/adapters/brightdata.py`).
+   Direct `fetch`, `requests`, `httpx`, `urllib`, `curl`, or any unproxied HTTP client anywhere in
+   application code is a defect, including in tests and scripts. Bright Data CLI invocations are
+   the only sanctioned path. Inherited `graph_rca` modules are exempt until replaced.
 
 2. Approval-gated tools must be unreachable while a verification step is failing. If a code path
    can reach a GitHub write (PR, issue, commit) without a passing test run in evidence, that is
@@ -37,9 +37,9 @@ invariants, not style preferences.
    files and shell only. Flag any code that passes an API key, token, or connection string into
    sandbox execution.
 
-4. MCP tool handlers must validate their inputs against the shared schemas in packages/contracts
-   before use. An unvalidated tool argument reaching a shell command or a graph query is a
-   severity-raising finding.
+4. MCP tool handlers must validate their inputs against the shared schemas in
+   `src/main/agentradar/contracts` before use. An unvalidated tool argument reaching a shell
+   command or a graph query is a severity-raising finding.
 
 5. Collector definitions in collectors/*.json are the version-controlled contract for scrapers.
    Flag hardcoded selectors, URLs, or field names that bypass them.

@@ -1,0 +1,27 @@
+{
+  "description": "Unified diff the agent authored against the sandbox working tree.",
+  "properties": {
+    "diff": {
+      "title": "Diff",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    }
+  },
+  "required": [
+    "diff",
+    "files",
+    "rationale"
+  ],
+  "title": "Patch",
+  "type": "object"
+}
