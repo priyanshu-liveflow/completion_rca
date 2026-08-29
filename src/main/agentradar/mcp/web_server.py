@@ -113,12 +113,18 @@ def _read_spec(path: Path) -> CollectorSpec:
         raise ToolError("invalid_collector", f"{path.name}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ToolError("invalid_collector", f"{path.name} is not a JSON object")
-    health = payload.get("health") or {}
+    health = payload.get("health", {})
+    if health is None:
+        health = {}
+    # `or {}` here would turn false, 0, "" and [] into defaults, so a manifest
+    # damaged into `"health": false` would run on silent fallback thresholds
+    # instead of failing. Absent and null mean "use the defaults"; anything
+    # else that is not an object is damage.
     if not isinstance(health, dict):
         raise ToolError("invalid_collector", f"{path.name}: 'health' is not an object")
     flat = {key: value for key, value in payload.items() if key != "health"}
     try:
-        return CollectorSpec.model_validate({**flat, **health})
+        spec = CollectorSpec.model_validate({**flat, **health})
     except ValidationError as exc:
         fields = ", ".join(
             ".".join(str(part) for part in err["loc"]) for err in exc.errors()
@@ -126,6 +132,36 @@ def _read_spec(path: Path) -> CollectorSpec:
         raise ToolError(
             "invalid_collector", f"{path.name}: bad fields: {fields}"
         ) from exc
+    _check_spec(spec, path.name)
+    return spec
+
+
+def _check_spec(spec: CollectorSpec, name: str) -> None:
+    """Reject thresholds no result can satisfy, before they reach the healer.
+
+    `CollectorSpec` checks types and the contract is frozen, so range is
+    checked here. It matters: a negative `max_missing_field_ratio` makes every
+    run unhealthy while no field is actually missing, which would send an empty
+    symptom to `bdata scraper heal`. An empty `required_fields` is the mirror
+    image -- nothing can ever be found missing, so a collector returning
+    garbage reads as healthy.
+    """
+    problems: list[str] = []
+    if not spec.id.startswith("c_"):
+        problems.append(f"id must be a durable c_* collector id, got {spec.id!r}")
+    if not spec.url:
+        problems.append("url must not be empty")
+    if not spec.required_fields:
+        problems.append("required_fields must not be empty")
+    if spec.min_rows < 0:
+        problems.append(f"min_rows must be >= 0, got {spec.min_rows}")
+    if not 0.0 <= spec.max_missing_field_ratio <= 1.0:
+        problems.append(
+            "max_missing_field_ratio must be within [0, 1], got "
+            f"{spec.max_missing_field_ratio}"
+        )
+    if problems:
+        raise ToolError("invalid_collector", f"{name}: " + "; ".join(problems))
 
 
 def load_spec(collector: str) -> CollectorSpec:
@@ -137,12 +173,22 @@ def load_spec(collector: str) -> CollectorSpec:
     direct = COLLECTOR_DIR / f"{collector}.json"
     if direct.is_file():
         return _read_spec(direct)
+    # Scanning for an id must not be hostage to an unrelated broken sibling, so
+    # unreadable manifests are skipped here rather than raised. They are still
+    # named in the failure, and a lookup by stem still validates strictly.
+    skipped: list[str] = []
     for path in sorted(COLLECTOR_DIR.glob("*.json")):
-        spec = _read_spec(path)
+        try:
+            spec = _read_spec(path)
+        except ToolError:
+            skipped.append(path.name)
+            continue
         if spec.id == collector:
             return spec
+    detail = f"; skipped unreadable: {', '.join(skipped)}" if skipped else ""
     raise ToolError(
-        "unknown_collector", f"no collector {collector!r} under {COLLECTOR_DIR.name}/"
+        "unknown_collector",
+        f"no collector {collector!r} under {COLLECTOR_DIR.name}/{detail}",
     )
 
 
@@ -180,7 +226,7 @@ def run_collector(collector: str) -> CollectorRun:
         raise ToolError("bdata", str(exc)) from exc
 
     health = evaluate(rows, spec)
-    if health.healthy or health.symptom is None:
+    if health.healthy or not health.symptom:
         return CollectorRun(spec_id=spec.id, rows=rows, health=health)
 
     # The id is the durable artifact: heal repairs the collector behind
@@ -189,7 +235,8 @@ def run_collector(collector: str) -> CollectorRun:
         healed = client.heal_collector(spec.id, health.symptom, spec.url)
     except BdataError as exc:
         raise ToolError(
-            "bdata", f"heal of {spec.id} failed: {exc} (symptom: {health.symptom})"
+            "bdata",
+            f"heal of {spec.id} ({spec.url}) failed: {exc} (symptom: {health.symptom})",
         ) from exc
     if not healed:
         return CollectorRun(spec_id=spec.id, rows=rows, health=health, healed=False)
@@ -199,7 +246,8 @@ def run_collector(collector: str) -> CollectorRun:
     except BdataError as exc:
         raise ToolError(
             "bdata",
-            f"re-run of {spec.id} after heal failed: {exc} (symptom: {health.symptom})",
+            f"re-run of {spec.id} ({spec.url}) after heal failed: {exc} "
+            f"(symptom: {health.symptom})",
         ) from exc
     return CollectorRun(
         spec_id=spec.id,

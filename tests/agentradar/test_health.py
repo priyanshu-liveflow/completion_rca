@@ -368,3 +368,150 @@ def test_run_collector_is_registered_with_a_schema() -> None:
     spec = next(t for t in list_tools() if t.name == "run_collector")
     assert spec.schema["required"] == ["collector"]
     assert spec.schema["properties"]["collector"]["type"] == "string"
+
+
+# --- Qodo review: unsatisfiable specs and damaged manifests ----------------
+
+
+def test_a_negative_ratio_never_yields_an_empty_symptom() -> None:
+    """An empty symptom fed to `bdata scraper heal` is worse than no call."""
+    spec = _spec(max_missing_field_ratio=-0.1, min_rows=0)
+    verdict = evaluate([_row() for _ in range(5)], spec)
+    assert verdict.healthy is False
+    assert verdict.symptom
+    assert "unsatisfiable" in verdict.symptom
+    assert "max_missing_field_ratio=-0.1" in verdict.symptom
+
+
+def test_unhealthy_always_carries_a_symptom() -> None:
+    cases = [
+        (_spec(), []),
+        (_spec(), [_row(tag="") for _ in range(5)]),
+        (_spec(max_missing_field_ratio=-1.0, min_rows=0), [_row() for _ in range(3)]),
+        (_spec(required_fields=[], min_rows=9), [_row()]),
+    ]
+    for spec, rows in cases:
+        verdict = evaluate(rows, spec)
+        assert verdict.healthy is False
+        assert verdict.symptom, f"empty symptom for {spec.min_rows=} {len(rows)=}"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("min_rows", -1, "min_rows must be >= 0"),
+        ("max_missing_field_ratio", -0.1, "must be within [0, 1]"),
+        ("max_missing_field_ratio", 1.5, "must be within [0, 1]"),
+        ("required_fields", [], "required_fields must not be empty"),
+        ("id", "mcp_releases", "durable c_* collector id"),
+        ("url", "", "url must not be empty"),
+    ],
+)
+def test_unsatisfiable_manifests_are_rejected_on_load(
+    tmp_path: Path, field: str, value: Any, expected: str
+) -> None:
+    payload: dict[str, Any] = {
+        "id": "c_x",
+        "url": "https://example.invalid/r",
+        "description": "d",
+        "required_fields": ["tag"],
+        "health": {"min_rows": 5, "max_missing_field_ratio": 0.2},
+    }
+    if field in {"min_rows", "max_missing_field_ratio"}:
+        payload["health"][field] = value
+    else:
+        payload[field] = value
+    path = tmp_path / "broken.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ToolError) as excinfo:
+        web_server._read_spec(path)
+    assert excinfo.value.type == "invalid_collector"
+    assert expected in excinfo.value.message
+
+
+@pytest.mark.parametrize("damaged", [False, 0, "", []])
+def test_a_damaged_health_block_fails_instead_of_defaulting(
+    tmp_path: Path, damaged: Any
+) -> None:
+    """`or {}` would silently run these on fallback thresholds."""
+    path = tmp_path / "c.json"
+    path.write_text(
+        json.dumps(
+            {
+                "id": "c_x",
+                "url": "https://example.invalid/r",
+                "description": "d",
+                "required_fields": ["tag"],
+                "health": damaged,
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ToolError) as excinfo:
+        web_server._read_spec(path)
+    assert "'health' is not an object" in excinfo.value.message
+
+
+@pytest.mark.parametrize("absent", [None, "omit"])
+def test_an_absent_health_block_uses_the_contract_defaults(
+    tmp_path: Path, absent: Any
+) -> None:
+    payload: dict[str, Any] = {
+        "id": "c_x",
+        "url": "https://example.invalid/r",
+        "description": "d",
+        "required_fields": ["tag"],
+    }
+    if absent is None:
+        payload["health"] = None
+    path = tmp_path / "c.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    spec = web_server._read_spec(path)
+    assert spec.min_rows == 5
+    assert spec.max_missing_field_ratio == 0.2
+
+
+def test_a_broken_manifest_does_not_hide_valid_collector_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One unreadable sibling must not couple every collector's availability."""
+    (tmp_path / "aaa-broken.json").write_text("{ not json", encoding="utf-8")
+    (tmp_path / "good.json").write_text(
+        json.dumps(
+            {
+                "id": "c_good",
+                "url": "https://example.invalid/r",
+                "description": "d",
+                "required_fields": ["tag"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(web_server, "COLLECTOR_DIR", tmp_path)
+
+    assert web_server.load_spec("c_good").id == "c_good"
+
+    # ...but the broken file is still named when nothing matches, and a lookup
+    # by stem still validates strictly.
+    with pytest.raises(ToolError) as excinfo:
+        web_server.load_spec("c_missing")
+    assert "aaa-broken.json" in excinfo.value.message
+    with pytest.raises(ToolError):
+        web_server.load_spec("aaa-broken")
+
+
+def test_heal_errors_name_the_collector_url_and_symptom(
+    restore_client: None,
+) -> None:
+    _inject(
+        ScriptedWebClient(
+            runs=[_rows("collector_mcp_releases_degraded.json")],
+            heal_result=BdataError("bdata timed out after 600s"),
+        )
+    )
+    payload = dispatch("run_collector", {"collector": "mcp-releases"})
+    message = payload["error"]["message"]
+    assert "c_mcp_releases" in message
+    assert RELEASES_URL in message
+    assert DEGRADED_SYMPTOM in message

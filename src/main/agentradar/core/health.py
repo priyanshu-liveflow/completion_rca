@@ -70,9 +70,8 @@ def describe(counts: dict[str, int], rows_returned: int, spec: CollectorSpec) ->
     """Render the heal prompt: what is missing, how much, and what was expected.
 
     `"3 of 5 rows missing 'tag'; 1 row returned, expected >= 5"`, never
-    `"scraper broken"`. Unhealthy always yields at least one clause -- a
-    verdict is only unhealthy because of a row shortfall or a field that is
-    missing somewhere, and each of those writes its own clause below.
+    `"scraper broken"`, and never the empty string -- this goes straight to
+    `bdata scraper heal`, where an empty symptom is worse than no call at all.
     """
     noun = "row" if rows_returned == 1 else "rows"
     clauses = [
@@ -82,4 +81,14 @@ def describe(counts: dict[str, int], rows_returned: int, spec: CollectorSpec) ->
     ]
     if rows_returned < spec.min_rows:
         clauses.append(f"{rows_returned} {noun} returned, expected >= {spec.min_rows}")
-    return "; ".join(clauses)
+    if clauses:
+        return "; ".join(clauses)
+    # Every ordinary degradation writes a clause above. Landing here means the
+    # spec itself is unsatisfiable -- a negative ratio ceiling, say, which no
+    # result can sit under. `mcp.web_server` rejects such manifests on load, so
+    # this is reachable only by calling `evaluate` directly, and naming the
+    # thresholds is far more use to whoever did than an empty string.
+    return (
+        f"collector spec is unsatisfiable: min_rows={spec.min_rows}, "
+        f"max_missing_field_ratio={spec.max_missing_field_ratio}"
+    )
