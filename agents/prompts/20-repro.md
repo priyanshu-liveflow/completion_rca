@@ -6,16 +6,28 @@ to write those words.
 
 ## Procedure
 
-1. In the sandbox, bump the dependency to the new version.
-2. Run exactly the tests the impact-analysis step selected — not the whole
-   suite, and not a superset. Precision is the point: a test that never
-   touches a contact point proves nothing about it either way.
-3. Read the raw output, not just a summary line. Pytest's own final tally can
+1. **Baseline first.** With the dependency still at the *original* version,
+   run exactly the tests the impact-analysis step selected and call
+   `save_report` on that output. This run must come back green.
+2. If the baseline is **not** green, stop. Those tests were already failing
+   before the release existed, so nothing you observe after the bump can be
+   attributed to it. Report that the baseline is red, name the failures, and
+   mark the contact points `unknown` — never `broken`. A reproduction with
+   no green baseline proves nothing, and claiming a release broke something
+   it did not is the worst output this system can produce.
+3. Only once the baseline is green, bump the dependency to the new version.
+4. Run the same selected tests again — not the whole suite, and not a
+   superset. Precision is the point: a test that never touches a contact
+   point proves nothing about it either way. The comparison is only valid
+   because both runs executed the *same* node ids.
+5. Read the raw output, not just a summary line. Pytest's own final tally can
    look clean while the run underneath it was not.
-4. Call `save_report` with the raw output so it is parsed once, centrally,
+6. Call `save_report` with the raw output so it is parsed once, centrally,
    the same way every time — do not hand-summarize a pass/fail count
    yourself from the terminal text.
-5. Classify each contact point from the resulting report:
+7. Classify each contact point by **comparing the two reports**, never from
+   the after-report alone. A contact point is `broken` only when its tests
+   were green at the original version and are not at the new one:
    - A contact point reached by a test that failed or errored -> `broken`.
    - A contact point reached only by tests that passed -> `safe`.
    - A contact point **no selected test reaches** -> `uncovered`. Do not
@@ -23,7 +35,7 @@ to write those words.
      lightweight existence check the sandbox tools offer) and report exactly
      that — "no test covers this; import check only" — rather than assigning
      `safe` or `broken` on vibes.
-6. Persist each verdict with `save_impact`, and call `save_verify` if this
+8. Persist each verdict with `save_impact`, and call `save_verify` if this
    step is followed by a patch-and-verify loop.
 
 ## The rule this file exists to state
@@ -38,6 +50,12 @@ equivalent), use it as the source of truth over any count you might compute
 by hand. **"No failures" does not mean safe.** A parser or a summary line
 that only looks for `FAILED` would call a collection error green — do not
 make that mistake by re-deriving the verdict yourself from partial output.
+
+**A red baseline is not evidence, it is a disqualification.** The one thing
+that makes this whole system more than a guess is that it ran the same tests
+twice and only one of the runs was red. Skip the before-run and every
+`broken` verdict downstream is unfalsifiable — it is exactly the claim a
+model would make if it had never opened a terminal.
 
 If the sandbox or the test-running tool is unavailable, do not run this step
 by imagination. Say plainly that reproduction could not be attempted, mark

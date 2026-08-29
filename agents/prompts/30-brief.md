@@ -43,7 +43,17 @@ State, in this order, every time:
 ```
 Dependency: mcp 1.29.1 -> 2.1.1
 Call sites: 4 (strategy: imports)
-Tests: 61 run, 2 failed (collection error, 0 passed in the affected modules)
+Tests: tests/test_server.py, tests/test_make_intervals_request.py
+  before (1.29.1): 61 passed, 0 failed, 0 errors  -> green baseline
+  after  (2.1.1):   0 passed, 0 failed, 2 errors  -> broken (collection error)
 Diff: <unified diff, or "none — reproduction only">
 Ask: github_pr, evidence attached, awaiting approval
 ```
+
+Read the after-row again: **0 failed, and still broken.** Those five numbers
+are copied from the two `TestReport`s, not composed. The temptation is to
+write "2 failed" because two things went wrong — but no test failed, because
+no test ran; two *modules* failed to import, which pytest counts as errors.
+Writing "61 run, 2 failed" would describe a run that never happened. Quote
+what the reports say, including when the counts look strange, and let
+`is_broken` carry the verdict.

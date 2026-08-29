@@ -92,12 +92,44 @@ function loadInstructions(): string {
   );
 }
 
+const APPROVAL_VALUES = ["required", "none"] as const;
+
+/**
+ * Load and validate the approval policy, failing closed.
+ *
+ * `parseYaml(...) as Policy` is a compile-time cast and checks nothing at
+ * runtime, so before this validation a typo (`requried`), a missing
+ * `approval` key, or a null value did not throw — it simply was not equal to
+ * `"required"`, so the target silently compiled to *ungated* and seeding
+ * reported success. The one file in the repo whose whole job is to make a
+ * human approve a write would have quietly removed that approval. Anything
+ * this loader cannot read as exactly `required` or `none` aborts the seed.
+ */
 function loadPolicy(): Policy {
   const text = readFileSync(join(ROOT, "actions", "policy.yaml"), "utf8");
   const policy = parseYaml(text) as Policy;
-  if (!policy?.targets) {
+  if (!policy?.targets || typeof policy.targets !== "object") {
     throw new Error("actions/policy.yaml has no `targets` map");
   }
+
+  const entries = Object.entries(policy.targets);
+  if (entries.length === 0) {
+    throw new Error("actions/policy.yaml `targets` is empty");
+  }
+
+  for (const [name, spec] of entries) {
+    const approval = spec?.approval;
+    if (!APPROVAL_VALUES.includes(approval as (typeof APPROVAL_VALUES)[number])) {
+      throw new Error(
+        `actions/policy.yaml: target ${JSON.stringify(name)} has approval ` +
+          `${JSON.stringify(approval)}; expected one of ` +
+          `${APPROVAL_VALUES.map((v) => JSON.stringify(v)).join(" or ")}. ` +
+          "Refusing to seed: an unreadable approval value would compile to " +
+          "an ungated write.",
+      );
+    }
+  }
+
   return policy;
 }
 
