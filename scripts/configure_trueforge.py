@@ -1,0 +1,137 @@
+"""Register the model and sandbox providers in a local TrueForge.
+
+Idempotent. Run it after starting `npx @truefoundry/trueforge@latest`, or any
+time `docs/runbook.md`'s fast check reports a provider missing.
+
+    python scripts/configure_trueforge.py
+
+Reads DAYTONA_API_KEY and NIM_KEY from .env. Secrets are sent to localhost and
+never written to disk or logged — TrueForge redacts them in its own responses.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+BASE = os.getenv("TRUEFORGE_URL", "http://localhost:8790")
+
+# Confirmed by invoking each with a real tool definition and checking for
+# tool_calls in the response body, not just a 200. See configs/runtime/nvidia.yaml.
+NIM_MODELS = [
+    ("moonshotai/kimi-k3", "kimi-k3", 262144),
+    ("deepseek-ai/deepseek-v4-flash-0731", "deepseek-v4-flash", 131072),
+    ("meta/llama-3.2-11b-vision-instruct", "llama-3-2-11b", 131072),
+]
+
+
+def load_env() -> dict[str, str]:
+    """Parse .env without importing dotenv — this script must run anywhere."""
+    env: dict[str, str] = {}
+    path = ROOT / ".env"
+    if path.exists():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip()
+    return {**env, **{k: v for k, v in os.environ.items() if k in env or k.endswith("_KEY")}}
+
+
+def call(method: str, path: str, body: dict | None = None, timeout: int = 300) -> tuple[int, dict]:
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(
+        f"{BASE}{path}", data=data, method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status, json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read() or b"{}")
+    except urllib.error.URLError as exc:
+        print(f"cannot reach TrueForge at {BASE}: {exc.reason}")
+        print("start it with:  npx @truefoundry/trueforge@latest")
+        sys.exit(2)
+
+
+def configure_models(api_key: str) -> bool:
+    status, body = call("POST", "/api/v1/settings/model-providers", {
+        "manifest": {
+            "type": "custom",  # there is no `nvidia` provider type; custom is the
+            "name": "nvidia-nim",  # OpenAI-compatible escape hatch
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "auth": {"api_key": api_key},
+            "models": [
+                {"model_id": mid, "name": name,
+                 "properties": {"context_length": ctx, "max_output_tokens": 8192}}
+                for mid, name, ctx in NIM_MODELS
+            ],
+        }
+    })
+    if status < 300:
+        print(f"model provider   ready ({len(NIM_MODELS)} models)")
+        return True
+    message = body.get("error", {}).get("message", "")
+    if "already exists" in message.lower() or status == 409:
+        print("model provider   already configured")
+        return True
+    print(f"model provider   FAILED {status}: {message[:200]}")
+    return False
+
+
+def configure_sandbox(api_key: str) -> bool:
+    # PUT, not POST. auto_stop defaults to 5 minutes, which is shorter than the
+    # wait before a demo slot — set every interval explicitly.
+    status, body = call("PUT", "/api/v1/settings/sandbox-providers", {
+        "manifest": {
+            "type": "daytona",
+            "auth": {"api_key": api_key},
+            "exec_timeout_ms": 300_000,
+            "auto_stop_interval_in_minutes": 120,
+            "auto_archive_interval_in_minutes": 10_080,
+            "auto_delete_interval_in_minutes": 20_160,
+        }
+    })
+    if status >= 300:
+        message = body.get("error", {}).get("message", "")
+        print(f"sandbox provider FAILED {status}: {message[:200]}")
+        if "rejected the API key" in message:
+            print("  TrueForge maps any Daytona 401 OR 403 to that message, so this is")
+            print("  usually a missing scope rather than a bad key. Registration calls")
+            print("  buildImage(), which needs snapshot WRITE. Reissue with full access.")
+        return False
+
+    # buildImage() runs asynchronously; the provider is unusable until it lands.
+    for _ in range(60):
+        state = body.get("data", {}).get("status")
+        if state not in {"pending", "building"}:
+            break
+        time.sleep(10)
+        _, body = call("GET", "/api/v1/settings/sandbox-providers")
+    state = body.get("data", {}).get("status")
+    print(f"sandbox provider {state}"
+          f"{'' if state == 'ready' else ' — ' + str(body.get('data', {}).get('status_reason'))}")
+    return state == "ready"
+
+
+def main() -> int:
+    env = load_env()
+    missing = [k for k in ("NIM_KEY", "DAYTONA_API_KEY") if not env.get(k)]
+    if missing:
+        print(f"missing from .env: {', '.join(missing)}")
+        return 2
+    ok = configure_models(env["NIM_KEY"])
+    ok = configure_sandbox(env["DAYTONA_API_KEY"]) and ok
+    print("\nboth providers ready" if ok else "\nsomething is not ready — see above")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

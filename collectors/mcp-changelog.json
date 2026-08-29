@@ -1,0 +1,10 @@
+{
+  "id": "c_mcp_changelog",
+  "url": "https://py.sdk.modelcontextprotocol.io/v2/migration/",
+  "description": "Extract migration entries: heading, old_symbol, new_symbol, note",
+  "required_fields": ["heading", "old_symbol", "new_symbol"],
+  "health": {
+    "min_rows": 3,
+    "max_missing_field_ratio": 0.2
+  }
+}
