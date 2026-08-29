@@ -5,6 +5,16 @@ Tracks: **Harness**, **Bright Data**, **UI**, **Code Quality**.
 
 ---
 
+## Current implementation status — 2026-08-29
+
+**Confirmed by the builder:** TrueForge is running locally, NVIDIA NIM is configured as the model provider, and Daytona has completed the native sandbox smoke/timing path. These setup claims are recorded from the builder's completed setup; the frontend does not require or expose those credentials.
+
+**Implemented in the current `feat/mission-control-ui` working tree:** the approved option **1b — Paper Schematic** mission-detail vertical slice in `apps/web`, backed by a deterministic fixture event reducer. The action starts locked, observes the reproduced red test evidence, and unlocks only after later green verification. The live TrueForge adapter and the remaining dashboard surfaces are still separate follow-up work.
+
+**Still pending:** the live TrueForge session-event adapter, mission queue, full agent tree, impact table, diff view, Bright Data self-repair view, session recovery, and real approval-gated GitHub action. The current frontend is a mission-detail prototype and must not be presented as the complete dashboard or as a live sandbox when fixture replay is active.
+
+---
+
 ## Context
 
 The spec (`Untitled`) asks four questions (§3). Three are commodity. The fourth — *"why does it matter to **me**?"* — is answered in §14 with a hand-typed YAML stack profile. That's a newsletter with a where-clause.
@@ -24,9 +34,9 @@ WATCH  →  LOCATE  →  BLAST  →  REPRODUCE  →  PATCH  →  VERIFY  →  AC
 
 Output:
 
-> **LangGraph 0.3 changed checkpoint persistence.**
-> 6 call sites. I ran the 4 tests that reach them — 3 failed.
-> Patch applied, tests green. Diff attached. Open the PR?
+> **MCP Python SDK 2.1.1 moved `FastMCP`.**
+> 4 affected imports. The graph selected the 2 test modules that reach them — both failed during collection.
+> Four-line import patch applied; the same modules now report 61 passed. Diff attached. Open the PR?
 
 **The watchlist is derived, not configured.** The indexed repo's `pyproject.toml` *is* the scout watchlist. No topics form.
 
@@ -116,7 +126,7 @@ It also **solves my biggest worry**. I previously flagged "wrong impact verdicts
 **Where it can still lose:**
 
 1. ~~**Native sandbox latency.**~~ **Closed at H0 by measurement, not mitigation.** Cold path 10.1s, live path 6.1s, in a real Daytona sandbox. See *TrueForge's native sandbox is load-bearing* above.
-2. **Demo repo has no usable test suite.** This is now a hard selection criterion, not a nice-to-have.
+2. ~~**Demo repo has no usable test suite.**~~ **Closed for the selected MCP SDK case.** The pinned repo has five test modules; import-prefix selection identifies the two affected modules and the measured verification result is 61 passed.
 3. **Volume.** Still a lot for two people in a day. Phasing below is strict.
 
 **One reframe I got wrong earlier:** I had a custom tiered dispatcher on the critical path. The prize text reads *"the harness is doing the work rather than sitting underneath a thin wrapper."* Deep native usage — dynamic subagents, approvals, sessions, MCP, generative UI — **is** that. An orchestrator sitting above the harness is arguable at best. It moves to Phase 3.
@@ -152,8 +162,8 @@ Gating it at H9.5 means cutting it, because H9.5 is where things get cut.
 | Sandbox | **TrueForge-native Daytona sandbox**, mandatory for reproduce, patch, and verify. Prewarmed session as an optimisation, not a dependency — cold recovery is 10s. No local Docker |
 | Procedures | Agent `instructions` compiled from `agents/prompts/*.md` — **not** git-backed skills |
 | Sandbox role | **Load-bearing and harness-native** — dependency upgrade, reproduce, patch, and verify all run through TrueForge sandbox tools |
-| Demo repo | Real OSS repo, real recent breaking change, **fast green test suite** |
-| Primary UI | Ops dashboard — missions as jobs, drill into agent tree |
+| Demo repo | **`mvilanova/intervals-mcp-server` at `cb1fbcac…`**, MCP SDK 1.29.1 → 2.1.1, fast green test suite |
+| Primary UI | Ops dashboard — current slice is mission detail; mission queue and full agent tree remain pending |
 | Actions | GitHub + Slack + export, policy-driven, approval-gated |
 | Action target | The AgentRadar repo itself |
 | Web access | **100% Bright Data.** No `fetch`, no `curl`, no unproxied client |
@@ -351,9 +361,9 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 
 1. **0:00–0:20 — problem.** *You can't tell whether a release breaks you without running your code against it. So nobody does, until it breaks.*
 2. **0:20–0:35 — setup.** Indexed repo; watchlist came from its dependency manifest.
-3. **0:35–1:00 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 6 call sites. Hard-refresh once; the running mission restores. *"That's a guess so far. Watch."*
+3. **0:35–1:00 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 4 affected imports and the graph selects exactly 2 test modules. Hard-refresh once; the running mission restores. *"That's a guess so far. Watch."*
 4. **1:00–1:20 — self-repair.** *"That release page changed its markup this morning."* Degradation verdict → heal → restored coverage, before and after on screen. **The only beat where the system recovers instead of succeeding — do not cut it.**
-5. **1:20–1:50 — REPRODUCE.** TrueForge's native sandbox installs the new version and runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
+5. **1:20–1:50 — REPRODUCE.** TrueForge's native sandbox installs MCP SDK 2.1.1 and runs the 2 graph-selected test modules. **Both fail during collection on screen.** Real traceback, exit code 2.
 6. **1:50–2:20 — PATCH + VERIFY.** The agent edits the sandbox working tree, re-runs the same tests, and they go **green**. This is the moment.
 7. **2:20–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
 8. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
@@ -378,7 +388,7 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 |---|---|
 | ~~**Native sandbox too slow on stage**~~ | **Closed at H0 by measurement.** Real Daytona sandbox: cold 10.1s, live 6.1s. Re-time at H10 to catch regressions, but it is no longer a design constraint |
 | **Daytona or venue network unavailable** | Reconnect once, then use clearly labeled fixture replay for presentation continuity. Do not represent replay as live sandbox proof |
-| **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
+| ~~**Demo repo tests don't pass to begin with**~~ | **Closed for the pinned MCP SDK case.** Keep the exact commit and baseline-green receipt visible so checkout drift cannot reopen it |
 | ~~Recursive callers don't reach tests~~ | **Closed.** Measured at H0: `CALLS` reaches 0 for an import break, `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship, and `TestSelection.strategy` says which fired |
 | Indexing fails or is slow | Start H0 background; small repo; checkpoint H2 |
 | No clean real breaking change | 30-min timebox; fall back to a deprecation |
@@ -406,6 +416,6 @@ Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through
 12. **Core repeatability:** run the complete live red-to-green path five consecutive times.
 13. **Bright Data:** release retrieval returns the selected version and migration evidence.
 14. **Self-repair:** a structurally changed page produces a degradation verdict, a heal, and restored coverage — before and after in one `CollectorRun`.
-14. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
-15. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane, and sandbox state restore.
-16. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
+15. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
+16. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane, and sandbox state restore.
+17. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
