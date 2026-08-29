@@ -1,0 +1,557 @@
+<title>AgentRadar Mission Feed</title>
+
+<style>
+/* ============ tokens : dark-first ============ */
+:root{
+  --ground:#0B1014;
+  --surface:#111A20;
+  --raised:#16232B;
+  --rule:#1E313B;
+  --rule-soft:#17262E;
+  --ink:#D6E4EA;
+  --ink-dim:#8AA1AC;
+  --ink-faint:#5C7480;
+  --amber:#F0A030;
+  --amber-soft:#5A3E14;
+  --amber-ghost:#241a0c;
+  --brk:#E85F5A;
+  --brk-soft:#4A1E1E;
+  --safe:#4FB286;
+  --safe-soft:#173328;
+  --review:#6E93A8;
+  --review-soft:#1B2E38;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 8px 24px -12px rgba(0,0,0,.7);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --serif:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --ground:#E7EDEF;
+    --surface:#F4F8F9;
+    --raised:#FBFDFD;
+    --rule:#C3D2D8;
+    --rule-soft:#D8E3E7;
+    --ink:#121D24;
+    --ink-dim:#41585F;
+    --ink-faint:#6E858E;
+    --amber:#9A5A00;
+    --amber-soft:#EBD6B4;
+    --amber-ghost:#F6EBD8;
+    --brk:#A9322E;
+    --brk-soft:#F0D5D3;
+    --safe:#1B6E4C;
+    --safe-soft:#D2E7DC;
+    --review:#37606F;
+    --review-soft:#D7E3E8;
+    --shadow:0 1px 0 rgba(255,255,255,.7), 0 8px 20px -14px rgba(18,29,36,.45);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#E7EDEF; --surface:#F4F8F9; --raised:#FBFDFD;
+  --rule:#C3D2D8; --rule-soft:#D8E3E7;
+  --ink:#121D24; --ink-dim:#41585F; --ink-faint:#6E858E;
+  --amber:#9A5A00; --amber-soft:#EBD6B4; --amber-ghost:#F6EBD8;
+  --brk:#A9322E; --brk-soft:#F0D5D3;
+  --safe:#1B6E4C; --safe-soft:#D2E7DC;
+  --review:#37606F; --review-soft:#D7E3E8;
+  --shadow:0 1px 0 rgba(255,255,255,.7), 0 8px 20px -14px rgba(18,29,36,.45);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--mono); font-size:13px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.lbl{
+  font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--ink-faint);
+}
+.num{font-variant-numeric:tabular-nums}
+
+/* ============ chrome ============ */
+.shell{max-width:940px;margin:0 auto;padding:0 20px 120px}
+
+header.top{
+  position:sticky; top:0; z-index:40; background:var(--ground);
+  border-bottom:1px solid var(--rule); margin:0 -20px; padding:0 20px;
+}
+.topin{max-width:940px;margin:0 auto}
+.brandrow{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 0 10px}
+.wordmark{
+  font-size:15px; letter-spacing:.2em; text-transform:uppercase; font-weight:600;
+  color:var(--ink);
+}
+.wordmark b{color:var(--amber);font-weight:600}
+.mission{color:var(--ink-faint);font-size:12px}
+.spacer{flex:1}
+
+.bump{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid var(--rule);background:var(--surface);
+  padding:3px 9px;font-size:11.5px;color:var(--ink-dim);
+}
+.bump s{text-decoration:line-through;color:var(--ink-faint)}
+.bump em{font-style:normal;color:var(--amber)}
+
+/* phase strip */
+.phases{display:flex;gap:0;padding-bottom:12px;overflow-x:auto}
+.ph{
+  flex:1 0 auto;min-width:78px;padding:5px 0 6px;border-top:2px solid var(--rule-soft);
+  color:var(--ink-faint);font-size:10px;text-transform:uppercase;letter-spacing:.12em;
+  transition:color .3s, border-color .3s;
+}
+.ph.done{border-top-color:var(--ink-faint);color:var(--ink-dim)}
+.ph.live{border-top-color:var(--amber);color:var(--amber)}
+.ph.block{border-top-color:var(--amber);color:var(--amber)}
+.ph.fail{border-top-color:var(--brk);color:var(--brk)}
+
+/* controls */
+.bar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 0;border-bottom:1px solid var(--rule-soft);margin-bottom:6px;
+}
+button{font-family:var(--mono);font-size:11.5px;cursor:pointer}
+.btn{
+  background:var(--surface);color:var(--ink);border:1px solid var(--rule);
+  padding:6px 14px;letter-spacing:.08em;text-transform:uppercase;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#12100A;font-weight:600}
+.btn.primary:hover{filter:brightness(1.12);color:#12100A}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.35;cursor:not-allowed}
+.btn[disabled]:hover{border-color:var(--rule);color:var(--ink)}
+.clock{margin-left:auto;color:var(--ink-faint);font-size:11.5px}
+
+/* ============ feed ============ */
+.feed{position:relative;padding-top:14px}
+.feed::before{
+  content:"";position:absolute;left:73px;top:0;bottom:0;width:1px;
+  background:var(--rule);
+}
+.feed[data-phase="reproduce"]::before{background:linear-gradient(var(--rule) 0%,var(--brk) 100%)}
+.feed[data-phase="verify"]::before{background:linear-gradient(var(--rule) 0%,var(--safe) 100%)}
+.feed[data-phase="act"]::before{background:linear-gradient(var(--rule) 0%,var(--amber) 100%)}
+
+.ev{
+  display:grid;grid-template-columns:62px 22px 1fr;gap:0;
+  align-items:start;padding:2.5px 0;
+  animation:in .28s ease-out both;
+}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ts{color:var(--ink-faint);font-size:11px;padding-top:1px}
+.dot{position:relative;height:19px}
+.dot::after{
+  content:"";position:absolute;left:5.5px;top:7px;width:5px;height:5px;
+  background:var(--ink-faint);border:2px solid var(--ground);border-radius:50%;
+  box-shadow:0 0 0 1px var(--ground);
+}
+.ev.hit .dot::after{background:var(--amber)}
+.ev.bad .dot::after{background:var(--brk)}
+.ev.good .dot::after{background:var(--safe)}
+.ev.sub .dot::after{width:3px;height:3px;left:6.5px;top:8px;background:var(--rule)}
+.msg{color:var(--ink-dim)}
+.ev.hit .msg{color:var(--ink)}
+.ev.bad .msg{color:var(--brk)}
+.ev.good .msg{color:var(--safe)}
+.msg .who{color:var(--amber)}
+.msg .tool{color:var(--review)}
+.ev.sub .msg{color:var(--ink-faint);padding-left:14px;font-size:12px}
+
+/* phase divider */
+.pdiv{
+  display:grid;grid-template-columns:62px 22px 1fr;margin:18px 0 8px;
+  animation:in .28s ease-out both;
+}
+.pdiv .t{
+  grid-column:3;display:flex;align-items:center;gap:12px;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink);
+}
+.pdiv .t::after{content:"";flex:1;height:1px;background:var(--rule)}
+
+/* ============ cards ============ */
+.card{
+  grid-column:3;margin:10px 0 14px;border:1px solid var(--rule);
+  background:var(--surface);box-shadow:var(--shadow);
+  animation:in .3s ease-out both;overflow:hidden;
+}
+.cwrap{display:grid;grid-template-columns:62px 22px 1fr}
+.chead{
+  display:flex;align-items:center;gap:10px;padding:9px 14px;
+  border-bottom:1px solid var(--rule);background:var(--raised);
+}
+.chead .lbl{color:var(--ink)}
+.chead .meta{margin-left:auto;color:var(--ink-faint);font-size:11px}
+
+/* impact table */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl td{padding:7px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .loc{color:var(--ink);white-space:nowrap}
+.tbl .why{color:var(--ink-dim);font-family:var(--serif);font-size:14px;line-height:1.4}
+.pill{
+  display:inline-block;padding:1px 8px;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;border:1px solid;
+}
+.pill.brk{color:var(--brk);border-color:var(--brk);background:var(--brk-soft)}
+.pill.safe{color:var(--safe);border-color:var(--safe);background:var(--safe-soft)}
+.pill.rev{color:var(--review);border-color:var(--review);background:var(--review-soft)}
+.tfoot{
+  display:flex;gap:18px;padding:8px 14px;border-top:1px solid var(--rule);
+  background:var(--raised);font-size:11px;color:var(--ink-faint);
+}
+.tfoot b{color:var(--ink);font-weight:600}
+
+/* terminal */
+.term{padding:10px 14px;font-size:12.5px;line-height:1.7;overflow-x:auto}
+.term .cmd{color:var(--ink)}
+.term .cmd::before{content:"$ ";color:var(--amber)}
+.term .dim{color:var(--ink-faint)}
+.term .f{color:var(--brk)}
+.term .p{color:var(--safe)}
+.term .tb{color:var(--ink-dim);white-space:pre;display:block}
+.term .tb em{color:var(--brk);font-style:normal}
+.result{
+  display:flex;align-items:center;gap:10px;padding:8px 14px;
+  border-top:1px solid var(--rule);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+}
+.result.bad{background:var(--brk-soft);color:var(--brk)}
+.result.good{background:var(--safe-soft);color:var(--safe)}
+.result .num{margin-left:auto;letter-spacing:0;text-transform:none;opacity:.75}
+
+/* diff */
+.diff{font-size:12.5px;line-height:1.65;overflow-x:auto}
+.diff div{padding:1px 14px;white-space:pre}
+.diff .fn{color:var(--ink-faint);padding-top:8px}
+.diff .del{color:var(--brk);background:var(--brk-soft)}
+.diff .add{color:var(--safe);background:var(--safe-soft)}
+.diff .ctx{color:var(--ink-dim)}
+
+/* scraper heal */
+.heal{border-color:var(--amber-soft)}
+.heal .chead{background:var(--amber-ghost);border-bottom-color:var(--amber-soft)}
+.heal .chead .lbl{color:var(--amber)}
+.healbody{padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.healbody .row{display:flex;gap:10px;color:var(--ink-dim)}
+.healbody .row b{color:var(--ink);font-weight:600}
+.cov{display:flex;align-items:center;gap:8px}
+.covbar{width:120px;height:6px;background:var(--rule);position:relative}
+.covbar i{position:absolute;inset:0 auto 0 0;display:block}
+.covbar i.was{background:var(--brk);width:38%}
+.covbar i.now{background:var(--safe);width:100%}
+
+/* ============ approval gate ============ */
+.gate{
+  grid-column:3;margin:16px 0 8px;border:1px solid var(--amber);
+  background:var(--surface);box-shadow:var(--shadow);
+  animation:in .35s ease-out both;
+}
+.gate .chead{background:var(--amber-ghost);border-bottom-color:var(--amber-soft)}
+.gate .chead .lbl{color:var(--amber)}
+.pulse{
+  width:7px;height:7px;border-radius:50%;background:var(--amber);
+  animation:pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.gbody{padding:14px}
+.gbody h3{
+  margin:0 0 4px;font-family:var(--mono);font-size:14px;font-weight:600;
+  color:var(--ink);letter-spacing:.01em;
+}
+.gbody .sub{font-family:var(--serif);font-size:15px;line-height:1.5;color:var(--ink-dim);margin:0 0 14px}
+.acts{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.acts .a{display:flex;gap:10px;align-items:baseline;font-size:12.5px;color:var(--ink-dim)}
+.acts .a i{color:var(--safe);font-style:normal}
+.acts .a b{color:var(--ink);font-weight:600}
+.guard{
+  display:flex;gap:9px;padding:8px 11px;border:1px solid var(--rule);
+  background:var(--raised);font-size:12px;color:var(--ink-dim);margin-bottom:14px;
+  font-family:var(--serif);line-height:1.45;
+}
+.guard::before{content:"✓";color:var(--safe);font-family:var(--mono)}
+.gbtns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.gbtns .note{color:var(--ink-faint);font-size:11px;margin-left:auto}
+
+/* verdict */
+.done{
+  grid-column:3;margin:14px 0;border-left:2px solid var(--safe);
+  padding:10px 0 10px 14px;animation:in .3s ease-out both;
+}
+.done a{color:var(--amber);text-decoration:none;border-bottom:1px solid var(--amber-soft)}
+.done a:hover{border-bottom-color:var(--amber)}
+.done .k{font-family:var(--serif);font-size:15px;color:var(--ink);line-height:1.5;margin:0 0 6px}
+
+.idle{
+  grid-column:3;color:var(--ink-faint);font-family:var(--serif);font-size:15px;
+  padding:26px 0;
+}
+.idle b{font-family:var(--mono);font-size:12px;color:var(--amber);font-weight:600}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+@media (max-width:620px){
+  .feed::before{left:41px}
+  .ev,.pdiv,.cwrap{grid-template-columns:34px 18px 1fr}
+  .dot::after{left:3.5px}
+  .ev.sub .dot::after{left:4.5px}
+  .ts{font-size:10px}
+}
+</style>
+
+<header class="top">
+  <div class="topin">
+    <div class="brandrow">
+      <span class="wordmark">Agent<b>Radar</b></span>
+      <span class="mission num">mission #47</span>
+      <span class="spacer"></span>
+      <span class="bump"><span class="lbl">langgraph</span> <s>0.2.9</s> → <em>0.3.0</em></span>
+    </div>
+    <div class="phases" id="phases"></div>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="bar">
+    <button class="btn primary" id="run">Run mission</button>
+    <button class="btn ghost" id="reset" disabled>Reset</button>
+    <button class="btn ghost" id="speed">1×</button>
+    <span class="clock num" id="clock">idle</span>
+  </div>
+
+  <div class="feed" id="feed" data-phase="">
+    <div class="idle" id="idle">
+      Watching 34 dependencies from <b>pyproject.toml</b>. A release landed 6 minutes ago that
+      touches code this repo calls. Press <b>Run mission</b> to watch the agent find out whether
+      it actually breaks anything.
+    </div>
+  </div>
+</div>
+
+<script>
+const PHASES=["watch","locate","blast","reproduce","patch","verify","act"];
+const feed=document.getElementById("feed"), idle=document.getElementById("idle"),
+      clock=document.getElementById("clock"), runBtn=document.getElementById("run"),
+      resetBtn=document.getElementById("reset"), speedBtn=document.getElementById("speed"),
+      phasesEl=document.getElementById("phases");
+
+let speed=1, timers=[], t0=0, tick=null, gateResolve=null;
+
+PHASES.forEach(p=>{
+  const d=document.createElement("div"); d.className="ph"; d.dataset.p=p; d.textContent=p;
+  phasesEl.appendChild(d);
+});
+const setPhase=(p,state)=>{
+  const el=phasesEl.querySelector(`[data-p="${p}"]`); if(!el) return;
+  el.className="ph "+state;
+  if(state==="live"||state==="block"||state==="fail") feed.dataset.phase=p;
+};
+const donePhase=p=>{const el=phasesEl.querySelector(`[data-p="${p}"]`); if(el) el.className="ph done";};
+
+const stamp=ms=>{const s=Math.floor(ms/1000);return `14:0${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`};
+let vclock=0;
+
+function row(cls,html){
+  const d=document.createElement("div");
+  d.className="ev "+(cls||"");
+  d.innerHTML=`<div class="ts num">${stamp(vclock)}</div><div class="dot"></div><div class="msg">${html}</div>`;
+  feed.appendChild(d); scroll();
+}
+function divider(text){
+  const d=document.createElement("div"); d.className="pdiv";
+  d.innerHTML=`<div class="t">${text}</div>`; feed.appendChild(d); scroll();
+}
+function card(html,cls){
+  const w=document.createElement("div"); w.className="cwrap";
+  w.innerHTML=`<div></div><div></div><div class="card ${cls||""}">${html}</div>`;
+  feed.appendChild(w); scroll(); return w.querySelector(".card");
+}
+function scroll(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+}
+
+const at=(ms,fn)=>timers.push(setTimeout(fn,ms/speed));
+
+/* ---------- the mission ---------- */
+function play(){
+  idle.remove();
+  t0=Date.now(); vclock=0;
+  tick=setInterval(()=>{clock.textContent=((Date.now()-t0)/1000).toFixed(1)+"s elapsed";},100);
+  runBtn.disabled=true; resetBtn.disabled=false;
+
+  const S=[
+    [0,()=>{setPhase("watch","live"); divider("watch");
+      row("hit",`<span class="who">conductor</span> mission opened · langgraph 0.2.9 → 0.3.0`);}],
+    [400,()=>{vclock=1200; row("","spawned <span class=\"who\">web-intel</span> ×2, <span class=\"who\">docs-intel</span>");}],
+    [900,()=>{vclock=2400; row("sub",`<span class="tool">run_collector</span> github.com/langchain-ai/langgraph/releases`);}],
+
+    [1500,()=>{setPhase("watch","fail");
+      const c=card(`<div class="chead"><span class="lbl">scraper degraded</span><span class="meta">collector c_mpohus372</span></div>
+        <div class="healbody">
+          <div class="row"><b>2 of 3</b> required fields missing — page markup changed</div>
+          <div class="row"><span class="lbl" style="min-width:52px">was</span><span class="cov"><span class="covbar"><i class="was"></i></span> 38% field coverage</span></div>
+        </div>`,"heal");
+      c.dataset.k="heal";}],
+    [2400,()=>{vclock=3600; row("hit",`<span class="tool">heal_collector</span> auto-repair requested…`);}],
+    [3600,()=>{
+      const c=feed.querySelector('.card.heal');
+      c.querySelector(".healbody").insertAdjacentHTML("beforeend",
+        `<div class="row"><span class="lbl" style="min-width:52px">now</span><span class="cov"><span class="covbar"><i class="now"></i></span> 100% field coverage</span></div>
+         <div class="row" style="color:var(--safe)">repaired · same collector id · 12 releases parsed</div>`);
+      vclock=5100; row("good","scraper self-repaired — no manual fix, no lost run"); donePhase("watch");}],
+
+    [4600,()=>{setPhase("locate","live"); divider("locate");
+      vclock=6000; row("hit",`spawned <span class="who">locator</span> ×3`);}],
+    [5100,()=>{vclock=6400; row("sub",`<span class="tool">find_function_by_pattern</span> "langgraph.checkpoint"`);}],
+    [5700,()=>{vclock=7100; row("","23 source references across 9 modules");}],
+    [6100,()=>{donePhase("locate"); setPhase("blast","live"); divider("blast radius");
+      vclock=7900; row("hit",`spawned <span class="who">blast-walker</span> ×2`);}],
+    [6600,()=>{vclock=8300; row("sub",`<span class="tool">get_callers</span> recursive · depth 4`);}],
+    [7100,()=>{vclock=9200; row("","17 of 23 unreachable from any entrypoint — dropped");}],
+
+    [7600,()=>{
+      card(`<div class="chead"><span class="lbl">impact</span><span class="meta">6 reachable call sites</span></div>
+      <table class="tbl">
+        <tr><td class="loc">store.py:88</td><td><span class="pill brk">break</span></td><td class="why">Calls <code>Checkpointer.put()</code>, removed in 0.3.0.</td></tr>
+        <tr><td class="loc">resume.py:41</td><td><span class="pill brk">break</span></td><td class="why">Positional <code>config</code> argument is now keyword-only.</td></tr>
+        <tr><td class="loc">worker.py:203</td><td><span class="pill brk">break</span></td><td class="why">Reads <code>.thread_ts</code>, renamed to <code>.checkpoint_id</code>.</td></tr>
+        <tr><td class="loc">cache.py:12</td><td><span class="pill safe">safe</span></td><td class="why">Only imports the type for annotation.</td></tr>
+        <tr><td class="loc">pool.py:77</td><td><span class="pill safe">safe</span></td><td class="why">Touches the serializer, untouched by this release.</td></tr>
+        <tr><td class="loc">hooks.py:5</td><td><span class="pill rev">review</span></td><td class="why">Subclasses the base — behaviour change is plausible but not provable statically.</td></tr>
+      </table>
+      <div class="tfoot"><span><b>3</b> break</span><span><b>2</b> safe</span><span><b>1</b> review</span><span style="margin-left:auto;color:var(--ink-faint)">static analysis — not yet proven</span></div>`);
+      vclock=9900; }],
+    [8400,()=>{donePhase("blast"); row("","4 tests reach the 3 suspect sites — running only those");}],
+
+    [9000,()=>{setPhase("reproduce","live"); divider("reproduce");
+      const c=card(`<div class="chead"><span class="lbl">sandbox · local</span><span class="meta">image prebaked · deps warm</span></div>
+        <div class="term" id="t1"></div>`);
+      c.id="repro";}],
+    [9400,()=>termLine("t1",`<div class="cmd">pip install langgraph==0.3.0</div>`)],
+    [10000,()=>termLine("t1",`<div class="dim">Successfully installed langgraph-0.3.0</div>`)],
+    [10500,()=>termLine("t1",`<div class="cmd">pytest tests/test_resume.py tests/test_store.py -q</div>`)],
+    [11200,()=>{vclock=11400; termLine("t1",`<div class="f">FAILED test_checkpoint_resume</div>`)}],
+    [11700,()=>termLine("t1",`<div class="f">FAILED test_worker_restore</div>`)],
+    [12200,()=>termLine("t1",`<div class="f">FAILED test_store_put</div>`)],
+    [12700,()=>termLine("t1",`<div class="p">PASSED test_store_init</div>`)],
+    [13300,()=>termLine("t1",`<div class="tb">  File "store.py", line 88, in save_state
+    self.checkpointer.<em>put</em>(config, checkpoint)
+<em>AttributeError</em>: 'Checkpointer' object has no attribute 'put'</div>`)],
+    [14000,()=>{
+      document.getElementById("repro").insertAdjacentHTML("beforeend",
+        `<div class="result bad">3 failed · 1 passed<span class="num">4.8s</span></div>`);
+      setPhase("reproduce","fail");
+      vclock=13100; row("bad","reproduced — the break is real, not inferred");}],
+    [14800,()=>{vclock=13600; row("sub","control run on 0.2.9 · all 4 pass — failure is caused by the bump");}],
+
+    [15500,()=>{donePhase("reproduce"); setPhase("patch","live"); divider("patch");
+      vclock=14400; row("hit",`<span class="who">judge</span> reading traceback + migration guide`);}],
+    [16400,()=>{
+      card(`<div class="chead"><span class="lbl">proposed diff</span><span class="meta">3 files · +7 −7</span></div>
+      <div class="diff">
+        <div class="fn">─── store.py</div>
+        <div class="ctx">     def save_state(self, config, checkpoint):</div>
+        <div class="del">-        self.checkpointer.put(config, checkpoint)</div>
+        <div class="add">+        self.checkpointer.put_writes(config, checkpoint, [])</div>
+        <div class="fn">─── resume.py</div>
+        <div class="del">-        return self.graph.get_state(config)</div>
+        <div class="add">+        return self.graph.get_state(config=config)</div>
+        <div class="fn">─── worker.py</div>
+        <div class="del">-        ts = snapshot.thread_ts</div>
+        <div class="add">+        ts = snapshot.checkpoint_id</div>
+      </div>`);
+      vclock=15200;}],
+
+    [17400,()=>{donePhase("patch"); setPhase("verify","live"); divider("verify");
+      const c=card(`<div class="chead"><span class="lbl">sandbox · local</span><span class="meta">patch applied</span></div>
+        <div class="term" id="t2"></div>`); c.id="ver";}],
+    [17900,()=>termLine("t2",`<div class="cmd">pytest tests/test_resume.py tests/test_store.py -q</div>`)],
+    [18600,()=>termLine("t2",`<div class="p">PASSED test_checkpoint_resume</div>`)],
+    [19000,()=>termLine("t2",`<div class="p">PASSED test_worker_restore</div>`)],
+    [19400,()=>termLine("t2",`<div class="p">PASSED test_store_put</div>`)],
+    [19800,()=>termLine("t2",`<div class="p">PASSED test_store_init</div>`)],
+    [20400,()=>{
+      document.getElementById("ver").insertAdjacentHTML("beforeend",
+        `<div class="result good">4 passed<span class="num">3.9s</span></div>`);
+      vclock=17300; row("good","patch verified — the fix is proven, not proposed");}],
+
+    [21300,()=>{donePhase("verify"); setPhase("act","block"); divider("act · waiting on you");
+      gate();}]
+  ];
+  S.forEach(([ms,fn])=>at(ms,fn));
+}
+
+function termLine(id,html){
+  const t=document.getElementById(id); if(!t) return;
+  t.insertAdjacentHTML("beforeend",html); scroll();
+}
+
+function gate(){
+  const w=document.createElement("div"); w.className="cwrap";
+  w.innerHTML=`<div></div><div></div><div class="gate">
+    <div class="chead"><span class="pulse"></span><span class="lbl">approval required</span>
+      <span class="meta">nothing has been written yet</span></div>
+    <div class="gbody">
+      <h3>Open a pull request against completion_rca</h3>
+      <p class="sub">Every test in the selection passes with this patch applied. Nothing leaves the
+        sandbox until you say so.</p>
+      <div class="acts">
+        <div class="a"><i>+</i><span>branch <b>fix/langgraph-0.3-checkpoint</b></span></div>
+        <div class="a"><i>+</i><span>commit <b>3 files</b>, +7 −7</span></div>
+        <div class="a"><i>+</i><span>pull request with before/after test output</span></div>
+        <div class="a"><i>+</i><span>issue listing all <b>6 call sites</b> and their verdicts</span></div>
+      </div>
+      <div class="guard">The PR tool stayed locked while tests were red. It unlocked only when they
+        went green — this button could not have appeared on a failing patch.</div>
+      <div class="gbtns">
+        <button class="btn primary" id="approve">Approve</button>
+        <button class="btn" id="deny">Deny</button>
+        <span class="note">1 site still marked <span style="color:var(--review)">review</span> — excluded from the patch</span>
+      </div>
+    </div></div>`;
+  feed.appendChild(w); scroll();
+  w.querySelector("#approve").onclick=()=>resolve(true,w);
+  w.querySelector("#deny").onclick=()=>resolve(false,w);
+}
+
+function resolve(ok,w){
+  w.remove(); clearInterval(tick);
+  const d=document.createElement("div"); d.className="cwrap";
+  if(ok){
+    setPhase("act","live"); donePhase("act");
+    vclock=18100;
+    d.innerHTML=`<div></div><div></div><div class="done">
+      <p class="k">Pull request opened, with the failing run and the passing run attached as evidence.</p>
+      <div style="color:var(--ink-dim);font-size:12.5px">
+        <a href="#">completion_rca #128</a> · fix/langgraph-0.3-checkpoint<br>
+        <a href="#">completion_rca #129</a> · 6 call sites, 3 breaking, 1 needs review
+      </div></div>`;
+    clock.textContent="18.1s · complete";
+  }else{
+    setPhase("act","fail");
+    d.innerHTML=`<div></div><div></div><div class="done" style="border-left-color:var(--brk)">
+      <p class="k">Nothing written. The patch and both test runs are saved to the mission.</p>
+      <div style="color:var(--ink-dim);font-size:12.5px">Re-open mission #47 any time — the sandbox
+        state and evidence survive a refresh.</div></div>`;
+    clock.textContent="18.1s · denied";
+  }
+  feed.appendChild(d); scroll();
+}
+
+runBtn.onclick=play;
+resetBtn.onclick=()=>{
+  timers.forEach(clearTimeout); timers=[]; clearInterval(tick);
+  feed.innerHTML=""; feed.dataset.phase=""; feed.appendChild(idle);
+  PHASES.forEach(p=>phasesEl.querySelector(`[data-p="${p}"]`).className="ph");
+  clock.textContent="idle"; runBtn.disabled=false; resetBtn.disabled=true;
+  window.scrollTo({top:0,behavior:"smooth"});
+};
+speedBtn.onclick=()=>{
+  speed=speed===1?2:speed===2?4:1;
+  speedBtn.textContent=speed+"×";
+};
+</script>
