@@ -36,9 +36,20 @@ NIM_MODELS = [
 # from rate limiting until you notice it never recovers. Optional: the script
 # skips this block when OPENAI_API_KEY is absent, so nothing here is required
 # to run.
+# Aliases carry no dots: the model is referenced as `openai/<name>` and a dot
+# reads as a version separator in some of TrueForge's parsing.
+#
+# `max_output_tokens` is deliberately absent from the gpt-5.x entries. Setting
+# it makes TrueForge send `max_tokens`, which these models reject outright
+# ("Unsupported parameter: 'max_tokens'"); they want `max_completion_tokens`.
+# Omitting it lets the model default to its own 128k output ceiling.
 OPENAI_MODELS = [
-    ("gpt-4.1", "gpt-4-1", 1_047_576),
-    ("gpt-4.1-mini", "gpt-4-1-mini", 1_047_576),
+    # (model_id, alias, context_length, max_output_tokens or None)
+    ("gpt-5.6-sol", "gpt-5-6-sol", 1_050_000, None),      # flagship reasoning
+    ("gpt-5.6-terra", "gpt-5-6-terra", 1_050_000, None),  # balanced
+    ("gpt-5.6-luna", "gpt-5-6-luna", 1_050_000, None),    # high volume
+    ("gpt-5.4-mini", "gpt-5-4-mini", 400_000, None),      # text-heavy worker
+    ("gpt-4.1", "gpt-4-1", 1_047_576, 8192),              # fallback
 ]
 
 
@@ -98,17 +109,26 @@ def configure_models(api_key: str) -> bool:
 
 
 def configure_openai(api_key: str) -> bool:
-    """Register OpenAI as a fallback model provider. Same shape as NIM."""
-    status, body = call("POST", "/api/v1/settings/model-providers", {
+    """Register OpenAI as a second model provider. Same shape as NIM.
+
+    PUT, not POST. `POST /api/v1/settings/model-providers` only *creates* —
+    it answers "already exists" and silently leaves the stored model list
+    untouched, so editing `OPENAI_MODELS` and re-running would appear to
+    succeed while changing nothing. PUT replaces the manifest.
+    """
+    status, body = call("PUT", "/api/v1/settings/model-providers", {
         "manifest": {
             "type": "custom",
             "name": "openai",
             "base_url": "https://api.openai.com/v1",
             "auth": {"api_key": api_key},
             "models": [
-                {"model_id": mid, "name": name,
-                 "properties": {"context_length": ctx, "max_output_tokens": 8192}}
-                for mid, name, ctx in OPENAI_MODELS
+                {"model_id": mid, "name": name, "properties": (
+                    {"context_length": ctx}
+                    if out is None
+                    else {"context_length": ctx, "max_output_tokens": out}
+                )}
+                for mid, name, ctx, out in OPENAI_MODELS
             ],
         }
     })

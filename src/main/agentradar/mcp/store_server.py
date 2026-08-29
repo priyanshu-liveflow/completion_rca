@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from src.main.agentradar.adapters.store import (
@@ -10,11 +11,12 @@ from src.main.agentradar.adapters.store import (
     SqliteStore,
     default_store_path,
 )
-from src.main.agentradar.contracts.dependency import ReleaseEvent
+from src.main.agentradar.contracts.dependency import DemoTarget, ReleaseEvent
 from src.main.agentradar.contracts.evidence import TestSelection
 from src.main.agentradar.contracts.impact import ImpactRow
 from src.main.agentradar.contracts.mission import Mission, MissionState
 from src.main.agentradar.contracts.patch import VerifyResult
+from src.main.agentradar.core.demo import load_demo_target
 from src.main.agentradar.core.patch import (
     allowed_files_from_impact,
     validate_submitted_patch,
@@ -61,6 +63,39 @@ def _mutate(mission_id: str, action: Callable[[], None]) -> Mission:
     except KeyError as exc:
         raise _not_found_error(exc) from exc
     return _mission_or_error(mission_id)
+
+
+DEMO_PATH = Path(__file__).resolve().parents[4] / "configs" / "demo.yaml"
+
+
+@tool(
+    "get_demo_target",
+    "The repository, commit and dependency this mission is about: clone URL, "
+    "pinned commit, source and test roots, the dependency versions to install "
+    "before and after, and the symbol to locate.",
+    {"type": "object", "properties": {}},
+)
+def get_demo_target() -> DemoTarget:
+    """Tell the agent what it is working on. It cannot guess a clone URL.
+
+    Without this the agent invents one: a recorded mission tried three times
+    and got `could not read Username for 'https://github.com'`, which looks
+    like a credentials failure but is GitHub 404ing a repository that does not
+    exist. The sandbox's network was fine the whole time.
+
+    Returns the target only. `configs/demo.yaml` also holds the expected
+    contact points, test selection and patch shape; those are withheld by
+    `DemoTarget` because an agent handed the answer proves nothing by
+    repeating it.
+    """
+    try:
+        text = DEMO_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ToolError("config", f"cannot read {DEMO_PATH}: {exc}") from exc
+    try:
+        return load_demo_target(text)
+    except ValueError as exc:
+        raise ToolError("config", str(exc)) from exc
 
 
 @tool(
