@@ -35,6 +35,11 @@ from src.main.agentradar.contracts.impact import (  # noqa: E402
 )
 from src.main.agentradar.contracts.mission import ActionPlan, Mission  # noqa: E402
 from src.main.agentradar.contracts.patch import Patch, VerifyResult  # noqa: E402
+from src.main.agentradar.contracts.web import (  # noqa: E402
+    PageContent,
+    SearchHit,
+    SearchResults,
+)
 
 MODELS = (
     Dependency,
@@ -53,6 +58,9 @@ MODELS = (
     CollectorRun,
     Mission,
     ActionPlan,
+    SearchHit,
+    SearchResults,
+    PageContent,
 )
 
 
