@@ -64,7 +64,7 @@ src/main/agentradar/
 
 - **Tests run offline.** `core/` is pure so it unit-tests with zero infra. Adapters have fakes in `tests/agentradar/fakes.py`. `pytest` never opens a socket — which it must not, because rule 2 forbids it.
 - **Qodo can see it.** `.pr_agent.toml` already encodes these as review invariants. CI catches the mechanical half; the reviewer catches the rest.
-- **Swappable.** `DockerRunner` → `DaytonaRunner`, `BdataClient` → recorded fixtures, with no change above the adapter line.
+- **Swappable.** The sandbox decision flipped once already (`fa73a12`, local Docker → harness-native Daytona) and cost one impl behind an unchanged Protocol. `BdataClient` → recorded fixtures is the same trade. Assume at least one more decision flips today.
 
 ### Conventions
 
@@ -105,15 +105,18 @@ None of this is a PR. It is machine setup, and it gates PR1/PR5. **Start 1, 2 an
 |---|---|---|---|---|
 | 1 | **Pick the demo repo.** Timebox 30 min, all four required: Python; public; indexes in well under an hour; **fast test suite that currently passes**; depends on something with a *real* recent breaking change. Verify the change is real before committing. Fallback: a deprecation rather than a break. Write the answer into `configs/demo.yaml` | human | 30m | PR5, PR7, PR8 |
 | 2 | `pipx install codegraphcontext`, index the demo repo at a **pinned commit**. I/O-bound, blocks nothing else — start it and walk away | human | 5m + background | PR3, PR4 |
-| 3 | Build `sandbox/Dockerfile` from that same commit; **confirm the suite is green inside the image.** If it isn't, pick a different repo *now*, not at H4 | PR5 | 40m | PR5 |
-| 4 | `BRIGHTDATA_API_KEY` — `bdata login`, confirm `bdata scraper run` works by hand once | human | 10m | PR6 |
-| 5 | NVIDIA NIM key (`https://integrate.api.nvidia.com/v1`, ~1000 free credits, 40 RPM) + OpenAI key. Into `.env` | human | 5m | PR2 |
-| 6 | Node 22.14+, then `npx @truefoundry/trueforge@latest` — confirm `localhost:8790` serves | human | 10m | PR10 |
-| 7 | Daytona signup + API key (free tier, $200 compute, no credit card). **Nothing depends on it** — skip if the signup fights you | human | 5m | PR10 (optional) |
+| 3 | **Daytona signup + API key**, wire it into TrueForge, and run a `sandbox.created` smoke test. Free tier, $200 compute, no credit card. **This is now on the demo path** — it is not optional | human | 20m | PR5, PR10, PR11 |
+| 4 | **Prewarm the native sandbox** per `sandbox/PREWARM.md`: clone the pinned commit, install baseline deps, confirm the selected tests are green, keep the session alive. Set `auto_stop`/`auto_archive` intervals explicitly and confirm it survives an idle gap | human | 40m | PR5 |
+| 5 | `BRIGHTDATA_API_KEY` — `bdata login`, confirm `bdata scraper run` works by hand once | human | 10m | PR6 |
+| 6 | NVIDIA NIM key (`https://integrate.api.nvidia.com/v1`, ~1000 free credits, 40 RPM) + OpenAI key. Into `.env` | human | 5m | PR2 |
+| 7 | Node 22.14+, then `npx @truefoundry/trueforge@latest` — confirm `localhost:8790` serves | human | 10m | PR10 |
 | 8 | Install the Qodo GitHub App at `https://github.com/apps/qodo-merge-pro`, grant this repo. Enable branch protection on `main` | human | 5m | all PRs |
-| 9 | `docker` running, `gh auth status` clean | human | 2m | PR5, PR12 |
+| 9 | `docker` running (rehearsal path only), `gh auth status` clean | human | 2m | PR5, PR12 |
 
-**The demo repo choice (1) is the single riskiest H0 item.** Everything downstream reads `configs/demo.yaml`, so the code can be written before the choice lands — but do not let it slip past H0.5.
+**Two H0 items can lose the demo:**
+
+- **The demo repo choice (1).** Everything downstream reads `configs/demo.yaml`, so code can be written before the choice lands — but do not let it slip past H0.5.
+- **Sandbox survival (3 + 4).** With execution now harness-native and no custom image, a stopped or archived Daytona session between rehearsal and stage means cold-cloning on venue wifi in front of judges. Test the idle gap, not just the happy path.
 
 ---
 
@@ -139,13 +142,13 @@ Three tiers, matched to how much *judgment* the PR needs versus how much is tran
 | 2 | `feat(providers): openai-compatible LLM provider` | A | **Composer** | 40m | |
 | 3 | `feat(mcp): code graph server` | A | **Grok 4.6** | 45m | |
 | 4 | `feat(core): graph-guided test selection` | A | **Sonnet 5** | 40m | **thesis** |
-| 5 | `feat(sandbox): docker test runner + pre-baked image` | A | **Sonnet 5** | 70m | **thesis** |
+| 5 | `feat(sandbox): native sandbox procedure + pytest parsing` | A | **Sonnet 5** | 55m | **thesis** |
 | 6 | `feat(web): bright data adapter + search/scrape MCP` | B | **Grok 4.6** | 50m | Bright Data track |
 | 7 | `feat(collectors): validate-then-heal` | B | **Sonnet 5** | 50m | Bright Data track |
 | 8 | `feat(core): watchlist from dependency manifest` | B | **Composer** | 30m | |
 | 9 | `feat(store): mission state + evidence` | B | **Composer** | 40m | |
 | 10 | `feat(agents): conductor, prompts, seed` | both | **Sonnet 5** | 90m | Harness track |
-| 11 | `feat(patch): patch-and-verify loop` | A | **Sonnet 5** | 60m | **Phase 2** |
+| 11 | `feat(patch): patch-and-verify loop` | A | **Sonnet 5** | 60m | **Phase 1** |
 | 12 | `feat(actions): github + approval policy` | B | **Grok 4.6** | 45m | |
 | 13 | `chore(fixtures): event recorder` | either | **Composer** | 30m | cut if late |
 
@@ -482,35 +485,49 @@ Requirements:
 
 ---
 
-### PR5 — `feat(sandbox): docker test runner + pre-baked image`
+### PR5 — `feat(sandbox): native sandbox procedure + pytest parsing`
 
-Branch `feat/mcp-sandbox`. The demo's most latency-sensitive component.
+Branch `feat/sandbox`. The demo's most latency-sensitive component.
+
+**Decision, per `PLAN.md` as of `fa73a12`: the repro loop runs in TrueForge's native Daytona sandbox, not a custom MCP test runner.** The agent drives it with the harness's built-in shell/file tools. Our Python code is *not* in the execution loop — which makes this PR smaller than it looks, and moves the real work into (a) the prewarm procedure and (b) parsing what comes back.
 
 ```
-sandbox/Dockerfile                            NEW
-sandbox/build.sh                              NEW
+sandbox/PREWARM.md                            NEW  — the runbook, executed by hand at H0
+sandbox/Dockerfile                            NEW  — rehearsal only, NOT the demo path
 src/main/agentradar/adapters/sandbox.py       NEW
 src/main/agentradar/core/testreport.py        NEW
-src/main/agentradar/mcp/sandbox_server.py     NEW
 fixtures/pytest_output_red.txt                NEW  (captured by hand)
 fixtures/pytest_output_green.txt              NEW
 tests/agentradar/test_testreport.py           NEW
 tests/agentradar/test_sandbox_adapter.py      NEW
 ```
 
-**`sandbox/Dockerfile`** — demo repo cloned at `configs/demo.yaml:commit`, deps installed at the **current pinned** version, test suite confirmed green **inside the image at build time** (`RUN pytest -q` as a build step — a red build fails loudly at H0, not at H4).
+**`sandbox/PREWARM.md`** — the exact command sequence, so it is repeatable under pressure:
 
-On stage the container only: bump one package, run N tests. Seconds, not minutes.
+1. Provision the Daytona sandbox through TrueForge (a real turn — `sandbox.created` must fire).
+2. Shallow-clone the demo repo at `configs/demo.yaml:commit` — the *same* commit the graph indexed.
+3. Install pinned baseline deps; run the selected tests; **confirm green**.
+4. Keep the session and sandbox alive through the demo.
+5. On stage: bump the version, run the tests, patch, re-run.
 
-**`adapters/sandbox.py`**
+The warmup is setup, not evidence. Every number in the impact claim comes from a run *after* the version change.
+
+> **Verify at H0 and again at H8:** TrueForge's Daytona provider config carries `auto_stop_interval_in_minutes`, `auto_archive_interval_in_minutes`, `auto_delete_interval_in_minutes`. A "kept alive" session can be stopped out from under you between rehearsal and stage. Set these explicitly and confirm the sandbox survives an idle gap at least as long as the wait before your slot. **This is the single highest-risk item created by the native-sandbox decision — do not assume, test it.**
+
+**`core/testreport.py`** — pure parser, no subprocess. This is where the value of this PR actually lives, and it is runner-agnostic by construction:
 
 ```python
-class SandboxRunner(Protocol):
-    def run_tests(self, node_ids: list[str], *, timeout_s: int = 180) -> RawRun: ...
-    def set_package_version(self, package: str, version: str) -> RawRun: ...
-    def apply_patch(self, diff: str) -> RawRun: ...
-    def import_check(self, symbol: str, package: str) -> RawRun: ...   # UNCOVERED fallback
+def parse_pytest(stdout: str, package: str, version: str, report_id: str,
+                 *, duration_s: float = 0.0) -> TestReport: ...
+```
 
+Parse the short-summary block (`PASSED`/`FAILED`/`ERROR` node ids), per-test durations when `--durations` is present, and capture the failing traceback. Tests read `fixtures/pytest_output_*.txt` — **this is why the fixtures are captured by hand first.** It takes a plain string, so it parses output from the native sandbox, from Docker, or from a fixture, unchanged.
+
+Wire it into `save_report` in PR9's store server: the agent hands back raw output, the store parses it into a `TestReport`. Parsing stays in `core/`, never in a prompt.
+
+**`adapters/sandbox.py`** — the Protocol survives; only the primary impl changes.
+
+```python
 @dataclass(frozen=True)
 class RawRun:
     exit_code: int
@@ -518,28 +535,25 @@ class RawRun:
     stderr: str
     duration_s: float
 
-class DockerRunner:  # `docker exec` into a long-lived container from the pre-baked image
+class SandboxRunner(Protocol):
+    def run_tests(self, node_ids: list[str], *, timeout_s: int = 180) -> RawRun: ...
+    def set_package_version(self, package: str, version: str) -> RawRun: ...
+    def apply_patch(self, diff: str) -> RawRun: ...
+    def import_check(self, symbol: str, package: str) -> RawRun: ...   # UNCOVERED fallback
+
+class DockerRunner:  # rehearsal + CI timing only. `docker exec` into a warm container.
 ```
 
-Keep the container **warm** across calls — do not `docker run` per invocation. Provide `start()` / `stop()`; the MCP server starts it once at boot.
+**`DockerRunner` is not the demo path and must not be presented as one.** It exists so you can iterate on selection and parsing without burning Daytona minutes or venue wifi, and so PR11's gate tests run in CI. If the native path is timed at H10 and drags, this is the one line you flip — the Protocol is what makes that a decision rather than a rewrite.
 
-**`core/testreport.py`** — pure parser, no subprocess:
-
-```python
-def parse_pytest(raw: RawRun, package: str, version: str, report_id: str) -> TestReport: ...
-```
-
-Parse the short-summary block (`PASSED`/`FAILED`/`ERROR` node ids), per-test durations if `-q --durations` present, and capture the failing traceback. Tests read `fixtures/pytest_output_*.txt` — **this is why the fixtures are captured by hand first.**
-
-**`mcp/sandbox_server.py`** — tools: `set_package_version`, `run_selected_tests`, `import_check`. Each returns a `TestReport` or `RawRun`, never raw text.
-
-**Do this by hand before any agent touches it:** bump the version → run the graph-selected tests → get a real traceback. Time it.
+**Do this by hand before any agent touches it:** in the native sandbox, bump the version → run the graph-selected tests → get a real traceback. Time it.
 
 **Acceptance:**
-- Runs the green suite inside the pre-baked image in **under 15s**.
+- The native sandbox runs the green suite in **under 15s** on a prewarmed session — measured, not assumed.
+- The sandbox survives an idle gap longer than your wait before the slot.
 - **Repro is honest:** revert the bump, run the same tests, assert they pass. A repro that fails either way proves nothing — write this as a test.
-- Parser tests pass on both captured fixtures.
-- No secrets are passed into the container. Ever.
+- Parser tests pass on both captured fixtures, with no runner involved.
+- No secrets are passed into the sandbox. Ever.
 
 ---
 
@@ -713,13 +727,16 @@ TrueForge facts, verified — build to these, do not guess:
 
 ---
 
-### PR11 — `feat(patch): patch-and-verify loop` — **Phase 2, gated at H6.5**
+### PR11 — `feat(patch): patch-and-verify loop` — **Phase 1, must ship**
 
-Branch `feat/patch-verify`. Only start this if reproduce is solid. If it slips, the demo still works.
+Branch `feat/patch-verify`.
+
+**Reclassified per `PLAN.md` as of `fa73a12`:** the red-to-green loop is Phase 1, not a gated upside. A reproduce-only run is an honest contingency, not a completed Phase 1, and it does not unlock a PR. Plan the day so this lands.
+
+Patch application runs through the **native sandbox's file/shell tools**, driven by the agent — same as PR5. Our code owns validation and the gate, not execution.
 
 ```
 src/main/agentradar/core/patch.py             NEW
-src/main/agentradar/mcp/sandbox_server.py     EDIT — apply_patch, verify
 agents/prompts/25-patch.md                    NEW
 tests/agentradar/test_patch.py                NEW
 tests/agentradar/test_gate.py                 NEW
@@ -805,7 +822,7 @@ Run in order. Each maps to a PR.
 | 3 | Recursive `get_callers` reaches test functions — **or** the path fallback is honestly labelled | 4 |
 | 4 | `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK streams a trivial turn | 10 |
 | 5 | `mcp-graph` at a localhost URL returns real results from a TrueForge session — **no tunnel** | 3 |
-| 6 | Pre-baked image runs the green suite in **under 15s** | 5 |
+| 6 | Prewarmed **native** sandbox runs the green suite in under 15s — timed, and re-timed after an idle gap | 5 |
 | 7 | **Repro is honest:** revert the bump, same tests pass | 5 |
 | 8 | `sandbox.created` fires; test output appears in a tool result | 10 |
 | 9 | `run_collector` returns rows **plus** a health verdict | 7 |
