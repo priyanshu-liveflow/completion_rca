@@ -1,7 +1,7 @@
 {
   "name": "conductor",
   "model": {
-    "name": "nvidia-nim/kimi-k3"
+    "name": "deepseek-nim/deepseek-ai-deepseek-v-4-flash-0731"
   },
   "mcp_servers": [
     {
