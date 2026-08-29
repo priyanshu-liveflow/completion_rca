@@ -1,0 +1,10 @@
+{
+  "id": "c_mcp_releases",
+  "url": "https://github.com/modelcontextprotocol/python-sdk/releases",
+  "description": "Extract releases: tag, date, body, breaking_change_flag",
+  "required_fields": ["tag", "date", "body"],
+  "health": {
+    "min_rows": 5,
+    "max_missing_field_ratio": 0.2
+  }
+}

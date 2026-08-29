@@ -16,6 +16,21 @@ An empty section here is fine. An unresolved Qodo comment with no entry here is 
 
 ---
 
+### PR #11 — collector manifests are absent from a built wheel
+**Qodo said:** `COLLECTOR_DIR` resolves beside the installed package, but `[tool.hatch.build.targets.wheel] packages = ["src"]` ships only `src`, so in a wheel install every `run_collector` lookup returns `unknown_collector` while source-checkout tests pass.
+**We did:** declined for this phase.
+**Why:** the finding is technically correct — nothing ships `collectors/`. But nothing installs a wheel either: all four MCP servers run as `python -m src.main.agentradar.mcp.*`, CI runs from a checkout, and `uv run` installs the project editable so `__file__` resolves to the repo root. Adding `collectors/` to the wheel would place it at the wheel root, which `parents[4]` still would not find — the honest fix is relocating the manifests to package data under `src/main/agentradar/`, and that is a packaging change this PR should not carry. Revisit if anything ever installs this non-editable.
+
+### PR #11 — `health_after_heal` is not set on every run
+**Qodo said:** the healthy and refused-heal paths leave `health_after_heal` unset, violating a requirement that every run record both health fields.
+**We did:** declined.
+**Why:** `CollectorRun.health_after_heal` is `HealthVerdict | None = None` in the frozen contract, and `None` is the correct value: no heal ran, so there is no "after". Populating it by copying `health` would assert a heal happened and produce a run that claims before/after parity it never measured. The demo beat is *degraded then repaired* — a run that was healthy the first time must be distinguishable from one that was healed into health, and the null is what distinguishes them.
+
+### PR #11 — a failed heal raises instead of returning the degradation report
+**Qodo said:** after degradation is detected, a `BdataError` from heal raises `ToolError` rather than returning a structured report carrying id, url, symptom, heal status and heal error.
+**We did:** partially addressed — the raised error now names the collector id, its url and the verbatim symptom, so nothing is lost. Still raises.
+**Why:** `CollectorRun` has no field for *why* a heal failed, so returning one would make a crashed `bdata` indistinguishable from a heal that was cleanly refused — and refusal already returns a report with `healed=False`. Collapsing a dead CLI into that same shape is the silent-degradation failure the Bright Data rule exists to prevent. Adding a `heal_error` field to the frozen contract is the real fix, and it belongs with whichever PR next needs to reopen `collector.py`.
+
 ### PR #4 — timing probe labels every exec failure as auto-stop
 **Qodo said:** The idle probe caught all exceptions from `process.exec` and reported auto-stop recovery even for unrelated API or network failures.
 **We did:** declined — reverted the auto-stop recovery block in `886ae57` (`182df98`). The probe now only checks whether `true` still runs after the idle gap.
