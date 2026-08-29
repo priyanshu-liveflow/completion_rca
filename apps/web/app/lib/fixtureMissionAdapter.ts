@@ -1,16 +1,33 @@
-import { MissionEvent } from "./types";
+import { MissionAdapter } from "./missionAdapter";
+import { MissionEvent, TestRunEvidence } from "./types";
 
 export interface TimedMissionEvent {
   at: number;
   event: MissionEvent;
 }
 
-export interface MissionAdapter {
-  subscribe: (dispatch: (event: MissionEvent) => void) => () => void;
-}
-
 const selectedTests =
   "tests/test_make_intervals_request.py tests/test_server.py";
+
+const sandboxId = "sxn-72a9f0";
+
+const redEvidence: TestRunEvidence = {
+  runId: "fixture-red-001",
+  missionId: "AR-024",
+  sandboxId,
+  selectionKey: selectedTests,
+  phase: "reproduce",
+  exitCode: 2,
+};
+
+const greenEvidence: TestRunEvidence = {
+  runId: "fixture-green-001",
+  missionId: "AR-024",
+  sandboxId,
+  selectionKey: selectedTests,
+  phase: "verify",
+  exitCode: 0,
+};
 
 export const fixtureMissionEvents: TimedMissionEvent[] = [
   {
@@ -149,7 +166,7 @@ export const fixtureMissionEvents: TimedMissionEvent[] = [
   },
   {
     at: 2280,
-    event: { type: "tests.red_observed", failed: 2 },
+    event: { type: "tests.red_observed", failed: 2, evidence: redEvidence },
   },
   {
     at: 2290,
@@ -183,6 +200,22 @@ export const fixtureMissionEvents: TimedMissionEvent[] = [
     },
   },
   {
+    at: 2701,
+    event: {
+      type: "patch.observed",
+      patch: {
+        diff: "@@ -1 +1 @@\n-import mcp.server.fastmcp\n+from mcp.server.fastmcp import FastMCP",
+        files: [
+          "src/intervals/mcp.py",
+          "src/intervals/server.py",
+          "tests/test_mcp.py",
+          "tests/test_server.py",
+        ],
+        rationale: "Update FastMCP import path for mcp[cli] 2.1.1",
+      },
+    },
+  },
+  {
     at: 2710,
     event: {
       type: "sandbox.line.appended",
@@ -198,7 +231,7 @@ export const fixtureMissionEvents: TimedMissionEvent[] = [
   },
   {
     at: 3260,
-    event: { type: "tests.green_observed", passed: 61 },
+    event: { type: "tests.green_observed", passed: 61, evidence: greenEvidence },
   },
   {
     at: 3270,
@@ -232,6 +265,7 @@ export function createFixtureMissionAdapter(
   events: TimedMissionEvent[] = fixtureMissionEvents
 ): MissionAdapter {
   return {
+    mode: "fixture",
     subscribe(dispatch) {
       const timers = events.map(({ at, event }) =>
         window.setTimeout(() => dispatch(event), at)
@@ -244,5 +278,6 @@ export function createFixtureMissionAdapter(
 export const fixtureMissionAdapter = createFixtureMissionAdapter();
 
 export const noOpAdapter: MissionAdapter = {
+  mode: "fixture",
   subscribe: () => () => {},
 };
