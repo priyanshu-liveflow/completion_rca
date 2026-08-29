@@ -64,6 +64,16 @@ def _is_test_file(path: str) -> bool:
 def parse_diff(diff: str) -> Patch:
     """Parse a unified diff into a `Patch`, reading only its file headers.
 
+    Records **both endpoints** of every file header, not just the destination.
+    A git rename carries two distinct paths, and `git apply` acts on both: it
+    deletes the source and creates the destination. Recording only `b/` meant
+    `diff --git a/tests/test_server.py b/src/allowed.py` presented as a patch
+    touching one allowed, non-test file — while applying it deleted a test.
+    That defeats both of `validate_patch`'s rules at once, and
+    `DaytonaRunner.apply_patch` hands the whole diff to `git apply` verbatim,
+    so nothing downstream would have caught it. Every path the diff can move,
+    create, or destroy has to be visible to validation.
+
     Never raises: a diff with no recognisable `diff --git` header or
     `---`/`+++` pair parses to an empty file list rather than throwing, so a
     caller can turn a malformed patch into a rejection instead of a crash.
@@ -74,15 +84,17 @@ def parse_diff(diff: str) -> Patch:
     seen: set[str] = set()
     pending_minus: str | None = None
 
+    def record(*paths: str | None) -> None:
+        for path in paths:
+            if path is None or path == _DEV_NULL or path in seen:
+                continue
+            seen.add(path)
+            files.append(path)
+
     for line in diff.splitlines():
         git_header = _DIFF_GIT.match(line)
         if git_header is not None:
-            path = git_header.group("b")
-            if path == _DEV_NULL:
-                path = git_header.group("a")
-            if path != _DEV_NULL and path not in seen:
-                seen.add(path)
-                files.append(path)
+            record(git_header.group("a"), git_header.group("b"))
             pending_minus = None
             continue
 
@@ -93,13 +105,8 @@ def parse_diff(diff: str) -> Patch:
 
         plus = _PLUS_PLUS_PLUS.match(line)
         if plus is not None:
-            path = plus.group("path")
-            if path == _DEV_NULL:
-                path = pending_minus
+            record(pending_minus, plus.group("path"))
             pending_minus = None
-            if path is not None and path != _DEV_NULL and path not in seen:
-                seen.add(path)
-                files.append(path)
 
     return Patch(diff=diff, files=files, rationale="")
 

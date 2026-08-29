@@ -141,3 +141,70 @@ def test_validate_patch_rejects_empty_file_list_cleanly() -> None:
     ok, reason = validate_patch(patch, allowed_files=[_CLIENT_PY])
     assert ok is False
     assert isinstance(reason, str) and reason
+
+
+# -- rename bypass ----------------------------------------------------------
+
+_ALLOWED = ["src/intervals_mcp_server/mcp_instance.py"]
+
+
+def test_parse_diff_records_both_endpoints_of_a_rename() -> None:
+    """`git apply` deletes the source too, so the source must be visible."""
+    diff = (
+        "diff --git a/tests/test_server.py b/src/intervals_mcp_server/mcp_instance.py\n"
+        "similarity index 100%\n"
+        "rename from tests/test_server.py\n"
+        "rename to src/intervals_mcp_server/mcp_instance.py\n"
+    )
+
+    patch = parse_diff(diff)
+
+    assert patch.files == [
+        "tests/test_server.py",
+        "src/intervals_mcp_server/mcp_instance.py",
+    ]
+
+
+def test_validate_patch_rejects_renaming_a_test_file_into_an_allowed_path() -> None:
+    """Renaming a test away is still editing the test out of existence."""
+    diff = (
+        "diff --git a/tests/test_server.py b/src/intervals_mcp_server/mcp_instance.py\n"
+        "rename from tests/test_server.py\n"
+        "rename to src/intervals_mcp_server/mcp_instance.py\n"
+    )
+
+    ok, reason = validate_patch(parse_diff(diff), _ALLOWED)
+
+    assert ok is False
+    assert "tests/test_server.py" in reason
+
+
+def test_validate_patch_rejects_renaming_an_out_of_radius_file_in() -> None:
+    """The source of a rename is outside the blast radius that justified it."""
+    diff = (
+        "diff --git a/src/intervals_mcp_server/config.py "
+        "b/src/intervals_mcp_server/mcp_instance.py\n"
+        "rename from src/intervals_mcp_server/config.py\n"
+        "rename to src/intervals_mcp_server/mcp_instance.py\n"
+    )
+
+    ok, reason = validate_patch(parse_diff(diff), _ALLOWED)
+
+    assert ok is False
+    assert "src/intervals_mcp_server/config.py" in reason
+
+
+def test_parse_diff_rename_via_minus_plus_headers_only() -> None:
+    """A plain `diff -u` rename has no `diff --git` line to read."""
+    diff = (
+        "--- a/tests/test_server.py\n"
+        "+++ b/src/intervals_mcp_server/mcp_instance.py\n"
+        "@@ -1 +1 @@\n"
+        "-x\n"
+        "+y\n"
+    )
+
+    patch = parse_diff(diff)
+
+    assert "tests/test_server.py" in patch.files
+    assert validate_patch(patch, _ALLOWED)[0] is False
