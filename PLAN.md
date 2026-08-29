@@ -1,237 +1,336 @@
-# AgentRadar — End-to-End Build Plan
+# AgentRadar — Prove the Break, Write the Fix
 
-Two builders, one day. Targeting four tracks: **Harness**, **Bright Data**, **UI**, **Code Quality**.
+*Fork of `graph_rca`. Two builders, one day.*
+Tracks: **Harness**, **Bright Data**, **UI**, **Code Quality**.
 
 ---
 
-## 0. What changes from the spec
+## Context
 
-I verified TrueForge's actual API surface. Three things in `Untitled` are wrong and would cost you hours:
+The spec (`Untitled`) asks four questions (§3). Three are commodity. The fourth — *"why does it matter to **me**?"* — is answered in §14 with a hand-typed YAML stack profile. That's a newsletter with a where-clause.
 
-| Spec says | Reality | Consequence |
+Two things fix it, and the second is the point of divergence from a chatbot.
+
+**1. The code graph replaces the profile.** `graph_rca` indexes a repo into FalkorDB and exposes call-graph traversal. Not self-reported technologies — actual call sites.
+
+**2. The sandbox replaces the opinion.** An LLM reading code and guessing "this probably breaks" is still a chatbot. An agent that installs the new version, runs your tests, watches them fail, writes a patch, and watches them pass is not. The sandbox is where the product stops being advisory and becomes empirical.
+
+```
+WATCH  →  LOCATE  →  BLAST  →  REPRODUCE  →  PATCH  →  VERIFY  →  ACT
+(web)     (graph)   (graph)   (sandbox)     (sandbox) (sandbox)  (approval)
+```
+
+**The division of labour is the architecture.** The graph is the *cheap filter* — it narrows an enormous search space to a handful of call sites for pennies. The sandbox is the *expensive prover* — it establishes ground truth on those few. Neither works alone: graph-only is speculation, sandbox-only means running everything.
+
+Output:
+
+> **LangGraph 0.3 changed checkpoint persistence.**
+> 6 call sites. I ran the 4 tests that reach them — 3 failed.
+> Patch applied, tests green. Diff attached. Open the PR?
+
+**The watchlist is derived, not configured.** The indexed repo's `pyproject.toml` *is* the scout watchlist. No topics form.
+
+---
+
+## What the sandbox actually does
+
+| Step | Sandbox work | Why it can't be faked |
 |---|---|---|
-| `agents/news_scout/`, `agents/verifier/` … as code dirs | A TrueForge agent is a **declarative JSON manifest**: `{model, instructions, mcp_servers, skills, config}` | No agent code. Custom logic ships as **MCP servers** (actions/data) + **skills** (procedure) |
-| Five named subagents with their own tools | Subagents are **dynamic only** — root calls built-in `create_sub_agent`, they inherit the root's toolset | The five scouts become a *skill-prescribed delegation pattern*, not five configs |
-| FastAPI + Python backend | TrueForge is TS/Node (`npx @truefoundry/trueforge`), SDK is `@truefoundry/trueforge-sdk` | TypeScript end-to-end. No Python service |
-| Build persistent sessions, approvals, sandbox | All native harness features | ~4 MVP items are config, not code |
-| Today's Radar as custom cron | Harness has a **Schedules API** | Daily brief is a config row |
+| **Reproduce** | `pip install <new version>`, run graph-selected tests, capture the traceback | A real failing test, not a prediction |
+| **Patch** | Agent writes the fix from traceback + graph context, applies it | Requires reading the real error |
+| **Verify** | Re-run the same tests | **The PR only opens if they go green** |
+| **Fallback** | If no tests reach a site: import-check the symbol against the new version | Proves the API actually changed |
 
-Net: your MVP list of 12 items has **4 you build**, 6 you configure, 2 you theme.
+That last row matters — it degrades honestly instead of silently guessing.
 
-The reframe that wins the harness track: *we don't orchestrate the agents, the harness does.* Our delegation logic lives in a SKILL.md that tells the root agent how to fan out — the harness spawns, schedules, and joins. Judges explicitly said "harness doing the work rather than sitting underneath a thin wrapper." Any orchestration we write in our own API layer is a point against us.
+### Graph-guided test selection
 
----
+Running a full suite is slow and often broken. You don't have to. **`get_callers` applied recursively from a contact point reaches the test functions that exercise it.** Run only those.
 
-## 1. Architecture
+This is the thing only this architecture can do: the graph makes the sandbox affordable, and the sandbox makes the graph trustworthy. Cheap filter, expensive prover.
 
-```
-Next.js UI  ──SSE──>  TrueForge (hosted mode, on TrueFoundry)
-  @truefoundry/trueforge-ui            │  Postgres + Redis
-  custom theme + containers            │
-                                       ├── model: GLM-5.2 via NVIDIA NIM (custom OpenAI-compatible)
-                                       │           gpt-5.2 for the demo run
-                                       │
-                                       ├── skills (git-backed, our repo)
-                                       │     research-methodology   ← prescribes the 5-scout fan-out
-                                       │     evidence-verification  ← source tiers, conflict rules
-                                       │     decision-brief         ← output contract + signal_score.py
-                                       │
-                                       ├── sandbox (Daytona) ← runs signal_score.py, dedup, evidence ranking
-                                       │
-                                       └── MCP servers
-                                             agentradar-web    (WE BUILD — Bright Data)
-                                             agentradar-store  (WE BUILD — evidence/brief persistence)
-                                             github            (catalog, approval-gated)
-```
+*Verify at H2 that `codegraphcontext` indexes test functions and that recursive callers actually reach them. If not, fall back to path-based selection (tests importing the touched modules) — still far better than the whole suite.*
 
-**We build exactly two MCP servers and three skills.** Everything else is configuration.
+### Pre-warmed image
 
-### Why `agentradar-store` exists
-It is both the persistence layer *and* the UI's render trigger. When the agent calls `save_brief({...})`, the UI sees that tool call in the event stream and renders the Decision Brief card. Deterministic rendering, no prompt-parsing, and the data is durable for session recovery. Same for `save_evidence` → evidence panel rows.
-
-### The five scouts
-`skills/research-methodology/SKILL.md` contains the instruction templates. The root agent reads the skill, then issues five `create_sub_agent` calls. Each `thread.created` event becomes a live row in the UI timeline; `thread.done` marks it complete. That is the Deep Research screen from spec §17 — driven entirely by harness events, no custom orchestration.
+Cloning and installing on stage is death. At H0, build a sandbox image with the demo repo cloned and dependencies installed at the *current pinned* version. On stage the sandbox only does: bump one package, run N tests. Seconds, not minutes.
 
 ---
 
-## 2. Repo layout
+## Honest assessment
 
-```
-agentradar/
-├── CLAUDE.md                  # Bright Data track: collector rules live here
-├── PLAN.md
-├── docs/architecture.md
-├── apps/web/                  # Next.js + @truefoundry/trueforge-ui
-├── packages/
-│   ├── mcp-web/               # Bright Data MCP server
-│   ├── mcp-store/             # evidence + brief MCP server
-│   └── contracts/             # shared zod schemas — the interface between both builders
-├── skills/
-│   ├── research-methodology/SKILL.md
-│   ├── evidence-verification/SKILL.md
-│   └── decision-brief/{SKILL.md,scripts/signal_score.py}
-├── collectors/                # version-controlled Bright Data collectors
-│   ├── hn-frontpage.json
-│   ├── gh-releases.json
-│   └── _schema.md
-├── agents/agentradar.json     # the TrueForge agent manifest
-├── fixtures/                  # recorded event streams for offline UI dev + demo fallback
-└── .github/workflows/ci.yml
-```
+**The idea is strong, and the sandbox is what makes it strong.** Without it this is a well-dressed research agent. With it, it clears the stated bar — *"an agent acts on them"* — with a PR carrying a test-verified patch.
 
-`packages/contracts` is the seam. Freeze it at hour 0; both builders code against it and never block each other.
+It also **solves my biggest worry**. I previously flagged "wrong impact verdicts on stage" as the way this loses, mitigated by manually spot-checking rows. That mitigation was weak. Empiricism replaces it: a red test and a green test are not opinions.
+
+**Where it can still lose:**
+
+1. **Sandbox latency.** Mitigated by the pre-warmed image; still the thing most likely to make the demo drag.
+2. **Demo repo has no usable test suite.** This is now a hard selection criterion, not a nice-to-have.
+3. **Volume.** Still a lot for two people in a day. Phasing below is strict.
+
+**One reframe I got wrong earlier:** I had a custom tiered dispatcher on the critical path. The prize text reads *"the harness is doing the work rather than sitting underneath a thin wrapper."* Deep native usage — sandbox, skills, dynamic subagents, approvals, sessions, MCP — **is** that. An orchestrator sitting above the harness is arguable at best. It moves to Phase 3.
 
 ---
 
-## 3. The Bright Data pipeline (track win)
+## Phasing
 
-The judging criteria are: pipeline lives *inside* the agentic workflow, config is version-controlled and reusable, and it **detects and recovers when a site changes**. A one-shot scrape loses.
+| Phase | Contains | Gate |
+|---|---|---|
+| **1 — core** | WATCH → LOCATE → BLAST → **REPRODUCE** → brief → approval → PR | must ship |
+| **2 — the moment** | **PATCH → VERIFY**, PR only opens on green | H7, ship if 1 is solid |
+| **3 — upside** | Tiered dispatch + cost meter | H9, cut without regret |
 
-### Version-controlled collectors
-Each file in `collectors/` is the durable artifact — Collector IDs survive healing, so they're stable handles:
+If Phase 2 slips, the demo still works: *"here are 3 tests that fail under the new version — here's the issue."* If Phase 2 lands, it becomes: *"...and here's the patch that makes them pass."*
+
+---
+
+## Decisions locked
+
+| | |
+|---|---|
+| Repo | **Fork of `graph_rca`**, history preserved, original untouched |
+| Sandbox | **Load-bearing** — reproduce, patch, verify |
+| Demo repo | Real OSS repo, real recent breaking change, **fast green test suite** |
+| Primary UI | Ops dashboard — missions as jobs, drill into agent tree |
+| Actions | GitHub + Slack + export, policy-driven, approval-gated |
+| Action target | The AgentRadar repo itself |
+| Web access | **100% Bright Data.** No `fetch`, no `curl`, no unproxied client |
+| Models | NVIDIA NIM (free) for breadth; OpenAI for patch-writing |
+
+---
+
+## Step 1 — Fork and extend providers
+
+```bash
+git clone ~/graph_rca ~/research-agents/agentradar
+```
+
+History preserved; `~/graph_rca` untouched as fallback.
+
+**Multi-provider (~40 lines).** `BaseLLMProvider` is clean (`get_tool_schemas` + `invoke`); `LangChainProvider` is the only impl. `ChatOpenAI` takes `base_url` + `api_key`, so one class covers NVIDIA NIM, OpenAI, vLLM, Groq.
+
+| File | Change |
+|---|---|
+| `pyproject.toml` | add `langchain-openai` |
+| `shared/factory.py` | allow `openai_compat` |
+| `shared/providers/langchain.py` | `ChatOpenAI(base_url=…, api_key=…, model=…)` branch |
+| `config/` | read `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` |
+| `configs/runtime/nvidia.yaml` | tier mapping against NIM + OpenAI |
+
+**Why, given TrueForge is the harness:** it makes the fork runnable without AWS, so the graph tools can be proven end-to-end at H1.5 — before TrueForge exists. Earliest possible proof the differentiator works, and it leaves a working CLI as a backup demo.
+
+**Dead weight, left in place:** `trace_agent.py`, `decompose.py`, `judges.py`, `router.py` leave the product path once agents run in TrueForge. They still power the standalone CLI. Don't delete code you might demo.
+
+---
+
+## Architecture (Phase 1 + 2)
+
+```
+Ops Dashboard (Next.js)
+  mission queue · agent tree · impact table · test output pane · approval queue
+         │  SSE from TrueForge
+         ▼
+TrueForge — hosted mode on TrueFoundry (Postgres + Redis)
+  │
+  └── CONDUCTOR agent
+        skills:  impact-analysis · repro-and-patch · evidence-verification · decision-brief
+        tools:   mcp-graph (tunneled) · mcp-web · mcp-store · github/slack (catalog)
+                 SANDBOX (native) ← pre-warmed image
+        config:  dynamic_sub_agents ON, sandbox ON, approvals on write tools
+```
+
+Native `create_sub_agent` fan-out: several locating contact points, several walking callers, one verifying the claim upstream. One SSE stream — no Redis bus, no custom dispatcher in Phase 1.
+
+### Graph tools (already written)
+
+| Tool | Role |
+|---|---|
+| `find_function_by_pattern` | **searches source text** — finds contact points |
+| `get_callers` | blast radius, and **test selection** |
+| `get_call_chain` | how deep a site sits |
+| `read_function_source` | context for patch-writing |
+| `get_class_info`, `get_inheritance` | subclassing breakage |
+
+**Infra:** FalkorDB runs over a unix socket at `~/.codegraphcontext/global/db/falkordb.sock` — not a container, not 6379. So `mcp/graph_server.py` runs where the graph is, **exposed to TrueForge via tunnel**. TrueForge takes remote MCP servers by URL.
+
+---
+
+## Bright Data
+
+Collectors are the durable artifact; Collector IDs survive healing:
 
 ```json
 {
-  "id": "c_mpohus372o5tmid1jk",
-  "url": "https://news.ycombinator.com",
-  "description": "Extract top stories: title, url, points, author, comment_count",
-  "required_fields": ["title", "url", "points"],
-  "health": { "min_rows": 15, "max_missing_field_ratio": 0.2 }
+  "id": "c_...",
+  "url": "https://github.com/<dep>/releases",
+  "description": "Extract releases: tag, date, body, breaking_change_flag",
+  "required_fields": ["tag", "date", "body"],
+  "health": { "min_rows": 5, "max_missing_field_ratio": 0.2 }
 }
 ```
 
-### Self-repair loop (this is the demo moment)
-`run_collector` in `packages/mcp-web` does not just call `bdata scraper run`. It:
+`run_collector` (1) runs, (2) validates against `required_fields` + `health`, (3) on degradation returns a structured report *and* auto-invokes `bdata scraper heal <id> "<symptom>" --url <url>`, polling to completion, (4) re-runs, emits before/after coverage.
 
-1. Runs the collector.
-2. Validates rows against `required_fields` and `health`.
-3. If degraded → returns a **structured degradation report**, and auto-invokes `bdata scraper heal <id> "<symptom>" --url <url>`, polling to completion.
-4. Re-runs and re-validates. Emits before/after field coverage.
+Coverage: SERP → `web_search`; Web Unlocker → `scrape_page` (migration guides — these feed patch-writing); Scraper Studio → `run_collector` (release pages, changelogs).
 
-The agent sees this as a tool result and narrates it. The UI shows a "scraper self-repaired" event. **Rehearse this on stage** by pointing a collector at a page whose structure you've changed — that's the differentiator the brief explicitly asks for.
-
-### CLAUDE.md rule (required for the track)
-`CLAUDE.md` must state: *all web access goes through Bright Data — never `fetch`, never `curl`, never an unproxied HTTP client*; plus the collector file format and the heal procedure. This is checked, and it also keeps your own coding agent honest.
-
-### Coverage
-- Bright Data SERP → `web_search` (news, community discovery)
-- Bright Data Web Unlocker → `scrape_page` (docs, blogs, papers as markdown)
-- Scraper Studio collectors → `run_collector` (HN, GitHub releases — the structured, healable ones)
+`CLAUDE.md` states the all-through-Bright-Data rule, collector format, heal procedure.
 
 ---
 
-## 4. Model routing and the credit budget
+## Action layer
 
-Subagents inherit the root agent's model, so there is **no per-scout routing**. Pick one model per agent manifest.
+`actions/policy.yaml` → compiled into `require_approval_for_tools` by `seed.ts`. Approvals are harness-native.
 
-- **Dev/default:** GLM-5.2 via NVIDIA NIM — custom OpenAI-compatible provider, `https://integrate.api.nvidia.com/v1`. Free tier is ~1000 credits, 40 RPM. TrueForge's own benchmark ran GLM-5.2 at ~75% below Claude Managed Agents, so this doubles as a talking point.
-- **Demo run:** `openai/gpt-5.2` on your $50 OpenAI credits. Better synthesis quality where it's visible.
-
-**Budget reality:** one deep-research run with five subagents is roughly 50–100 model calls. That's ~10–15 full runs on free NVIDIA credits. So:
-
-> **Build the fixture recorder in hour 3, before anything else gets expensive.** Every run writes its full event stream to `fixtures/`. The UI developer then works entirely offline against replayed streams, burning zero credits. It is also your stage fallback if the venue wifi dies — which it will.
-
----
-
-## 5. Two workstreams
-
-### Track A — Harness, data, action *(builder 1)*
-Owns: TrueFoundry deployment, agent manifest, both MCP servers, skills, collectors, GitHub action.
-
-### Track B — UI *(builder 2)*
-Owns: Next.js app, theme, timeline, evidence panel, brief card, approval modal, session recovery.
-
-**The contract between them (freeze at hour 0):**
-
-| Harness event | UI renders |
+| Target | Approval |
 |---|---|
-| `turn.created` | mission header |
-| `thread.created` / `thread.done` | scout row appears / completes in timeline |
-| `model.message.delta` | streaming text |
-| `tool.response` on `save_evidence` | evidence panel row (source, tier, claim) |
-| `tool.response` on `run_collector` degraded | "self-repair" banner |
-| `tool.response` on `save_brief` | **Decision Brief card** |
-| `tool.approval_required` | approval modal — Cancel / Approve |
-| `tool.response_required` | clarifying-question card |
-| `sandbox.created` | "running analysis in isolated sandbox" badge |
-| `turn.done` | mission complete summary |
-
-Track B builds all of this against `fixtures/` from hour 3 onward and never waits on Track A.
+| GitHub — PR with verified patch + issue listing affected sites | required |
+| Slack — team brief | required |
+| Report export (md) | none |
 
 ---
 
-## 6. Hour-by-hour
+## Repo layout
 
-**H0 — together (45 min).** Create repo, push skeleton, freeze `packages/contracts`, write `CLAUDE.md`, agree the event table above. Both of you should be able to state the demo's 13 success checks from spec §43 out loud.
-
-**H0.5–H2 — Track A: deploy first.**
-Get TrueForge hosted mode running on TrueFoundry (Postgres + Redis, Helm or Compose) *before* writing any feature code. Register the NVIDIA NIM custom provider, enable the sandbox, connect the GitHub MCP server from catalog. Verify a trivial agent answers over SSE.
-*This is the single highest-risk item. If it isn't green by H2, fall back to TrueForge local mode on a tunnel and keep going — do not let deployment eat the day.*
-
-**H0.5–H2 — Track B: shell.** Next.js + `@truefoundry/trueforge-ui`, custom theme, three-pane layout (timeline | transcript | evidence). Point at a stub SSE stream.
-
-**H2–H4 — Track A: Bright Data.** `bdata login`, create 2–3 collectors, commit their JSON. Build `mcp-web` with `web_search` / `scrape_page` / `run_collector` / `heal_collector` including the validate-then-heal loop. Build `mcp-store`.
-
-**H3 — Track A: fixture recorder.** Hand Track B the first real event stream. *Non-negotiable checkpoint.*
-
-**H4–H6 — Track A: skills.** Write all three SKILL.md files, push, register pinned to a branch. Run the MCP question end-to-end. Iterate the delegation prompt until you reliably see five `thread.created` events.
-*Gotcha: skills are materialized from git, so every skill edit needs a push. Pin to a branch during dev; pin to a tag for the demo.*
-
-**H4–H8 — Track B: the whole UI** against fixtures. Timeline, evidence panel, brief card, approval modal, sandbox badge. Session recovery via `subscribe-to-a-running-turn` with resume.
-
-**H6–H8 — Track A: sandbox + action.** `signal_score.py` executing in the sandbox for real. GitHub MCP with `require_approval_for_tools: ["create_pull_request","create_issue","create_or_update_file"]` — the approval pause is config, not code.
-
-**H8–H9 — integrate.** Point UI at the live harness. Fix the contract drift you'll inevitably find.
-
-**H9–H10 — break the scraper on purpose.** Rehearse the self-repair demo until it's reliable. Record a fresh fixture of a perfect run.
-
-**H10–H11 — Qodo pass.** Open PRs, clear findings, merge.
-
-**H11–H12 — rehearse the three minutes.** Out loud. Three times. Then stop building.
+```
+agentradar/                       # fork of graph_rca
+├── CLAUDE.md
+├── src/main/
+│   ├── code_tools/               # KEEP — mcp-graph's core
+│   ├── shared/providers/         # EXTEND — openai_compat
+│   └── graph_rca/                # keep: standalone CLI
+├── mcp/graph_server.py           # NEW — MCP over code_tools
+├── sandbox/Dockerfile            # NEW — pre-warmed demo repo image
+├── configs/runtime/nvidia.yaml
+├── apps/web/                     # Next.js ops dashboard
+├── packages/{mcp-web,mcp-store,contracts,dispatch}/   # dispatch = Phase 3
+├── agents/                       # conductor manifest + seed.ts
+├── skills/{impact-analysis,repro-and-patch,evidence-verification,decision-brief}/
+├── collectors/  actions/policy.yaml  fixtures/
+```
 
 ---
 
-## 7. Qodo workflow (required for that track)
+## Workstreams
 
-Trunk-based, small PRs, one per workstream slice. Every PR runs through Qodo and you **fix what it finds before merging** — the track is judged on dealing with findings, not on having run the tool. Keep a `docs/decisions.md` noting anything Qodo flagged that you consciously declined, with reasoning; that reads as engineering judgment rather than an ignored warning.
+**Track A** — fork, graph, sandbox, data, agent. **Track B** — ops dashboard.
 
-Enable branch protection early so you can't accidentally push to main at hour 11.
+**Contract frozen at H0:**
 
----
-
-## 8. Demo deltas from spec §37
-
-Your script is good. Three changes:
-
-- **Add a self-repair beat** at ~1:10, before verification. Ten seconds: "the HN layout changed this morning — watch." It's the only moment that demonstrates the Bright Data track, and no other team will have it.
-- **Cut the personalization beat to five seconds.** It's a stack-impact number on the brief card, not its own screen.
-- **The approval pause is the emotional beat.** Let the silence sit. Read the action plan aloud before clicking Approve.
-
-The PR opens against the AgentRadar repo itself — say that out loud. "The agent is proposing an experiment in the repo you're about to review." That lands well with a Qodo judge in the room.
-
----
-
-## 9. Cut list, in order
-
-When you're behind, drop in this order — decide now so you don't debate at hour 9:
-
-1. Community Scout (four scouts demo identically to five)
-2. Knowledge Map (already deferred in your spec — keep it deferred)
-3. Today's Radar / Schedules (cheap, but only if H10 is clear)
-4. Conflict detection UI (keep it in the brief text, drop the dedicated panel)
-5. Paper Scout
-
-Never cut: the approval pause, the self-repair beat, the sandbox execution, session recovery.
+| Signal | Dashboard renders |
+|---|---|
+| `turn.created` / `turn.done` | mission row status |
+| `thread.created` / `thread.done` | subagent node appears / completes |
+| `tool.response` on `save_impact` | impact table row: `file:line`, verdict, why |
+| `sandbox.created` | sandbox badge |
+| `tool.response` on sandbox test run | **test output pane: red → green** |
+| `tool.response` on `save_patch` | diff view |
+| `tool.response` on `run_collector` degraded | self-repair banner |
+| `tool.approval_required` | approval queue item |
 
 ---
 
-## 10. Top risks
+## Hour-by-hour
+
+**H0 — together, 45 min.** Fork cloned and pushed. `contracts` frozen. `CLAUDE.md`. Branch protection.
+
+**H0 — two background jobs, started immediately.**
+- Index the demo repo (`pipx install codegraphcontext`). I/O-bound, blocks nothing.
+- Build the pre-warmed sandbox image: repo cloned, deps installed at current pinned version, test suite confirmed green.
+
+> **Demo repo criteria** — timebox to 30 min, all four required: Python; public; indexes well under an hour; **has a fast test suite that currently passes**; depends on something with a *real* recent breaking change. Verify the change is real before committing. Fallback: a deprecation rather than a break.
+
+**H0.5–H1.5 — A: providers.** `openai_compat` + `configs/runtime/nvidia.yaml`. Verify `graph-rca query` runs standalone against NIM. *Proves the graph works before TrueForge exists.*
+
+**H0.5–H2 — B: shell.** Next.js, mission queue, mission detail, agent tree, **test output pane** against fake events.
+
+**H1.5–H3 — A: deploy + graph MCP.** TrueForge hosted on TrueFoundry; NVIDIA provider, sandbox enabled, catalog MCP servers. Build `mcp/graph_server.py`, tunnel, register. **Verify `find_function_by_pattern` through TrueForge, and verify recursive `get_callers` reaches test functions.**
+*Hard timebox — not green by H3, fall back to local mode.*
+
+**H3 — A: fixture recorder.** Hand B a real stream. *Non-negotiable.*
+
+**H3–H4 — A: sandbox loop.** Wire the pre-warmed image. Prove by hand: bump version → run graph-selected tests → capture traceback. **Before any agent touches it.**
+
+**H4–H5 — A: Bright Data.** Collectors for the dependency's release pages; `mcp-web` with validate-then-heal.
+
+**H5–H7 — A: skills + conductor.** `impact-analysis/SKILL.md` (locate → blast → select tests) and `repro-and-patch/SKILL.md` (run → read traceback → patch → re-run → only report green). Conductor manifest, `seed.ts`. Iterate until reproduce lands reliably.
+
+**H4–H8 — B: the whole dashboard** against fixtures — agent tree, impact table, **test output pane**, diff view, approval queue, brief card, self-repair banner, session recovery via `subscribe-to-a-running-turn`.
+
+**H7 — GATE: Phase 2.** Reproduce solid? Then patch + verify until H8.5. If not, skip and harden reproduce.
+
+**H7–H8 — A: actions.** `actions/policy.yaml` compiled; verify the pause, and that denial blocks the write.
+
+**H8.5–H10 — integrate.** Dashboard against the live agent. Fix contract drift.
+
+**H10–H11 — rehearse failure beats.** Break the scraper on purpose until self-repair is deterministic. Run the full demo path five times; **time the sandbox steps** and trim anything over 15s.
+
+**H11–H11.5 — Qodo pass.** Clear findings, merge.
+
+**H11.5–H12 — rehearse the three minutes, out loud, three times.** Stop.
+
+---
+
+## Qodo
+
+Trunk-based, small PRs, one per slice, **merged continuously**. Every PR through Qodo; findings fixed before merge. Declined findings logged in `docs/decisions.md` with reasoning. Scope Qodo to new work so it isn't reviewing inherited `graph_rca` history.
+
+---
+
+## Demo, three minutes
+
+1. **0:00–0:20 — problem.** *You can't tell whether a release breaks you without running your code against it. So nobody does, until it breaks.*
+2. **0:20–0:35 — setup.** Indexed repo; watchlist came from its dependency manifest.
+3. **0:35–1:05 — outward + graph.** Scouts find the change. Agent tree fills. Impact table populates with 6 call sites. *"That's a guess so far. Watch."*
+4. **1:05–1:20 — self-repair.** "That release page changed its markup this morning." Degradation → heal → restored coverage.
+5. **1:20–1:50 — REPRODUCE.** Sandbox bumps the version, runs 4 graph-selected tests. **Three go red on screen.** Real traceback.
+6. **1:50–2:20 — PATCH + VERIFY.** Agent writes the fix, re-runs. **Green.** This is the moment.
+7. **2:20–2:45 — approval.** Read the action plan aloud. Let the silence sit. Approve. PR opens against this repo, with a diff whose tests passed.
+8. **2:45–3:00 — close.** *"It didn't tell me it might break. It broke it, fixed it, and proved the fix."*
+
+---
+
+## Cut list, in order
+
+1. Phase 3 dispatcher (already gated)
+2. Slack target — keep in `policy.yaml`, unwired
+3. Multi-site patching — patch **one** call site well rather than six badly
+4. `get_class_info` / inheritance — callers + chains carry it
+5. Evidence panel — fold into the brief
+
+**Never cut:** the sandbox test run, the impact table, self-repair, the approval pause, session recovery.
+
+---
+
+## Risks
 
 | Risk | Mitigation |
 |---|---|
-| TrueFoundry deployment eats the morning | Timebox to H2, fall back to local + tunnel |
-| NVIDIA free credits exhausted mid-afternoon | Fixture replay from H3; switch to OpenAI for demo only |
-| Skill iteration is slow (needs a git push per edit) | Pin to branch in dev; get skill text ~right on the first pass |
-| Agent doesn't reliably fan out to five subagents | Make the fan-out explicit and numbered in SKILL.md; verify by H6 |
-| Live demo fails on stage | Recorded fixture replay behind a keyboard shortcut |
-| Qodo pass discovers something structural at H10 | Small PRs merged continuously, not one big PR at the end |
+| **Sandbox too slow on stage** | Pre-warmed image at H0; graph-selected tests only; time every step at H10 |
+| **Demo repo tests don't pass to begin with** | Hard selection criterion; confirm green at H0 before committing to the repo |
+| **Recursive callers don't reach tests** | Verify at H2; fall back to path-based test selection |
+| Indexing fails or is slow | Start H0 background; small repo; checkpoint H2 |
+| No clean real breaking change | 30-min timebox; fall back to a deprecation |
+| Patch step unreliable | Phase 2 is gated — reproduce alone still demos |
+| Tunnel to graph MCP flaky | Test at H3; local-mode TrueForge needs no tunnel |
+| TrueFoundry deploy eats the morning | Hard timebox H3, fall back to local |
+| NVIDIA credits exhausted | Fixture replay from H3; OpenAI for patch-writing only |
+| Live demo fails on stage | Fixture replay behind a keyboard shortcut |
+
+---
+
+## Verification
+
+1. **Standalone:** `graph-rca query` runs against NVIDIA NIM with no AWS credentials.
+2. **Graph:** `find_function_by_pattern("<dep symbol>")` returns real contact points.
+3. **Test selection:** recursive `get_callers` from a contact point reaches test functions.
+4. **Through the harness:** same calls via `mcp-graph` from a TrueForge session.
+5. **Sandbox by hand:** bump the version, run selected tests, get a real traceback — before any agent is involved.
+6. **Sandbox by agent:** `sandbox.created` fires and test output appears in a tool result.
+7. **Reproduce is honest:** revert the version bump; assert the same tests pass. A repro that fails either way proves nothing.
+8. **Patch gate:** assert the PR tool is **unreachable** while tests are red.
+9. **Bright Data:** `run_collector` returns rows plus a health verdict.
+10. **Self-repair:** structurally changed page → degradation → heal → restored coverage. Rehearse until deterministic.
+11. **Approval blocks:** deny → zero writes hit GitHub. Approve → PR and issue exist.
+12. **Recovery:** hard-refresh mid-mission; queue, agent tree, impact table, test pane restore.
+13. **CI/Qodo:** every merged PR reviewed, findings resolved or logged.
