@@ -1,0 +1,41 @@
+{
+  "description": "A call site in the indexed repo that references a dependency symbol.",
+  "properties": {
+    "symbol": {
+      "title": "Symbol",
+      "type": "string"
+    },
+    "function_name": {
+      "title": "Function Name",
+      "type": "string"
+    },
+    "fid": {
+      "title": "Fid",
+      "type": "integer"
+    },
+    "file_path": {
+      "title": "File Path",
+      "type": "string"
+    },
+    "line": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Line"
+    }
+  },
+  "required": [
+    "symbol",
+    "function_name",
+    "fid",
+    "file_path",
+    "line"
+  ],
+  "title": "ContactPoint",
+  "type": "object"
+}

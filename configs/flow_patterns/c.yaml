@@ -1,0 +1,89 @@
+# Flow extraction patterns: C, C++
+# Block style: braces, single-line allowed, preprocessor directives
+
+block_style: braces
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*(if|else\s*if)\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    single_line_allowed: true   # if (x) stmt;
+  else:
+    pattern: '\s*[\}]?\s*else\s*[\{]?'
+    links_to: if
+  switch:
+    pattern: '\s*switch\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+  case:
+    pattern: '\s*case\s+.+:'
+    links_to: switch
+  default:
+    pattern: '\s*default\s*:'
+    links_to: switch
+  for:
+    pattern: '\s*for\s*\('
+    has_condition: true
+  while:
+    pattern: '\s*while\s*\('
+    has_condition: true
+  do:
+    pattern: '\s*do\s*\{'
+  # Preprocessor branches
+  ifdef:
+    pattern: '^\s*#\s*if(def|ndef)?\s+'
+    has_condition: true
+  endif:
+    pattern: '^\s*#\s*endif'
+    links_to: ifdef
+  pp_else:
+    pattern: '^\s*#\s*(else|elif)\s*'
+    links_to: ifdef
+
+returns:
+  - '\s*break\b'
+  - '\s*continue\b'
+  - '\s*return\b'
+  - '\s*throw\b'
+  - '\s*exit\s*\('
+  - '\s*abort\s*\('
+  - '\s*assert\s*\('
+
+log_calls:
+  - '\b(LOG|SPDLOG|spdlog)\s*(\(|::)\s*(info|debug|warn|error|trace|critical)'
+  - '\b(printf|fprintf|perror|puts)\s*\('
+  - '\bstd::c(out|err|log)\s*<<'
+  - '\bqDebug\s*\(\)'
+  - '\bNSLog\s*\('
+  - '\bsyslog\s*\('
+  - '\bROS_(INFO|DEBUG|WARN|ERROR|FATAL)\s*\('
+
+method_calls:
+  pattern: '(\w+)\s*(\.|->|::)\s*(\w+)\s*\('
+  skip_receivers: [std, this, self, log, LOG, printf, cout, cerr, clog]
+  skip_starts: [if, else, for, while, switch, return, throw, do, '#', '//', '/*', '*', typedef, struct, class, enum, template, namespace, using]
+
+continuation:
+  trailing_backslash: true      # preprocessor and macro continuation
+  trailing_operator: true
+  trailing_comma: true
+  unclosed_bracket: true
+
+string_interpolation:
+  printf_verbs: '%[-+0-9*.]*[diouxXeEfFgGaAcspn%]'
+  cpp_format: '\{[^}]*\}'      # std::format / fmt::format
+
+function_definitions:
+  - '^\s*(?:static\s+)?(?:inline\s+)?(?:\w+\s+)+(\w+)\s*\([^)]*\)\s*\{'
+
+framework_markers:
+  - glib
+  - gtk
+  - boost::
+  - std::
+  - Qt
+  - opencv
+  - grpc

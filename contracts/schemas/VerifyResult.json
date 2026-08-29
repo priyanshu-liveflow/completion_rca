@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "Patch": {
+      "description": "Unified diff the agent authored against the sandbox working tree.",
+      "properties": {
+        "diff": {
+          "title": "Diff",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "diff",
+        "files",
+        "rationale"
+      ],
+      "title": "Patch",
+      "type": "object"
+    },
+    "TestCase": {
+      "description": "One pytest node and its outcome.",
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Traceback"
+        }
+      },
+      "required": [
+        "node_id",
+        "outcome",
+        "duration_s",
+        "traceback"
+      ],
+      "title": "TestCase",
+      "type": "object"
+    },
+    "TestReport": {
+      "description": "Parsed result of one sandbox test run against a package version.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "package": {
+          "title": "Package",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/TestCase"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "integer"
+        },
+        "failed": {
+          "title": "Failed",
+          "type": "integer"
+        },
+        "errors": {
+          "default": 0,
+          "title": "Errors",
+          "type": "integer"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "raw_tail": {
+          "title": "Raw Tail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "package",
+        "version",
+        "cases",
+        "passed",
+        "failed",
+        "duration_s",
+        "raw_tail"
+      ],
+      "title": "TestReport",
+      "type": "object"
+    }
+  },
+  "description": "Before/after test reports for a patch.\n\n`verified` is the PR gate and must be `before.is_broken and after.is_green`.\nDo not use `before.failed > 0`: a collection error is broken with failed=0.",
+  "properties": {
+    "patch": {
+      "$ref": "#/$defs/Patch"
+    },
+    "before": {
+      "$ref": "#/$defs/TestReport"
+    },
+    "after": {
+      "$ref": "#/$defs/TestReport"
+    },
+    "verified": {
+      "title": "Verified",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "patch",
+    "before",
+    "after",
+    "verified"
+  ],
+  "title": "VerifyResult",
+  "type": "object"
+}

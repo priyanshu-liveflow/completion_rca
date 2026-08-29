@@ -1,0 +1,36 @@
+{
+  "description": "An approval-gated write the conductor wants to perform.",
+  "properties": {
+    "target": {
+      "enum": [
+        "github_pr",
+        "github_issue",
+        "slack",
+        "export"
+      ],
+      "title": "Target",
+      "type": "string"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "requires_approval": {
+      "title": "Requires Approval",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "target",
+    "summary",
+    "payload",
+    "requires_approval"
+  ],
+  "title": "ActionPlan",
+  "type": "object"
+}

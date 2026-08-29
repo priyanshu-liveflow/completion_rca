@@ -1,0 +1,44 @@
+{
+  "description": "Coverage check against a spec. `symptom` is fed verbatim to heal.",
+  "properties": {
+    "healthy": {
+      "title": "Healthy",
+      "type": "boolean"
+    },
+    "rows_returned": {
+      "title": "Rows Returned",
+      "type": "integer"
+    },
+    "missing_field_ratio": {
+      "title": "Missing Field Ratio",
+      "type": "number"
+    },
+    "missing_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Fields",
+      "type": "array"
+    },
+    "symptom": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Symptom"
+    }
+  },
+  "required": [
+    "healthy",
+    "rows_returned",
+    "missing_field_ratio",
+    "missing_fields",
+    "symptom"
+  ],
+  "title": "HealthVerdict",
+  "type": "object"
+}

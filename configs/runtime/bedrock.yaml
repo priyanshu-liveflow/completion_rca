@@ -1,0 +1,14 @@
+# Runtime config — AWS Bedrock (default)
+
+provider: aws
+
+models:
+  light: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  default: "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  heavy: "us.anthropic.claude-opus-4-6-v1"
+  router: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+budget:
+  max_turns_per_agent: 12
+  extension_turns: 5
+  max_chars_per_source: 5000

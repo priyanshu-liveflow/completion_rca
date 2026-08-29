@@ -104,19 +104,18 @@ None of this is a PR. It is machine setup, and it gates PR1/PR5. **Start 1, 2 an
 | # | Task | Who | Time | Blocks |
 |---|---|---|---|---|
 | 1 | ~~Pick the demo repo~~ — **DONE.** `mvilanova/intervals-mcp-server` @ `cb1fbca`, breaking on MCP SDK v1→v2. Red/green proven by hand; `configs/demo.yaml` and `fixtures/pytest_output_{red,green}.txt` are committed | — | done | — |
-| 2 | `pipx install codegraphcontext`, index the demo repo at a **pinned commit**. I/O-bound, blocks nothing else — start it and walk away | human | 5m + background | PR3, PR4 |
-| 3 | **Daytona signup + API key**, wire it into TrueForge, and run a `sandbox.created` smoke test. Free tier, $200 compute, no credit card. **This is now on the demo path** — it is not optional | human | 20m | PR5, PR10, PR11 |
-| 4 | **Prewarm the native sandbox** per `sandbox/PREWARM.md`: clone the pinned commit, install baseline deps, confirm the selected tests are green, keep the session alive. Set `auto_stop`/`auto_archive` intervals explicitly and confirm it survives an idle gap | human | 40m | PR5 |
+| 2 | ~~Index the demo repo~~ — **DONE.** `uv tool install codegraphcontext` (no pipx on this machine), `cgc index intervals-mcp-server`. 2.28s, 210 functions, 749 CALLS edges, 114 IMPORTS edges. FalkorDB Lite, `cgc doctor` all green | — | done | — |
+| 3 | ~~Daytona signup + smoke test~~ — **DONE.** Key in `.env` (gitignored). `sandbox/timing_probe.py` ran the full red→green cycle in a real sandbox: cold 10.1s, live 6.1s | — | done | — |
+| 4 | **Prewarm the sandbox** before the slot: clone the pinned commit, install baseline deps, confirm green, keep it alive. Ten seconds of work. Set `auto_stop`/`auto_archive` explicitly | human | 5m | PR5 |
 | 5 | `BRIGHTDATA_API_KEY` — `bdata login`, confirm `bdata scraper run` works by hand once | human | 10m | PR6 |
 | 6 | NVIDIA NIM key (`https://integrate.api.nvidia.com/v1`, ~1000 free credits, 40 RPM) + OpenAI key. Into `.env` | human | 5m | PR2 |
 | 7 | Node 22.14+, then `npx @truefoundry/trueforge@latest` — confirm `localhost:8790` serves | human | 10m | PR10 |
 | 8 | Install the Qodo GitHub App at `https://github.com/apps/qodo-merge-pro`, grant this repo. Enable branch protection on `main` | human | 5m | all PRs |
 | 9 | `docker` running (rehearsal path only), `gh auth status` clean | human | 2m | PR5, PR12 |
 
-**Two H0 items can lose the demo:**
+**H0 items 1, 2 and 3 are complete.** Demo repo chosen and its break proven; graph indexed and selection measured; Daytona timed end to end. The three things the plan called its largest risks are all closed by measurement rather than mitigation.
 
-- **The demo repo choice (1).** Everything downstream reads `configs/demo.yaml`, so code can be written before the choice lands — but do not let it slip past H0.5.
-- **Sandbox survival (3 + 4).** With execution now harness-native and no custom image, a stopped or archived Daytona session between rehearsal and stage means cold-cloning on venue wifi in front of judges. Test the idle gap, not just the happy path.
+What remains genuinely open: TrueForge itself (item 7) is unverified, and it is now the only unmeasured dependency on the demo path.
 
 ---
 
@@ -444,6 +443,31 @@ tests/agentradar/test_selection.py            NEW
 
 Pure. Takes a `CodeGraph` **Protocol** — tests pass `FakeCodeGraph`, so no FalkorDB.
 
+#### Measured against the real graph before this PR was written
+
+The demo repo is indexed (210 functions, 15 classes, 749 `CALLS` edges, **2.28s**). Two strategies were tested against it, and the result changes the design:
+
+| Strategy | Result on our break |
+|---|---|
+| Recursive `get_callers` from the contact points | **0 tests reached.** Not a bug — 56 of 61 tests *do* reach source functions through `CALLS`, so the mechanism works. It simply cannot see this break, because the contact points are module-level imports and nothing *calls* an import. |
+| Transitive `IMPORTS` with prefix matching | **Exactly the 2 modules that actually error.** Zero false positives, zero misses, out of 5 test modules. |
+
+**So `IMPORTS` is a first-class strategy, not a fallback.** `TestSelection.strategy` takes four values: `"callers"`, `"imports"`, `"path"`, `"manual"`.
+
+Run both and union the results. Call breaks (a changed signature) need `CALLS`; import breaks (a moved or renamed symbol) need `IMPORTS`. A real dependency release produces both.
+
+#### One catch in the graph shape
+
+`IMPORTS` edges run **file → module-name string**, and the module-name nodes are leaves. `test_server.py -IMPORTS-> "intervals_mcp_server.server"` does *not* connect to the `server.py` file node, so a transitive Cypher walk dies after one hop. The join is yours to make, in pure code:
+
+1. Contact points → the set of files containing them.
+2. Each file path → its importable module name (`src/intervals_mcp_server/api/client.py` → `intervals_mcp_server.api.client`). Strip the source root from `configs/demo.yaml`.
+3. Find importers where the imported name **equals the target or is a prefix of it** on a dot boundary. `intervals_mcp_server.api` must match `intervals_mcp_server.api.client` — this is what catches `test_make_intervals_request.py`, and naive equality misses it.
+4. Repeat from the newly reached files until nothing new appears.
+5. Files under `test_root` → their `test_*` functions are the selection.
+
+**Prefix matching must respect dot boundaries.** `intervals_mcp_server.api` matches `intervals_mcp_server.api.client`; `intervals_mcp_server.apiclient` must not.
+
 ```python
 def select_tests(
     graph: CodeGraph,
@@ -453,8 +477,27 @@ def select_tests(
     max_depth: int = 4,
     max_tests: int = 12,
     test_root: str = "tests",
+    source_root: str = "src",
 ) -> TestSelection:
-    """Walk callers breadth-first from each contact point; collect test functions."""
+    """Union of the callers walk and the imports walk. Records which strategies fired."""
+
+def select_tests_by_callers(
+    graph: CodeGraph, contact_points: list[ContactPoint], repo: str,
+    *, max_depth: int = 4, test_root: str = "tests",
+) -> TestSelection:
+    """BFS up CALLS edges from each contact point; collect test functions."""
+
+def select_tests_by_imports(
+    graph: CodeGraph, contact_points: list[ContactPoint], repo: str,
+    *, max_depth: int = 4, test_root: str = "tests", source_root: str = "src",
+) -> TestSelection:
+    """Transitive IMPORTS walk with dot-boundary prefix matching. See the five steps above."""
+
+def module_name_for(file_path: str, source_root: str) -> str:
+    """'src/pkg/api/client.py' -> 'pkg.api.client'. Handles __init__.py -> the package itself."""
+
+def module_matches(imported: str, target: str) -> bool:
+    """True if imported == target or is a dot-boundary prefix of it."""
 
 def is_test_node(name: str, file_path: str, test_root: str) -> bool:
     """A node is a test if its file is under test_root and its name starts with 'test_'."""
@@ -462,10 +505,10 @@ def is_test_node(name: str, file_path: str, test_root: str) -> bool:
 def select_tests_by_path(
     contact_points: list[ContactPoint], repo_files: list[str], test_root: str
 ) -> TestSelection:
-    """Fallback: tests whose module path shares a package with a touched module."""
+    """Last resort: tests whose module path shares a package with a touched module."""
 
 def to_node_ids(functions: list[dict]) -> list[str]:
-    """Graph nodes → pytest node ids 'path::name'."""
+    """Graph nodes -> pytest node ids 'path::name'."""
 ```
 
 Requirements:
@@ -474,9 +517,14 @@ Requirements:
 - Deterministic ordering (sort by `fid`) so runs are reproducible on stage.
 - `strategy` field records which path was taken. **Never silently fall back** — the UI shows it.
 
-**Verify at H2 against the real graph:** does `codegraphcontext` index test functions, and does recursive `get_callers` reach them? If no → `select_tests_by_path` is the primary, and say so in the demo. Do not fake it.
+**Already verified against the real graph** — see the table above and `docs/demo-repo.md`. Test functions are indexed (`IGNORE_TEST_FILES=false`, 109 nodes under `tests/`). Do not re-litigate this; do reproduce it if selection misbehaves.
 
-**Acceptance:** unit tests cover — reaches a test 3 hops up; cycles terminate; `max_tests` sets `truncated`; empty contact points → empty selection, not a crash; path fallback returns a strict superset of nothing.
+**Acceptance:**
+- On the real graph, `select_tests` returns exactly `test_server.py` and `test_make_intervals_request.py` for `symbol: FastMCP`. **Not a superset** — picking all five modules would run tests that were never at risk and make the impact table meaningless.
+- `module_matches("pkg.api", "pkg.api.client")` is true; `module_matches("pkg.apiclient", "pkg.api.client")` is false.
+- `module_name_for("src/pkg/tools/__init__.py", "src")` returns `"pkg.tools"`.
+- Unit tests with `FakeCodeGraph`: reaches a test 3 hops up; cycles terminate; `max_tests` sets `truncated`; empty contact points return an empty selection, not a crash.
+- `strategy` records every strategy that contributed. **Never silently fall back** — the demo says out loud which one fired.
 
 ---
 
@@ -488,14 +536,29 @@ Branch `feat/sandbox`. The demo's most latency-sensitive component.
 
 ```
 sandbox/PREWARM.md                            NEW  — the runbook, executed by hand at H0
-sandbox/Dockerfile                            NEW  — rehearsal only, NOT the demo path
+sandbox/timing_probe.py                       DONE — already committed, already run
 src/main/agentradar/adapters/sandbox.py       NEW
 src/main/agentradar/core/testreport.py        NEW
-fixtures/pytest_output_red.txt                NEW  (captured by hand)
-fixtures/pytest_output_green.txt              NEW
+fixtures/pytest_output_red.txt                DONE — captured by hand
+fixtures/pytest_output_green.txt              DONE
 tests/agentradar/test_testreport.py           NEW
 tests/agentradar/test_sandbox_adapter.py      NEW
 ```
+
+**`sandbox/Dockerfile` is cut.** A full cold cycle in Daytona is 10.1s — faster than rebuilding a local image, so Docker earns nothing even as a rehearsal path. One fewer thing to keep in sync with the indexed commit.
+
+#### Measured in a real Daytona sandbox at H0
+
+`sandbox/timing_probe.py`, default image (Debian 13, Python 3.14, ships git/pip/uv):
+
+| Phase | Steps | Time |
+|---|---|---|
+| **Cold** | create · clone · install · baseline green | **10.1s** |
+| **Live** | bump · red · patch · green | **6.1s** |
+
+Sandbox creation alone is **0.15–0.7s**. Red→green is proven end to end in the real execution environment, before any of this PR's code exists.
+
+Prewarming stays, because 6s on stage beats 16s and a warm session shows its history in the timeline — but it is an optimisation now, not a dependency.
 
 **`sandbox/PREWARM.md`** — the exact command sequence, so it is repeatable under pressure:
 
@@ -507,7 +570,7 @@ tests/agentradar/test_sandbox_adapter.py      NEW
 
 The warmup is setup, not evidence. Every number in the impact claim comes from a run *after* the version change.
 
-> **Verify at H0 and again at H8:** TrueForge's Daytona provider config carries `auto_stop_interval_in_minutes`, `auto_archive_interval_in_minutes`, `auto_delete_interval_in_minutes`. A "kept alive" session can be stopped out from under you between rehearsal and stage. Set these explicitly and confirm the sandbox survives an idle gap at least as long as the wait before your slot. **This is the single highest-risk item created by the native-sandbox decision — do not assume, test it.**
+> **Idle survival, now a minor concern rather than a major one.** TrueForge's Daytona provider config carries `auto_stop_interval_in_minutes`, `auto_archive_interval_in_minutes`, `auto_delete_interval_in_minutes`, and a "kept alive" session can still be stopped out from under you. Set them explicitly. But with cold recovery measured at 10.1s, a dead session costs ten seconds of setup rather than the demo. `sandbox/timing_probe.py --idle-minutes N` tests it directly.
 
 **`core/testreport.py`** — pure parser, no subprocess. This is where the value of this PR actually lives, and it is runner-agnostic by construction:
 
@@ -538,16 +601,16 @@ class SandboxRunner(Protocol):
     def apply_patch(self, diff: str) -> RawRun: ...
     def import_check(self, symbol: str, package: str) -> RawRun: ...   # UNCOVERED fallback
 
-class DockerRunner:  # rehearsal + CI timing only. `docker exec` into a warm container.
+class DaytonaRunner:  # the demo path. Reuses one prewarmed sandbox across calls.
 ```
 
-**`DockerRunner` is not the demo path and must not be presented as one.** It exists so you can iterate on selection and parsing without burning Daytona minutes or venue wifi, and so PR11's gate tests run in CI. If the native path is timed at H10 and drags, this is the one line you flip — the Protocol is what makes that a decision rather than a rewrite.
+**`DockerRunner` is cut** — a 10s cold cycle in Daytona beats maintaining a local image. The Protocol stays because PR11's gate tests need a fake, and because the sandbox decision has already flipped once today.
 
 **Do this by hand before any agent touches it:** in the native sandbox, bump the version → run the graph-selected tests → get a real traceback. Time it.
 
 **Acceptance:**
-- The native sandbox runs the green suite in **under 15s** on a prewarmed session — measured, not assumed.
-- The sandbox survives an idle gap longer than your wait before the slot.
+- Live path stays at or under the measured **6.1s** on a prewarmed session; cold path at or under **10.1s**. Regressions against those numbers are the thing to watch, not an abstract budget.
+- The sandbox survives an idle gap longer than your wait before the slot — or, failing that, cold recovery is confirmed still ~10s.
 - **Repro is honest:** revert the bump, run the same tests, assert they pass. A repro that fails either way proves nothing — write this as a test.
 - Parser tests pass on both captured fixtures, with no runner involved.
 - No secrets are passed into the sandbox. Ever.
@@ -818,10 +881,10 @@ Run in order. Each maps to a PR.
 |---|---|---|
 | 1 | `CLOUD_PROVIDER=openai_compat graph-rca query` works with no AWS credentials | 2 |
 | 2 | `find_contact_points("<dep symbol>")` returns real call sites | 3 |
-| 3 | Recursive `get_callers` reaches test functions — **or** the path fallback is honestly labelled | 4 |
+| 3 | ~~Recursive `get_callers` reaches tests~~ — **measured.** `CALLS` reaches 0 for an import break; `IMPORTS` reaches exactly the 2 broken modules. Both strategies ship | 4 |
 | 4 | `npx @truefoundry/trueforge@latest` serves `localhost:8790`; the SDK streams a trivial turn | 10 |
 | 5 | `mcp-graph` at a localhost URL returns real results from a TrueForge session — **no tunnel** | 3 |
-| 6 | Prewarmed **native** sandbox runs the green suite in under 15s — timed, and re-timed after an idle gap | 5 |
+| 6 | ~~Sandbox under 15s~~ — **measured: cold 10.1s, live 6.1s.** Re-time at H10 for regressions | 5 |
 | 7 | **Repro is honest:** revert the bump, same tests pass | 5 |
 | 8 | `sandbox.created` fires; test output appears in a tool result | 10 |
 | 9 | `run_collector` returns rows **plus** a health verdict | 7 |

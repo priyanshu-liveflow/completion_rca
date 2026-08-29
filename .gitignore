@@ -3,17 +3,21 @@
 /intervals-mcp-server/
 
 # Python
+.venv/
+.venv-ci/
+venv/
+.flow_cache/
 __pycache__/
 *.py[cod]
-.venv/
-venv/
 *.egg-info/
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
+.mypy_cache/
 
 # Env + secrets. Secrets never enter the sandbox and never enter git.
 .env
+.env.*
+!.env.example
 .env.local
 
 # Node (agents/seed.ts)
@@ -22,3 +26,7 @@ node_modules/
 # Local state
 *.sqlite
 *.db
+logs/
+*.log
+uv.lock
+.DS_Store

@@ -1,0 +1,56 @@
+{
+  "description": "A published version the scouts retrieved for a watched dependency.",
+  "properties": {
+    "dependency": {
+      "title": "Dependency",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "published_at": {
+      "title": "Published At",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "body": {
+      "title": "Body",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "breaking_hint": {
+      "default": false,
+      "title": "Breaking Hint",
+      "type": "boolean"
+    },
+    "source_collector": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Collector"
+    }
+  },
+  "required": [
+    "dependency",
+    "version",
+    "published_at",
+    "title",
+    "body",
+    "url"
+  ],
+  "title": "ReleaseEvent",
+  "type": "object"
+}

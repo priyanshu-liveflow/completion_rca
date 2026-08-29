@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "Dependency": {
+      "description": "A single runtime dependency taken from the indexed repo's manifest.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "current_spec": {
+          "title": "Current Spec",
+          "type": "string"
+        },
+        "current_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Current Version"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "current_spec",
+        "current_version",
+        "source"
+      ],
+      "title": "Dependency",
+      "type": "object"
+    }
+  },
+  "description": "Dependencies the scouts watch; the manifest *is* the watchlist.",
+  "properties": {
+    "repo": {
+      "title": "Repo",
+      "type": "string"
+    },
+    "dependencies": {
+      "items": {
+        "$ref": "#/$defs/Dependency"
+      },
+      "title": "Dependencies",
+      "type": "array"
+    }
+  },
+  "required": [
+    "repo",
+    "dependencies"
+  ],
+  "title": "Watchlist",
+  "type": "object"
+}

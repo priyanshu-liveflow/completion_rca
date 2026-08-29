@@ -1,0 +1,76 @@
+{
+    "main_model": {
+        "env": "MODEL_ID",
+        "default": "us.anthropic.claude-sonnet-4-6"
+    },
+    "all_models_same_region": {
+        "env": "ALL_MODELS_SAME_REGION",
+        "default": "true",
+        "type": "bool"
+    },
+    "same_region": {
+        "env": "BEDROCK_REGION",
+        "default": "us-east-1"
+    },
+    "main_model_region": {
+        "env": "MAIN_MODEL_REGION",
+        "default": "us-east-1"
+    },
+    "anthropic_version": {
+        "env": "ANTHROPIC_VERSION",
+        "default": "bedrock-2023-05-31"
+    },
+    "anthropic_beta": {
+        "env": "ANTHROPIC_BETA",
+        "default": "computer-use-2025-01-24"
+    },
+    "anthropic_max_tokens": {
+        "env": "ANTHROPIC_MAX_TOKENS",
+        "default": "8192",
+        "type": "int"
+    },
+    "anthropic_top_k": {
+        "env": "ANTHROPIC_TOP_K",
+        "default": "250",
+        "type": "int"
+    },
+    "anthropic_stop_sequences": {
+        "env": "ANTHROPIC_STOP_SEQUENCES",
+        "default": "[]",
+        "type": "list"
+    },
+    "anthropic_temperatue": {
+        "env": "ANTHROPIC_TEMPERATURE",
+        "default": "0.7",
+        "type": "float"
+    },
+    "bedrock_read_timeout": {
+        "env": "BEDROCK_READ_TIMEOUT",
+        "default": "1200",
+        "type": "int"
+    },
+    "bedrock-runtime": {
+        "env": "BEDROCK_RUNTIME",
+        "default": "bedrock-runtime"
+    },
+    "bedrock_retry_mode": {
+        "env": "BEDROCK_RETRY_MODE",
+        "default": "adaptive"
+    },
+    "bedrock_retries": {
+        "env": "BEDROCK_RETRIES",
+        "default": "3",
+        "type": "int"
+    },
+    "bedrock_prompt_cache": {
+        "env": "BEDROCK_PROMPT_CACHE",
+        "default": "true",
+        "type": "bool",
+        "_note": "Supported on both cross-region (us.anthropic.*) and single-region (anthropic.*) model IDs for Sonnet 4.5+, Opus 4+, Haiku 4.5. Min 4096 tokens for Sonnet/Haiku/Opus 4.5."
+    },
+    "bedrock_cache_ttl": {
+        "env": "BEDROCK_CACHE_TTL",
+        "default": "1h",
+        "_note": "Reserved for future use. Bedrock Converse cachePoint does not accept a ttl field — Bedrock manages TTL internally (~5 min). This key is not sent to the API."
+    }
+}
