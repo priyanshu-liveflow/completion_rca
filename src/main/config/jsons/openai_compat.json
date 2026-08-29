@@ -1,0 +1,15 @@
+{
+    "llm_base_url": {
+        "env": "LLM_BASE_URL",
+        "default": "https://integrate.api.nvidia.com/v1"
+    },
+    "llm_api_key": {
+        "env": "LLM_API_KEY",
+        "default": "",
+        "required": true
+    },
+    "llm_model": {
+        "env": "LLM_MODEL",
+        "default": "meta/llama-3.3-70b-instruct"
+    }
+}

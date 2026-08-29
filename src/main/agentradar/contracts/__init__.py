@@ -15,6 +15,7 @@ from .impact import (
 )
 from .mission import ActionPlan, Mission, MissionState
 from .patch import Patch, VerifyResult
+from .web import PageContent, SearchHit, SearchResults
 
 __all__ = [
     "ActionPlan",
@@ -31,8 +32,11 @@ __all__ = [
     "ImpactRow",
     "Mission",
     "MissionState",
+    "PageContent",
     "Patch",
     "ReleaseEvent",
+    "SearchHit",
+    "SearchResults",
     "TestCase",
     "TestReport",
     "TestSelection",

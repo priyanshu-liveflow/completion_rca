@@ -20,6 +20,7 @@ from src.main.agentradar.contracts.impact import (
 )
 from src.main.agentradar.contracts.mission import ActionPlan, Mission, MissionState
 from src.main.agentradar.contracts.patch import Patch, VerifyResult
+from src.main.agentradar.contracts.web import PageContent, SearchHit, SearchResults
 
 
 def _dependency() -> Dependency:
@@ -343,6 +344,30 @@ def test_action_plan_round_trip() -> None:
             summary="Open a PR with the verified FastMCP rename.",
             payload={"branch": "fix/mcp-v2"},
             requires_approval=True,
+        )
+    )
+
+
+def test_search_results_round_trip() -> None:
+    _round_trip(
+        SearchResults(
+            query="mcp python sdk v2 migration",
+            hits=[
+                SearchHit(
+                    title="MCP Python SDK v2 migration",
+                    url="https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md",
+                    snippet="FastMCP was renamed to MCPServer.",
+                )
+            ],
+        )
+    )
+
+
+def test_page_content_round_trip() -> None:
+    _round_trip(
+        PageContent(
+            url="https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md",
+            text="# Migration\n\nFastMCP is now MCPServer.\n",
         )
     )
 

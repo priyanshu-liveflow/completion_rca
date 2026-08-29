@@ -1,0 +1,22 @@
+{
+  "organic": [
+    {
+      "rank": 1,
+      "title": "MCP Python SDK v2 migration",
+      "link": "https://github.com/modelcontextprotocol/python-sdk/blob/main/docs/migration.md",
+      "description": "FastMCP was renamed to MCPServer. Update imports before upgrading to mcp>=2."
+    },
+    {
+      "rank": 2,
+      "title": "python-sdk releases",
+      "link": "https://github.com/modelcontextprotocol/python-sdk/releases",
+      "description": "Release notes for the MCP Python SDK, including the v1 to v2 break."
+    },
+    {
+      "rank": 3,
+      "title": "FastMCP API reference",
+      "link": "https://github.com/modelcontextprotocol/python-sdk/tree/main/src/mcp/server",
+      "description": "Server package layout after the FastMCP rename."
+    }
+  ]
+}

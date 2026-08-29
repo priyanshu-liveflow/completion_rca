@@ -94,10 +94,29 @@ cut in favour of the measured 10.1s cold path.
  "auto_delete_interval_in_minutes":7200}
 ```
 
-**`auto_stop_interval_in_minutes` defaults to 5.** A "prewarmed" sandbox dies
-after five idle minutes — shorter than the wait before a demo slot. Set it
-explicitly, as above. Cold recovery is 10.1s, so this is survivable rather than
-fatal, but there is no reason to eat it.
+**`auto_stop_interval_in_minutes` defaults to 5.** A "prewarmed" sandbox stops
+after five idle minutes — shorter than the wait before a demo slot. Confirmed by
+experiment, not inferred: a sandbox left idle for 20 minutes returned
+
+```
+400 bad request: failed to resolve container IP after 3 attempts:
+     no IP address found. Is the Sandbox started?
+```
+
+Set it explicitly, as above.
+
+**But the risk is smaller than it looks, because stop is not death.** Measured:
+
+| | |
+|---|---|
+| `sandbox.stop()` | 2.85s |
+| `sandbox.start()` | **0.65s** |
+| Filesystem after restart | **intact** — a file written before the stop reads back fine |
+
+So a session that auto-stops between rehearsal and stage costs **0.65 seconds**
+and keeps its cloned repo and installed dependencies. Not the 10.1s cold path,
+and certainly not the demo. `timing_probe.py --idle-minutes N` now restarts
+automatically and asserts the working tree survived.
 
 `exec_timeout_ms` also defaults to 60s. Our cold path is 10s and our live path
 is 6s, so the default would hold — but `pip install` on a colder day would not.

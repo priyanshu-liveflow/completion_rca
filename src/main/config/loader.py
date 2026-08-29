@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_CONFIG_FILES = ["basic.json", "aws.json", "azure.json"]
+_CONFIG_FILES = ["basic.json", "aws.json", "azure.json", "openai_compat.json"]
 
 
 @lru_cache(maxsize=1)
