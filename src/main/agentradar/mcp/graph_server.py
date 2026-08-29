@@ -1,17 +1,20 @@
 """MCP server over the code graph. Localhost only — no tunnel.
 
-Tools: find_contact_points, get_callers, get_call_chain, read_function_source.
+Tools: find_contact_points, select_tests, get_callers, get_call_chain,
+read_function_source.
 """
 
 from __future__ import annotations
 
 from src.main.agentradar.adapters.graph import CodeGraph, FalkorCodeGraph
+from src.main.agentradar.contracts.evidence import TestSelection
 from src.main.agentradar.contracts.impact import (
     ContactPointList,
     FunctionSource,
     GraphNode,
     GraphNodeList,
 )
+from src.main.agentradar.core.selection import select_tests as _select_tests
 from src.main.agentradar.mcp._server import serve, tool
 
 _graph: CodeGraph | None = None
@@ -155,6 +158,75 @@ def read_function_source(fid: int, repo: str, max_chars: int = 1500) -> Function
     """Source context for patch-writing."""
     source = get_graph().read_source(fid, repo, max_chars)
     return FunctionSource(source=source)
+
+
+@tool(
+    "select_tests",
+    "Find which tests exercise a dependency symbol, so only those need running. "
+    "Unions two graph walks: CALLS (callers of a contact point) and IMPORTS "
+    "(modules that transitively import a touched file). Returns pytest node ids "
+    "plus the strategy that found them. Prefer this over walking get_callers "
+    "yourself - a raw caller walk finds nothing for import-level breaks, because "
+    "nothing calls an import.",
+    {
+        "type": "object",
+        "properties": {
+            "symbol": {
+                "type": "string",
+                "description": "Dependency symbol to locate (e.g. FastMCP)",
+            },
+            "repo": {
+                "type": "string",
+                "description": "Last path segment of the indexed repo",
+            },
+            "test_root": {
+                "type": "string",
+                "description": "Directory holding tests. Default 'tests'.",
+            },
+            "source_root": {
+                "type": "string",
+                "description": "Directory holding importable packages. Default 'src'.",
+            },
+            "max_tests": {
+                "type": "integer",
+                "description": "Cap on selected tests. Default 12.",
+                "minimum": 1,
+                "maximum": 200,
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max contact points to walk from. Default 15.",
+                "minimum": 1,
+                "maximum": 100,
+            },
+        },
+        "required": ["symbol", "repo"],
+    },
+)
+def select_tests(
+    symbol: str,
+    repo: str,
+    test_root: str = "tests",
+    source_root: str = "src",
+    max_tests: int = 12,
+    limit: int = 15,
+) -> TestSelection:
+    """Locate the symbol, then walk the graph to the tests that reach it.
+
+    One call rather than two so the agent cannot skip the walk and guess. An
+    empty `tests` list is a real answer meaning nothing covers these sites -
+    report UNCOVERED and fall back to an import check, never assume safe.
+    """
+    graph = get_graph()
+    points = graph.find_contact_points(symbol, repo, limit)
+    return _select_tests(
+        graph,
+        points,
+        repo,
+        max_tests=max_tests,
+        test_root=test_root,
+        source_root=source_root,
+    )
 
 
 def main() -> None:
