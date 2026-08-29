@@ -1,0 +1,41 @@
+{
+  "collector_id": "c_mcp_releases",
+  "data": [
+    {
+      "tag": "v2.1.1",
+      "date": "2026-05-14",
+      "body": "Patch release. Fixes MCPServer tool registration under async lifespans.",
+      "breaking_change_flag": false
+    },
+    {
+      "tag": "v2.0.0",
+      "date": "2026-04-02",
+      "body": "FastMCP is renamed to MCPServer and mcp.server.fastmcp is removed. Import MCPServer from mcp.server.mcpserver. See the migration guide.",
+      "breaking_change_flag": true
+    },
+    {
+      "tag": "v1.29.1",
+      "date": "2026-03-11",
+      "body": "Final v1 patch. Pin 'mcp<2' to stay on this line.",
+      "breaking_change_flag": false
+    },
+    {
+      "tag": "v1.29.0",
+      "date": "2026-02-24",
+      "body": "Adds streamable HTTP transport options to FastMCP.",
+      "breaking_change_flag": false
+    },
+    {
+      "tag": "v1.28.0",
+      "date": "2026-01-30",
+      "body": "Structured tool output and elicitation helpers.",
+      "breaking_change_flag": false
+    },
+    {
+      "tag": "v1.27.0",
+      "date": "2026-01-08",
+      "body": "Deprecates the legacy stdio helper.",
+      "breaking_change_flag": false
+    }
+  ]
+}
