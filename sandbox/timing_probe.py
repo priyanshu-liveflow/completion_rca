@@ -113,23 +113,14 @@ def main() -> int:
             mins = args.idle_minutes
             print(f"\nIDLE — sleeping {mins:g} min to test auto_stop / auto_archive\n")
             time.sleep(mins * 60)
-            try:
-                sandbox.process.exec("true", timeout=60)
-                timings.add(f"after {mins:g} min idle", 0.0, 0)
-                print("  sandbox stayed up")
-            except Exception as exc:
-                print(f"  sandbox stopped while idle ({type(exc).__name__})")
-                t = time.monotonic()
-                sandbox.start()
-                restart = time.monotonic() - t
-                timings.add("restart after auto_stop", restart, 0)
-                probe = run(sandbox, timings, "state intact after restart",
-                            f"test -d {workdir}/.git && echo present", expect_zero=False)
-                if probe.exit_code != 0:
-                    print("\nThe sandbox restarted but the working tree is gone. "
-                          "Prewarming buys nothing — treat cold setup as the path.")
-                    return 1
-                print(f"  restarted in {restart:.2f}s with the working tree intact")
+            revive = run(sandbox, timings, f"after {mins:g} min idle", "true",
+                         expect_zero=False)
+            if revive.exit_code != 0:
+                print("\nThe sandbox did NOT survive the idle gap. Prewarming is "
+                      "not enough on its own — set auto_stop/auto_archive "
+                      "explicitly, or keep a heartbeat running.")
+                return 1
+            print("  sandbox survived the gap")
 
         print("\nLIVE PATH — what runs on stage\n")
         run(sandbox, timings, "bump to breaking version",

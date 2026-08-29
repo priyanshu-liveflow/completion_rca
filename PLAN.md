@@ -105,8 +105,6 @@ At four short, single-domain procedures, progressive disclosure does not justify
 
 **Prewarm at H0:** provision the native sandbox, clone the exact commit used by the graph index, install the baseline environment, confirm green, and keep the session alive. Budget ten seconds, not ten minutes.
 
-**If it auto-stops anyway, that is fine.** `auto_stop_interval_in_minutes` defaults to 5 and a 20-minute idle gap does stop the sandbox — confirmed by experiment. But `start()` takes **0.65s** and the filesystem survives, so a stopped session costs under a second and keeps its clone and its installed dependencies. Set the interval to 120 regardless; there is no reason to rely on the recovery.
-
 ---
 
 ## Honest assessment
