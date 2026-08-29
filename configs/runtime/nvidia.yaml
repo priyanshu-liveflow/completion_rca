@@ -1,0 +1,30 @@
+# Runtime config — NVIDIA NIM (OpenAI-compatible)
+# Pass with: --runtime configs/runtime/nvidia.yaml
+# Requires: CLOUD_PROVIDER=openai_compat, LLM_API_KEY=<NVIDIA NIM key>
+
+provider: openai_compat
+
+# Every tier is a NIM model on purpose.
+#
+# `model_override` changes only the model name — LLM_BASE_URL and LLM_API_KEY
+# are process-global, so a tier cannot point at a different vendor. An earlier
+# draft mapped `heavy` to gpt-4o and told the reader to "swap env for that tier
+# only", which env vars cannot do: whichever endpoint is set, one of the two
+# tiers would silently hit the wrong service with the wrong key.
+#
+# Cross-vendor tiering needs an endpoint-per-tier client cache. That belongs
+# with the tiered dispatcher, which is Phase 3 and gated. Until then a runtime
+# file names one vendor and stays internally consistent.
+#
+# For OpenAI instead of NIM, copy this file and set the whole endpoint:
+#   LLM_BASE_URL=https://api.openai.com/v1  LLM_API_KEY=<OpenAI key>
+models:
+  light: "meta/llama-3.1-8b-instruct"
+  default: "meta/llama-3.3-70b-instruct"
+  heavy: "meta/llama-3.3-70b-instruct"
+  router: "meta/llama-3.1-8b-instruct"
+
+budget:
+  max_turns_per_agent: 12
+  extension_turns: 5
+  max_chars_per_source: 5000

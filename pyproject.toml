@@ -23,6 +23,7 @@ dependencies = [
     "structlog>=24.1.0",
     "graphviz>=0.20",
     "mcp>=1.0,<2",
+    "langchain-openai>=0.2",
 ]
 
 # NOTE: `daytona` is deliberately NOT a dependency, declared or optional.
