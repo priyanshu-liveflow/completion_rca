@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Thread
 
 import pytest
 
@@ -189,3 +190,66 @@ def test_dispatch_returns_contract_models() -> None:
         },
     )
     assert with_report["reports"][0]["passed"] == 61
+
+
+def test_dispatch_missing_mission_is_not_found() -> None:
+    result = dispatch(
+        "save_impact",
+        {
+            "mission_id": "missing",
+            "row": {
+                "contact_point": _contact().model_dump(),
+                "verdict": "broken",
+                "why": "test",
+                "evidence_ref": None,
+            },
+        },
+    )
+    assert result == {
+        "error": {
+            "type": "not_found",
+            "message": "mission not found: 'missing'",
+        }
+    }
+
+
+def test_dispatch_rejects_non_boolean_breaking_hint() -> None:
+    payload = _release().model_dump()
+    payload["breaking_hint"] = "yes"
+    result = dispatch("create_mission", payload)
+    assert result["error"]["type"] == "invalid_input"
+    assert "breaking_hint" in result["error"]["message"]
+
+
+def test_default_store_is_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(store_server, "_store", None)
+    monkeypatch.setattr(store_server, "_default_store", None)
+    monkeypatch.setenv("AGENTRADAR_STORE_PATH", ":memory:")
+    first = store_server.get_store()
+    second = store_server.get_store()
+    assert first is second
+
+
+def test_concurrent_save_impact_preserves_all_rows(store: SqliteStore) -> None:
+    created = store.create_mission(_release())
+
+    def append_row(index: int) -> None:
+        store.save_impact(
+            created.id,
+            ImpactRow(
+                contact_point=_contact(),
+                verdict=Verdict.UNKNOWN,
+                why=f"row-{index}",
+                evidence_ref=None,
+            ),
+        )
+
+    threads = [Thread(target=append_row, args=(index,)) for index in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    loaded = store.get_mission(created.id)
+    assert len(loaded.impact_rows) == 8
+    assert {row.why for row in loaded.impact_rows} == {f"row-{i}" for i in range(8)}

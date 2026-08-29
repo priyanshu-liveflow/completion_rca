@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from src.main.agentradar.adapters.store import (
@@ -18,6 +19,7 @@ from src.main.agentradar.core.testreport import parse_pytest
 from src.main.agentradar.mcp._server import ToolError, serve, tool
 
 _store: MissionStore | None = None
+_default_store: SqliteStore | None = None
 
 
 def set_store(store: MissionStore) -> None:
@@ -27,17 +29,34 @@ def set_store(store: MissionStore) -> None:
 
 
 def get_store() -> MissionStore:
-    """Active store, defaulting to SQLite at :func:`default_store_path`."""
-    if _store is None:
-        return SqliteStore(default_store_path())
-    return _store
+    """Return the active store, caching the default SQLite instance."""
+    global _default_store
+    if _store is not None:
+        return _store
+    if _default_store is None:
+        _default_store = SqliteStore(default_store_path())
+    return _default_store
+
+
+def _not_found_error(exc: KeyError) -> ToolError:
+    message = str(exc.args[0]) if exc.args else str(exc)
+    return ToolError("not_found", message)
 
 
 def _mission_or_error(mission_id: str) -> Mission:
     try:
         return get_store().get_mission(mission_id)
     except KeyError as exc:
-        raise ToolError("not_found", str(exc)) from exc
+        raise _not_found_error(exc) from exc
+
+
+def _mutate(mission_id: str, action: Callable[[], None]) -> Mission:
+    """Run a store mutation and return the refreshed mission."""
+    try:
+        action()
+    except KeyError as exc:
+        raise _not_found_error(exc) from exc
+    return _mission_or_error(mission_id)
 
 
 @tool(
@@ -121,8 +140,10 @@ def set_state(mission_id: str, state: str) -> Mission:
         mission_state = MissionState(state)
     except ValueError as exc:
         raise ToolError("invalid_input", f"unknown state {state!r}") from exc
-    get_store().set_state(mission_id, mission_state)
-    return _mission_or_error(mission_id)
+    return _mutate(
+        mission_id,
+        lambda: get_store().set_state(mission_id, mission_state),
+    )
 
 
 @tool(
@@ -140,8 +161,10 @@ def set_state(mission_id: str, state: str) -> Mission:
 def save_impact(mission_id: str, row: dict[str, Any]) -> Mission:
     """Persist an :class:`ImpactRow` and return the mission."""
     impact = ImpactRow.model_validate(row)
-    get_store().save_impact(mission_id, impact)
-    return _mission_or_error(mission_id)
+    return _mutate(
+        mission_id,
+        lambda: get_store().save_impact(mission_id, impact),
+    )
 
 
 @tool(
@@ -159,8 +182,10 @@ def save_impact(mission_id: str, row: dict[str, Any]) -> Mission:
 def save_selection(mission_id: str, selection: dict[str, Any]) -> Mission:
     """Persist a :class:`TestSelection` and return the mission."""
     sel = TestSelection.model_validate(selection)
-    get_store().save_selection(mission_id, sel)
-    return _mission_or_error(mission_id)
+    return _mutate(
+        mission_id,
+        lambda: get_store().save_selection(mission_id, sel),
+    )
 
 
 @tool(
@@ -198,8 +223,10 @@ def save_report(
         duration_s=duration_s,
         exit_code=exit_code,
     )
-    get_store().save_report(mission_id, report)
-    return _mission_or_error(mission_id)
+    return _mutate(
+        mission_id,
+        lambda: get_store().save_report(mission_id, report),
+    )
 
 
 @tool(
@@ -217,8 +244,10 @@ def save_report(
 def save_verify(mission_id: str, result: dict[str, Any]) -> Mission:
     """Persist a :class:`VerifyResult` and return the mission."""
     verify = VerifyResult.model_validate(result)
-    get_store().save_verify(mission_id, verify)
-    return _mission_or_error(mission_id)
+    return _mutate(
+        mission_id,
+        lambda: get_store().save_verify(mission_id, verify),
+    )
 
 
 def main() -> None:

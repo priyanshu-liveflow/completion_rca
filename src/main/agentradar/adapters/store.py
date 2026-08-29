@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 import uuid
 from typing import Protocol
 
@@ -47,6 +48,7 @@ class SqliteStore:
         db_path = path if path is not None else default_store_path()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._lock = threading.Lock()
         self._init_schema()
 
     def close(self) -> None:
@@ -71,37 +73,42 @@ class SqliteStore:
 
     def create_mission(self, release: ReleaseEvent) -> Mission:
         """Insert a new mission in ``WATCHING`` state."""
-        mission = Mission(
-            id=str(uuid.uuid4()),
-            release=release,
-            state=MissionState.WATCHING,
-        )
-        self._insert(mission)
-        return mission.model_copy(deep=True)
+        with self._lock:
+            mission = Mission(
+                id=str(uuid.uuid4()),
+                release=release,
+                state=MissionState.WATCHING,
+            )
+            self._insert(mission)
+            return mission.model_copy(deep=True)
 
     def save_impact(self, mission_id: str, row: ImpactRow) -> None:
         """Append one impact row to the mission."""
-        mission = self.get_mission(mission_id)
-        mission.impact_rows.append(row)
-        self._update(mission)
+        with self._lock:
+            mission = self.get_mission(mission_id)
+            mission.impact_rows.append(row)
+            self._update(mission)
 
     def save_selection(self, mission_id: str, sel: TestSelection) -> None:
         """Persist graph-guided test selection for the mission."""
-        mission = self.get_mission(mission_id)
-        mission.selection = sel
-        self._update(mission)
+        with self._lock:
+            mission = self.get_mission(mission_id)
+            mission.selection = sel
+            self._update(mission)
 
     def save_report(self, mission_id: str, report: TestReport) -> None:
         """Append a parsed test report to the mission."""
-        mission = self.get_mission(mission_id)
-        mission.reports.append(report)
-        self._update(mission)
+        with self._lock:
+            mission = self.get_mission(mission_id)
+            mission.reports.append(report)
+            self._update(mission)
 
     def save_verify(self, mission_id: str, result: VerifyResult) -> None:
         """Persist patch verification evidence for the mission."""
-        mission = self.get_mission(mission_id)
-        mission.verify = result
-        self._update(mission)
+        with self._lock:
+            mission = self.get_mission(mission_id)
+            mission.verify = result
+            self._update(mission)
 
     def get_mission(self, mission_id: str) -> Mission:
         """Load a mission by id."""
@@ -133,9 +140,10 @@ class SqliteStore:
 
     def set_state(self, mission_id: str, state: MissionState) -> None:
         """Update mission lifecycle state."""
-        mission = self.get_mission(mission_id)
-        mission.state = state
-        self._update(mission)
+        with self._lock:
+            mission = self.get_mission(mission_id)
+            mission.state = state
+            self._update(mission)
 
     def _insert(self, mission: Mission) -> None:
         payload = self._row_payload(mission)
