@@ -210,8 +210,81 @@ def test_skipped_does_not_count_as_passed() -> None:
 
     (case,) = report.cases
     assert case.outcome == "skipped"
+    # Not `tests/test_net.py:12: needs network` — that selects nothing.
+    assert case.node_id == "tests/test_net.py"
+    assert ":" not in case.node_id
+    assert "needs network" not in case.node_id
     assert report.passed == 0
     assert report.is_green is False
+
+
+# -- a nonzero exit is never green (Qodo #1) ---------------------------------
+
+
+def test_nonzero_exit_is_not_green_even_when_output_looks_clean() -> None:
+    """The gate's second escape hatch, after collection errors.
+
+    pytest can exit nonzero with nothing but passes in its output — an internal
+    error, a plugin crash, ``-x`` cutting the run short. Green here would let a
+    patch verify on a run that never finished.
+    """
+    stdout = (
+        "===== short test summary info =====\n"
+        "PASSED tests/test_a.py::test_one\n"
+        "PASSED tests/test_a.py::test_two\n"
+        "===== 2 passed in 0.10s =====\n"
+    )
+
+    clean = parse_pytest(stdout, "mcp", "1.29.1", "r_ok", exit_code=0)
+    assert clean.is_green is True
+
+    crashed = parse_pytest(stdout, "mcp", "1.29.1", "r_crash", exit_code=3)
+    assert crashed.is_green is False
+    assert crashed.is_broken is True
+    assert crashed.errors == 1
+    assert crashed.passed == 2
+
+
+def test_exit_code_does_not_inflate_explained_damage() -> None:
+    """When the output already accounts for the failure, do not add to it."""
+    stdout = (
+        "===== short test summary info =====\n"
+        "FAILED tests/test_a.py::test_one\n"
+        "===== 1 failed in 0.10s =====\n"
+    )
+    report = parse_pytest(stdout, "mcp", "2.1.1", "r_fail", exit_code=1)
+
+    assert report.failed == 1
+    assert report.errors == 0
+
+
+def test_exit_code_is_optional(red: str) -> None:
+    """Callers without an exit status still get the collection-error verdict."""
+    assert parse_pytest(red, "mcp", "2.1.1", "r_red").is_broken is True
+
+
+# -- mixed runs (Qodo #2) ----------------------------------------------------
+
+
+def test_mixed_run_counts_passes_from_the_totals_line() -> None:
+    """With ``-rf`` the summary lists failures only; the totals still know."""
+    stdout = (
+        "===== short test summary info =====\n"
+        "FAILED tests/test_a.py::test_three\n"
+        "===== 1 failed, 2 passed in 0.30s =====\n"
+    )
+    report = parse_pytest(stdout, "mcp", "2.1.1", "r_mixed", exit_code=1)
+
+    assert report.passed == 2
+    assert report.failed == 1
+    assert len(report.cases) == 1
+    assert report.is_green is False
+    assert report.is_broken is True
+
+
+def test_full_summary_still_counts_its_own_cases(green: str) -> None:
+    """Reconciling with the totals line must not double-count under ``-rA``."""
+    assert parse_pytest(green, "mcp", "1.29.1", "r_green").passed == 61
 
 
 def test_caller_measured_duration_wins() -> None:
@@ -223,6 +296,18 @@ def test_caller_measured_duration_wins() -> None:
     assert parse_pytest(stdout, "mcp", "1.29.1", "r_d").duration_s == pytest.approx(
         0.50
     )
+
+
+def test_skip_with_a_real_node_id_is_left_alone() -> None:
+    """Only the ``path:line: reason`` form needs rewriting."""
+    stdout = (
+        "===== short test summary info =====\n"
+        "SKIPPED tests/test_net.py::test_fetch\n"
+        "===== 1 skipped in 0.01s =====\n"
+    )
+    (case,) = parse_pytest(stdout, "mcp", "2.1.1", "r_skip2").cases
+
+    assert case.node_id == "tests/test_net.py::test_fetch"
 
 
 def test_ansi_colour_does_not_change_the_verdict(green: str) -> None:

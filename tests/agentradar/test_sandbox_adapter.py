@@ -356,17 +356,45 @@ def test_red_then_green_through_the_parser() -> None:
 
     broken = FakeSandboxRunner(test_output=red, exit_code=2)
     broken.set_package_version("mcp", "2.1.1")
+    bumped = broken.run_tests(SELECTED)
     after_bump = parse_pytest(
-        broken.run_tests(SELECTED).stdout, "mcp", "2.1.1", "r_bump"
+        bumped.stdout, "mcp", "2.1.1", "r_bump", exit_code=bumped.exit_code
     )
 
     healthy = FakeSandboxRunner(test_output=green, exit_code=0)
     healthy.set_package_version("mcp", "1.29.1")
+    reverted = healthy.run_tests(SELECTED)
     after_revert = parse_pytest(
-        healthy.run_tests(SELECTED).stdout, "mcp", "1.29.1", "r_revert"
+        reverted.stdout, "mcp", "1.29.1", "r_revert", exit_code=reverted.exit_code
     )
 
     assert after_bump.is_broken and not after_bump.is_green
     assert after_revert.is_green and not after_revert.is_broken
     assert broken.calls[0] == ("set_package_version", ("mcp", "2.1.1"))
     assert broken.calls[1] == ("run_tests", SELECTED)
+
+
+def test_exit_code_must_cross_the_seam() -> None:
+    """`RawRun.exit_code` is evidence, and dropping it loses a verdict.
+
+    A run that exits nonzero while printing nothing but passes is green to a
+    parser that only reads stdout. Wiring the exit status through is what makes
+    the report honest, so assert the wiring, not just the parser.
+    """
+    clean_looking = (
+        "===== short test summary info =====\n"
+        "PASSED tests/test_server.py::test_boot\n"
+        "===== 1 passed in 0.10s =====\n"
+    )
+    result = FakeSandboxRunner(test_output=clean_looking, exit_code=4).run_tests(
+        SELECTED
+    )
+
+    unwired = parse_pytest(result.stdout, "mcp", "2.1.1", "r_unwired")
+    wired = parse_pytest(
+        result.stdout, "mcp", "2.1.1", "r_wired", exit_code=result.exit_code
+    )
+
+    assert unwired.is_green is True  # what dropping the exit code costs
+    assert wired.is_green is False
+    assert wired.is_broken is True

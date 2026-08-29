@@ -42,6 +42,8 @@ _END_OF_SUMMARY = re.compile(r"^(=|!){5,}")
 _SUMMARY_ENTRY = re.compile(r"^(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b[ \t]*(.*)$")
 # `SKIPPED [1] tests/test_x.py:12: needs network`
 _SKIP_COUNT = re.compile(r"^\[\d+\]\s*")
+# The same line's location, which is a file and line — never a pytest node id.
+_SKIP_LOCATION = re.compile(r"^(?P<path>\S+\.py):\d+:")
 
 # `0.24s call     tests/test_server.py::test_get_activities`
 _DURATION = re.compile(r"^(\d+(?:\.\d+)?)s\s+(call|setup|teardown)\s+(\S+)$")
@@ -139,6 +141,11 @@ def _summary_entries(lines: list[str]) -> list[tuple[_Outcome, str]]:
             continue
         # `FAILED tests/x.py::test_a - AssertionError: ...` — keep only the node id.
         node_id = rest.split(" - ", 1)[0].strip()
+        # `SKIPPED [1] tests/x.py:12: needs network` has no node id at all.
+        # Report the module rather than a string no consumer can select with.
+        location = _SKIP_LOCATION.match(node_id)
+        if location is not None:
+            node_id = location.group("path")
         if node_id:
             entries.append((outcome, node_id))
     return entries
@@ -206,11 +213,20 @@ def parse_pytest(
     report_id: str,
     *,
     duration_s: float = 0.0,
+    exit_code: int | None = None,
 ) -> TestReport:
     """Parse ``stdout`` from a pytest run into a :class:`TestReport`.
 
     ``duration_s`` is the wall time measured by the caller; when it is ``0.0``
     the time pytest printed on its summary line is used instead.
+
+    ``exit_code`` is pytest's own exit status, straight off
+    :attr:`~agentradar.adapters.sandbox.RawRun.exit_code`. Pass it whenever you
+    have it. A run can exit nonzero for reasons no summary line explains — a
+    usage error, an internal error, a plugin crash, ``-x`` cutting the run
+    short — and the output may still contain nothing but passes. Counting that
+    as green would let the verification gate approve a patch on a run that
+    never finished.
 
     A collection error yields cases whose ``node_id`` is the *module* that would
     not import, because no per-test node id exists in that run.
@@ -259,7 +275,14 @@ def parse_pytest(
         counts.get("errors", 0),
         int(interrupted.group(1)) if interrupted else 0,
     )
-    passed = from_cases["passed"] if cases else counts.get("passed", 0)
+    # The short summary lists only what `-r` was asked for; with `-rf` it holds
+    # failures alone while the counts line still knows how many passed.
+    passed = max(from_cases["passed"], counts.get("passed", 0))
+
+    # Nothing in the output accounted for a nonzero exit. Refusing to call that
+    # green is the entire job of this parser.
+    if exit_code is not None and exit_code != 0 and failed == 0 and errors == 0:
+        errors = 1
 
     return TestReport(
         id=report_id,

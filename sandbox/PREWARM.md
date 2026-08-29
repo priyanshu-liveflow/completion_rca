@@ -119,6 +119,17 @@ from a run *after* the version change.
 Step 4 must run **the same node ids** as step 2. A repro that reports red on one
 set of tests and green on another proves nothing.
 
+Always pass the exit status through:
+
+```python
+run = runner.run_tests(node_ids)
+report = parse_pytest(run.stdout, package, version, report_id, exit_code=run.exit_code)
+```
+
+A run can exit nonzero with nothing but passes in its output — an internal
+error, a plugin crash, `-x` cutting it short. Dropping `exit_code` reports that
+as green.
+
 ## Teardown
 
 ```python
