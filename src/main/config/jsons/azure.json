@@ -1,0 +1,66 @@
+{
+    "main_model": {
+        "env": "MODEL_ID",
+        "default": "claude-opus-4-7"
+    },
+    "all_models_same_region": {
+        "env": "ALL_MODELS_SAME_REGION",
+        "default": "true",
+        "type": "bool"
+    },
+    "same_region": {
+        "env": "AZURE_REGION",
+        "default": "us-east-1"
+    },
+    "anthropic_beta": {
+        "env": "ANTHROPIC_BETA",
+        "default": "computer-use-2025-01-24"
+    },
+    "anthropic_max_tokens": {
+        "env": "ANTHROPIC_MAX_TOKENS",
+        "default": "4096",
+        "type": "int"
+    },
+    "anthropic_top_k": {
+        "env": "ANTHROPIC_TOP_K",
+        "default": "250",
+        "type": "int"
+    },
+    "anthropic_stop_sequences": {
+        "env": "ANTHROPIC_STOP_SEQUENCES",
+        "default": "[]",
+        "type": "list"
+    },
+    "anthropic_temperatue": {
+        "env": "ANTHROPIC_TEMPERATURE",
+        "default": "0.7",
+        "type": "float"
+    },
+    "client_read_timeout": {
+        "env": "AZURE_CLIENT_READ_TIMEOUT",
+        "default": "120",
+        "type": "int"
+    },
+    "azure_client_retries": {
+        "env": "AZURE_CLIENT_RETRIES",
+        "default": "3",
+        "type": "int"
+    },
+    "is_use_key": {
+        "env": "IS_USE_SECRET_KEY",
+        "default": "false",
+        "type": "bool"
+    },
+    "azure_api_key": {
+        "env": "AZURE_API_KEY",
+        "default": ""
+    },
+    "azure_ai_foundry_anthropic_endpoint": {
+        "env": "AZURE_AI_FOUNDRY_ANTHROPIC_END_POINT",
+        "default": "https://cua-agent-foundry.services.ai.azure.com/anthropic/"
+    },
+    "azure_client_id": {
+        "env": "AZURE_CLIENT_ID",
+        "default": ""
+    }
+}

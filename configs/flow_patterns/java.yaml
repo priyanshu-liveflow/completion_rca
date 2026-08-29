@@ -1,0 +1,104 @@
+# Flow extraction patterns: Java, Groovy, Kotlin
+# Block style: brace-delimited, single-line forms allowed
+
+block_style: braces
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*(if|else\s*if)\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    single_line_allowed: true
+  else:
+    pattern: '^\s*\}?\s*else\s*[\{]?'
+    links_to: if
+  try:
+    pattern: '\s*try\s*[\{\(]?'
+  catch:
+    pattern: '\s*catch\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    links_to: try
+  finally:
+    pattern: '\s*finally\s*[\{]?'
+    links_to: try
+  switch:
+    pattern: '\s*switch\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+  case:
+    pattern: '\s*case\s+'
+    links_to: switch
+  default:
+    pattern: '\s*default\s*:'
+    links_to: switch
+
+returns:
+  - '\s*return\b'
+  - '\s*throw\s+new\b'
+  - '\s*throw\b'
+  - '\s*break\b'
+  - '\s*continue\b'
+
+loops:
+  for:
+    pattern: '\s*(for)\s*\('
+    has_condition: true
+  while:
+    pattern: '\s*(while)\s*\('
+    has_condition: true
+  do:
+    pattern: '\s*(do)\s*\{'
+
+log_calls:
+  - '\blog\s*\.\s*(trace|debug|info|warn|error|fatal)\s*[\(]'
+  - '\blogger\s*\.\s*(trace|debug|info|warn|error|fatal)\s*[\(]'
+  - '\blog\s*\.\s*(trace|debug|info|warn|error|fatal)\s*"'
+  - '\blogger\s*\.\s*(trace|debug|info|warn|error|fatal)\s*"'
+  - '\bLOG\s*\.\s*(trace|debug|info|warn|error|fatal)\s*[\(]'
+  - '\b(println|print)\s*\('
+  - '\bSystem\s*\.\s*(out|err)\s*\.\s*(println|print)\s*\('
+  # Groovy paren-free
+  - '\blog\s*\.\s*(trace|debug|info|warn|error|fatal)\s+(?=["\u0027])'
+  - '\blogger\s*\.\s*(trace|debug|info|warn|error|fatal)\s+(?=["\u0027])'
+
+method_calls:
+  pattern: '(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: [log, logger, LOG, System, this, super, Math, Objects, Arrays, Collections, String, Integer, Long, Boolean, Double]
+  skip_starts: [if, else, for, while, switch, return, throw, try, catch, '//', '/*', '*']
+
+continuation:
+  trailing_open_paren: true
+  trailing_operator: true       # +, &&, ||, .
+  trailing_comma: true
+  unclosed_string: true
+
+string_interpolation:
+  # How dynamic content appears in log strings
+  slf4j: '{}'
+  format: '%[sdflx]'
+  groovy_gstring: '\$\{[^}]*\}'
+  groovy_dollar: '\$[\w.]+'
+  concatenation: '"\s*\+\s*|\s*\+\s*"'
+
+function_definitions:
+  - '^\s*(?:public|private|protected|static|\s)*\s*(?:void|String|int|long|boolean|Object|List|Map|Set|\w+(?:<[^>]+>)?)\s+(\w+)\s*\('
+  # Groovy closure-style action: def foo = {
+  - '^\s*def\s+(\w+)\s*=\s*\{'
+  # Groovy def method
+  - '^\s*(?:public|private|protected|static|\s)*\s*def\s+(\w+)\s*\('
+
+framework_markers:
+  - org.springframework
+  - org.hibernate
+  - org.apache
+  - io.netty
+  - com.zaxxer.hikari
+  - org.eclipse.jetty
+  - reactor.core
+  - io.micrometer
+  - javax.servlet
+  - org.grails
+  - grails.plugin

@@ -1,0 +1,265 @@
+# ecmv4 — Saviynt ECM (Grails/Groovy on Tomcat)
+# Container logs: K8s timestamp prefix + Logback pattern
+
+extends: base/spring-boot.yaml
+
+repo: ecmv4-g2
+skip_judges_if_single_trace: false
+language: groovy
+service_name: ecm
+
+log_format:
+  type: text
+  # K8s container timestamp prefix OR raw Logback timestamp
+  entry_start: '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}'
+  # Main pattern: k8s_ts + logback_ts [thread] LEVEL logger - [context] - message
+  line_pattern: '^\S+Z\s+(?P<timestamp>\S+)\s+\[(?P<thread>[^\]]+)\]\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+-\s+(?:\[.*?\]\s+-\s+|-\s+)?(?P<message>.*)'
+  # Alt: Tomcat format during startup
+  alt_patterns:
+    - '^\S+Z\s+\d{2}-\w+-\d{4}\s+(?P<timestamp>\S+)\s+(?P<level>\w+)\s+\[(?P<thread>[^\]]+)\]\s+(?P<logger>\S+)\s+(?P<message>.*)'
+    - '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+)\s+\[(?P<thread>[^\]]+)\]\s+(?P<level>\w+)\s+(?P<logger>\S+)\s+-\s+(?P<message>.*)'
+  message_separators: [' - ']
+  continuation_patterns:
+    - '^\s+at\s+'
+    - '^\s+\.\.\.\s+\d+\s+more'
+    - '^Caused by:'
+    - '^\t'
+    - '^Serialization trace:'
+    # K8s timestamp-prefixed continuations
+    - '^\S+Z\s+\tat\s+'
+    - '^\S+Z\s+\t\.\.\.\s+\d+\s+more'
+    - '^\S+Z\s+Caused by:'
+    - '^\S+Z\s+\t'
+  group_by_thread: true
+  thread_field: thread
+  error_levels: [error, fatal]
+
+stack_trace:
+  format: java
+  frame_pattern: '^\s*at\s+(?:[\w.]+/)?([^\s(]+)\.([\w<>]+)\(([^:]+):(\d+)\)'
+  caused_by_pattern: '^Caused by:\s+([\w.$]+):\s*(.*)'
+  exception_pattern: '^([\w.$]+(?:Exception|Error|Throwable)):\s*(.*)'
+
+ignore_patterns:
+  # Startup noise (60K+ lines of class inflation)
+  - 'inflated:'
+  - 'extracting:'
+  - '^\S+Z\s+\s*(created|creating):'
+  # Spring Boot auto-configuration report (contains 'error' in channel/bean names)
+  - '@ConditionalOn'
+  - 'spring\.integration\.channels'
+  - 'ErrorTemplate Missing'
+  - 'ErrorMvcAutoConfiguration'
+  - '{ \[/error\]'
+  # Health checks
+  - 'NoSessionFor404Filter.*healthcheck'
+  - 'GET /ECM/images/healthcheck'
+  # JNDI property lookups (10K+ lines, all DEBUG, harmless)
+  - 'JndiLocatorDelegate.*not found'
+  - 'JndiPropertySource.*threw NamingException'
+  - 'JndiTemplate.*Looking up JNDI'
+  # Kafka consumer polling (extremely verbose)
+  - 'kafka.clients.NetworkClient.*FETCH'
+  - 'FetchSessionHandler.*incremental fetch'
+  - 'AbstractFetch.*Adding pending request'
+  - 'AbstractFetch.*Removing pending request'
+  - 'AbstractFetch.*Added read_uncommitted'
+  - 'AbstractFetch.*Sending read_uncommitted'
+  # Redis/Lettuce DNS resolution noise
+  - 'DnsQueryContext.*WRITE: UDP'
+  - 'DnsNameResolver.*RECEIVED: UDP'
+  - 'DefaultDnsQuestion'
+  - 'DefaultDnsRawRecord'
+  # Connection pool maintenance
+  - 'PoolingHttpClientConnectionManager.*Closing'
+  - 'Connection evictor'
+  # URL mapping attempts (extremely verbose)
+  - 'DefaultUrlMappingsHolder.*Attempting to match URI'
+  - 'RegexUrlMapping.*Created reverse URL mapping'
+  # Grails request binding/clearing
+  - 'GrailsWebRequestFilter.*Bound Grails'
+  - 'GrailsWebRequestFilter.*Cleared Grails'
+  # Hibernate session logging
+  - 'GrailsHibernateTemplate.*Found thread-bound Session'
+  - 'GrailsHibernateTemplate.*Not closing pre-bound'
+  # SSL/TLS handshakes
+  - 'SslHandler.*HANDSHAKEN'
+  # Security role hierarchy (repeated per request)
+  - 'RoleHierarchyImpl.*getReachableGrantedAuthorities'
+  # Content-Security-Policy headers
+  - 'FilterLoggingService.*set value - Content-Security-Policy'
+  - 'FilterLoggingService.*set value - Permissions-Policy'
+  - 'FilterLoggingService.*set value - Referrer-Policy'
+  # Hibernate/Grails startup mapping noise
+  - 'Mapping cascade strategy for'
+  - 'GrailsDomainBinder.*Mapping Grails domain'
+  # Tomcat session filter (non-app)
+  - 'NoSessionFor404Filter'
+  # Tomcat resource cache (static assets)
+  - 'Unable to add the resource at'
+  # Tomcat valve config
+  - 'Match \[Server/Service/Engine'
+  # Grails view resolution / rendering
+  - 'Locating GSP view'
+  - 'View \[SitemeshLayoutView\]'
+  - 'View \[GroovyPageView\]'
+  - 'There are conflicting tags'
+  # Spring internals
+  - 'Ignoring request to enhance'
+  - 'Found AspectJ method'
+  # Hibernate collection mapping
+  - 'Mapped collection key'
+  # Grails domain binding (ORM property mapping, thousands of lines)
+  - 'GrailsDomainBinder'
+  # Spring DI bean resolution
+  - 'Finding candidate beans for'
+  - 'No bean candidates found'
+  - 'Resolving beans for type'
+  - 'Finalized bean definitions'
+  - 'Adding converter from class'
+  - 'Found concrete candidate'
+  - 'Found a registration'
+  - 'Found resource for'
+  - 'Loading resource for'
+  # Grails GSP view resolution
+  - 'Rendering inner view'
+  - 'Resolved GSP view'
+  - 'Initialized GSP view'
+  - 'Resolving view for name'
+  - 'Creating layout view'
+  - 'Evaluating layout for'
+  # Spring Security filter chain
+  - 'Authorized filter invocation'
+  # Logback configuration
+  - 'Attaching appender named'
+  - 'Naming appender as'
+  - 'Setting level of logger'
+  - 'Resource \[logback'
+  - 'About to instantiate appender'
+  - 'Active log file name'
+  # Grails runtime configuration
+  - '\[RuntimeConfiguration\] Registering bean'
+  # Grails URL mapping precedence
+  - 'Mapping \[/.+\] has'
+  - 'has a lower precedence'
+  - 'has a higher precedence'
+  - 'has equal precedence'
+  # Container/OS startup
+  - 'cp: cannot create regular'
+  - 'OpenJDK 64-Bit Server VM'
+  # Grails controller configuration
+  - 'Configuring controller'
+  # Spring Security request authorization
+  - 'Securing (GET|POST|PUT|DELETE)'
+  - 'Secured (GET|POST|PUT|DELETE)'
+  # Grails URL pattern matching
+  - 'Matched URI \['
+  # Spring bean processing
+  - 'Bean definition has already been processed'
+  # Grails view fallback
+  - 'No GSP view found'
+  # Session/login tracking (framework)
+  - 'Set USERLOGINS_KEY'
+  # Container file operations
+  - "'/application_instance/"
+  # Apache HTTP client connection
+  - 'http-outgoing-\d+'
+  # Spring property source
+  - 'No PropertySource found'
+  - 'Found PropertySource'
+  - 'Reading property sources'
+  # Grails layout/forwarding
+  - 'Found controller in request'
+  - 'Method \[redirect\] forwarding'
+  # Spring/Micronaut bean creation/conditional
+  - 'Created bean \['
+  - 'Bean \[.*\] will not be loaded'
+  - 'class org.grails'
+  - 'class io.micronaut'
+  - 'interface java.util.concurrent'
+  # Spring autoconfiguration reports
+  - 'Configuration:$'
+  - 'Configuration matched'
+  # Spring component scanning
+  - 'Identified candidate component class'
+  # Spring bean overriding
+  - 'Overriding bean definition'
+  # Grails URL reverse mapping
+  - 'Reverse mapping:'
+  # Micronaut config
+  - 'Required property \['
+  # Ehcache mocking
+  - 'Mocking .* Statistic'
+  # Quartz scheduler
+  - 'TriggerPersistenceDelegate'
+  # Internal cache API calls
+  - 'Executing request .* /ECMv6/api/cache'
+  # RolesInterceptor (from JAR)
+  - 'RolesInterceptor before'
+  # allowCreateRequest check (from JAR)
+  - 'allowCreateRequest check'
+  # Audit logging (from JAR)
+  - 'Using standard audit logging'
+  # CSRF filter (Spring Security JAR)
+  - 'CSRF CHECK DECISION'
+  # Kryo serialization library
+  - 'Kryo serialization'
+  # jBPM workflow engine
+  - 'execution\[auto_appro'
+  # Spring Boot actuator autoconfiguration
+  - 'InfoContributorAutoC'
+  - 'JvmMetricsAutoConfig'
+  - 'SystemMetricsAutoCon'
+  - 'ServletWebServerFact'
+  - 'TaskSchedulingAutoCo'
+  # Cache/resource updates (not app logic)
+  - 'Updating cache for'
+  - 'PAGE Stats AFTER'
+  - 'REFERER FOUND:'
+  - 'Search value :'
+
+error_markers:
+  - pattern: 'Exception'
+  - pattern: 'ERROR'
+  - pattern: 'Full Stack Trace'
+  - pattern: 'NumberFormatException'
+  - pattern: 'NullPointerException'
+  - pattern: 'LazyInitializationException'
+  - pattern: 'MissingPropertyException'
+
+# Classes/functions where known errors originate
+entry_points:
+  - WorkflowmanagementController
+  - SaviyntCommonUtilityService
+  - SodCommonUtilityService
+  - WorkflowService
+  - EventLogger
+  - JwtValidationInterceptor
+  - KryoRedisSerializer
+  - SQLInjectionInputInterceptor
+  - ErrorController
+  - FilterLoggingService
+
+known_errors:
+  - pattern: 'parsing null with Long'
+    reason: 'Defensive null handling in SOD evaluation, sets to null and continues'
+  - pattern: 'NameNotFoundException.*is not bound in this Context'
+    reason: 'Spring JNDI property resolution fallback during startup, normal behavior'
+  - pattern: 'NavigableMap.*dot notation is deprecated'
+    reason: 'Grails framework deprecation warning, zero runtime impact'
+  - pattern: 'JWT validation failed, allowing request'
+    reason: 'Known RS256/HS256 algorithm mismatch, request proceeds regardless'
+  - pattern: 'Something went wrong with AO[BM].*WF'
+    reason: 'Startup workflow initialization noise, no stack trace, swallowed'
+  - pattern: 'Error while parsing value\s*:'
+    reason: 'Defensive parsing in RiskSODEvaluationService, empty string handling'
+  - pattern: 'NoSessionFor404Filter'
+    reason: 'Health check and session tracking filter, informational only'
+  - pattern: 'Accessing config key.*through dot notation is deprecated'
+    reason: 'Grails NavigableMap deprecation, cosmetic only'
+
+cost_limits:
+  max_trace_agents: 20
+  max_turns_per_agent: 10
+  max_lens_judges: 20
+  budget_cap_usd: 15.0

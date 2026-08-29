@@ -1,0 +1,69 @@
+# Flow extraction patterns: Go
+# Block style: braces REQUIRED (no single-line if without braces)
+
+block_style: braces_required
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*if\s+'
+    has_condition: true
+    condition_delimiters: null   # condition is between 'if' and '{'
+    single_line_allowed: false   # Go always requires braces
+  else:
+    pattern: '\s*[\}]\s*else\s*[\{]'
+    links_to: if
+  switch:
+    pattern: '\s*switch\s*'
+    has_condition: true
+  case:
+    pattern: '\s*case\s+.+:'
+    links_to: switch
+  default:
+    pattern: '\s*default\s*:'
+    links_to: switch
+  select:
+    pattern: '\s*select\s*\{'
+  defer:
+    pattern: '\s*defer\s+'
+
+returns:
+  - '\s*break\b'
+  - '\s*continue\b'
+  - '\s*return\b'
+  - '\s*panic\s*\('
+  - '\s*log\.Fatal'
+  - '\s*os\.Exit\s*\('
+
+log_calls:
+  - '\blog\s*\.\s*(Print|Printf|Println|Fatal|Fatalf|Fatalln)\s*\('
+  - '\b(zap|logrus|zerolog)\s*\.\s*(Info|Debug|Warn|Error|Fatal|Panic)\w*\s*\('
+  - '\b\w+\.(Infof?|Debugf?|Warnf?|Errorf?|Fatalf?)\s*\('
+  - '\bfmt\s*\.\s*(Print|Printf|Println|Errorf|Fprintf)\s*\('
+  - '\bprintln\s*\('
+
+method_calls:
+  pattern: '(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: [log, fmt, os, io, context, errors, strings, strconv, math, time, sync, http]
+  skip_starts: [if, else, for, switch, select, return, go, defer, '//', '/*', var, const, type, func, import, package]
+
+continuation:
+  trailing_comma: true
+  unclosed_bracket: true
+
+string_interpolation:
+  fmt_verbs: '%[vdsfpqxTtbcUeEgGoO#+ -]'
+
+function_definitions:
+  - '^func\s+(\w+)\s*\('
+  - '^func\s+\([^)]+\)\s+(\w+)\s*\('
+
+framework_markers:
+  - net/http
+  - google.golang.org
+  - github.com/gin-gonic
+  - github.com/gorilla
+  - github.com/labstack/echo
+  - go.uber.org/zap
+  - gorm.io

@@ -1,0 +1,24 @@
+# Base: Spring Boot default logging layout
+# Covers: Spring Boot 2.x/3.x with Logback default pattern
+
+log_format:
+  type: text
+  entry_start: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  line_pattern: '(?P<timestamp>\S+ \S+)\s+(?P<level>\w+)\s+\[(?P<context>[^\]]*)\]\s+\S+\s+---\s+\[(?P<thread>[^\]]+)\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)'
+  message_separators: [' : ']
+  continuation_patterns:
+    - '^\s+at\s+'
+    - '^\s+\.\.\.\s+\d+\s+more'
+    - '^Caused by:'
+    - '^\t'
+  group_by_thread: true
+  thread_field: thread
+  error_levels: [error, fatal]
+
+language: java
+
+stack_trace:
+  format: java
+  frame_pattern: '^\s+at\s+([\w.$]+)\.([\w<>]+)\(([^:]+):(\d+)\)'
+  caused_by_pattern: '^Caused by:\s+([\w.$]+):\s*(.*)'
+  exception_pattern: '^([\w.$]+(?:Exception|Error|Throwable)):\s*(.*)'

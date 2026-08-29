@@ -1,0 +1,63 @@
+@startuml graph_pipeline
+!theme plain
+title Qualitative Analysis — Graph Pipeline
+
+start
+
+:TRIAGE;
+note right: Load log, check format\nExit on system crash
+
+if (can_continue?) then (yes)
+else (no)
+  :Exit Report;
+  stop
+endif
+
+:BEARINGS;
+note right: Extract prompt, steps,\nGT, RAG status
+
+if (success_gate?) then (yes)
+  :Minimal Report;
+  stop
+else (no)
+endif
+
+:Slice Step Sections;
+
+partition "Per-Step Loop" {
+  while (more steps?) is (yes)
+    :DECOMPOSE;
+    note right: Step description → sub-goals
+
+    :MAP;
+    note right: Read log section\nExtract: element used,\navailable, result,\niterations_spent
+
+    :JUDGE;
+    note right: Structured data only\nNo raw logs\nCorrect target? Outcome?
+
+    :SCORE;
+    note right: Deterministic\n≥8 iters = fail
+
+    if (step passed?) then (yes)
+    elseif (minor deviation\n& not failure step?) then (yes)
+      :Continue;
+      note right: Log deviation,\ndon't stop
+    elseif (failure_origin = prior_step?) then (yes)
+      :BACKTRACK;
+      note right: Re-MAP prior step\nwith verify focus
+    else (failed)
+      :Root cause found;
+      break
+    endif
+  endwhile (no)
+}
+
+:RECOMMEND;
+note right: Generate prompt fix\nNo selectors, no tool names
+
+:OUTPUT;
+note right: Format final report
+
+stop
+
+@enduml
