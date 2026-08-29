@@ -1,0 +1,20 @@
+# Runtime config — model selection, budgets, provider settings.
+# Pass with: --runtime configs/runtime/ollama.yaml
+# Repo config (log format, language) is separate: --config configs/idwms.yaml
+
+provider: ollama
+ollama_base_url: "http://localhost:11434"
+
+models:
+  light: "gemma4:e4b"
+  default: "gemma4:26b"
+  heavy: "gemma4:26b"
+  router: "gemma4:e4b"
+
+budget:
+  max_turns_per_agent: 12
+  extension_turns: 5
+  max_chars_per_source: 3000
+
+context:
+  num_ctx: 32768

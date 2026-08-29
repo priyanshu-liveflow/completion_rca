@@ -1,0 +1,75 @@
+# Flow extraction patterns: PowerShell
+# Block style: braces, cmdlet-based logging, pipeline operators
+
+block_style: braces
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*if\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    single_line_allowed: true   # if ($x) { ... }
+  elseif:
+    pattern: '\s*elseif\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    links_to: if
+  else:
+    pattern: '\s*[\}]?\s*else\s*[\{]?'
+    links_to: if
+  try:
+    pattern: '\s*try\s*\{'
+  catch:
+    pattern: '\s*[\}]?\s*catch\s*[\[\{]?'
+    has_condition: true
+    links_to: try
+  finally:
+    pattern: '\s*[\}]?\s*finally\s*\{'
+    links_to: try
+  switch:
+    pattern: '\s*switch\s*[\(-]'
+    has_condition: true
+  foreach:
+    pattern: '\s*foreach\s*\('
+    has_condition: true
+  while:
+    pattern: '\s*while\s*\('
+    has_condition: true
+  trap:
+    pattern: '\s*trap\s*[\[\{]?'
+
+returns:
+  - '\s*return\b'
+  - '\s*throw\b'
+  - '\s*exit\b'
+  - '\s*break\b'
+
+log_calls:
+  - '\bWrite-(Host|Error|Warning|Verbose|Debug|Output|Information)\b'
+  - '\b\$\w+\.Log(Info|Error|Warning|Debug|Verbose)\s*\('
+  - '\b\[Console\]::Write'
+
+method_calls:
+  pattern: '\$(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: ['null', 'true', 'false', '_']
+  skip_starts: [if, elseif, else, for, foreach, while, switch, return, throw, try, catch, finally, '#', '<#', function, param, trap]
+
+continuation:
+  trailing_pipe: true           # | at end (pipeline)
+  trailing_backtick: true       # ` (PowerShell line continuation)
+  unclosed_bracket: true
+
+string_interpolation:
+  variable: '\$[\w:]+'
+  subexpression: '\$\([^)]+\)'
+
+function_definitions:
+  - '^\s*function\s+([\w-]+)\s*[\({]'
+
+framework_markers:
+  - Microsoft.PowerShell
+  - System.Management.Automation
+  - PSReadLine
+  - PackageManagement

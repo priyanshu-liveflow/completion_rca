@@ -1,0 +1,26 @@
+# Base: Python stdlib logging / structlog text output
+
+log_format:
+  type: text
+  entry_start: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  line_pattern: '(?P<timestamp>\S+ \S+)\s+\|\s+(?P<level>\w+)\s+\|\s+(?P<logger>[^\|]+)\s+\|\s+(?P<message>.*)'
+  # Alt pattern: "timestamp - name - LEVEL - message"
+  alt_patterns:
+    - '(?P<timestamp>\S+ \S+)\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\w+)\s+-\s+(?P<message>.*)'
+    - '(?P<level>\w+):\s+(?P<logger>\S+):\s+(?P<message>.*)'
+  message_separators: [' | ', ' - ']
+  continuation_patterns:
+    - '^\s+File\s+"'
+    - '^\s+\w+Error:'
+    - '^Traceback'
+    - '^\s+raise\s+'
+    - '^\s+\^'
+  group_by_thread: false
+  error_levels: [error, critical, fatal]
+
+language: python
+
+stack_trace:
+  format: python
+  frame_pattern: '^\s+File\s+"([^"]+)",\s+line\s+(\d+),\s+in\s+(\w+)'
+  exception_pattern: '^(\w+(?:Error|Exception|Warning)):\s*(.*)'

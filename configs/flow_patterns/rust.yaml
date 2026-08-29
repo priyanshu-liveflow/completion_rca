@@ -1,0 +1,73 @@
+# Flow extraction patterns: Rust
+# Block style: braces required, match arms, ? operator, if let
+
+block_style: braces_required
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*(if|else\s+if)\s+'
+    has_condition: true
+    condition_delimiters: null   # condition is between 'if' and '{'
+    single_line_allowed: false
+  if_let:
+    pattern: '\s*if\s+let\s+'
+    has_condition: true
+    single_line_allowed: false
+  else:
+    pattern: '\s*[\}]\s*else\s*[\{]'
+    links_to: if
+  match:
+    pattern: '\s*match\s+'
+    has_condition: true
+  match_arm:
+    pattern: '\s*.+\s*=>\s*'
+    links_to: match
+  loop:
+    pattern: '\s*(loop|while|for)\s*'
+  unsafe:
+    pattern: '\s*unsafe\s*\{'
+
+returns:
+  - '\s*break\b'
+  - '\s*continue\b'
+  - '\s*return\b'
+  - '\s*panic!\s*\('
+  - '\s*unimplemented!\s*\('
+  - '\s*todo!\s*\('
+  - '\s*unreachable!\s*\('
+  # ? operator (early return on Err)
+  - '\?\s*;'
+
+log_calls:
+  - '\b(info|debug|warn|error|trace)!\s*\('
+  - '\blog::(info|debug|warn|error|trace)\s*\('
+  - '\bprintln!\s*\('
+  - '\beprintln!\s*\('
+  - '\btracing::(info|debug|warn|error|trace)!\s*\('
+
+method_calls:
+  pattern: '(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: [self, log, io, fs, std, fmt, String, Vec, HashMap, Option, Result]
+  skip_starts: [if, else, for, while, loop, match, return, let, mut, use, mod, pub, fn, struct, impl, trait, enum, type, '//', '/*', '#']
+
+continuation:
+  trailing_comma: true
+  unclosed_bracket: true
+  trailing_operator: true       # . chaining
+
+string_interpolation:
+  format_macro: '\{[^}]*\}'    # {} in format!/println! macros
+
+function_definitions:
+  - '^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)'
+
+framework_markers:
+  - tokio::
+  - hyper::
+  - actix_web
+  - rocket::
+  - diesel::
+  - sqlx::
+  - tonic::

@@ -1,0 +1,92 @@
+# Flow extraction patterns: Python
+# Block style: indent-based, colon terminates branch header
+
+block_style: indent
+indent_unit: detect             # auto-detect: 2 spaces, 4 spaces, or tab
+
+branches:
+  if:
+    pattern: '\s*(if|elif)\s+.+:'
+    has_condition: true
+    condition_delimiters: null   # condition is between keyword and ':'
+    terminator: ':'
+    single_line_allowed: true   # if x: return y
+  else:
+    pattern: '\s*else\s*:'
+    links_to: if
+  try:
+    pattern: '\s*try\s*:'
+  catch:
+    pattern: '\s*except\s*(.*)?:'
+    has_condition: true
+    links_to: try
+  finally:
+    pattern: '\s*finally\s*:'
+    links_to: try
+  match:
+    pattern: '\s*match\s+.+:'
+    has_condition: true
+  case:
+    pattern: '\s*case\s+.+:'
+    links_to: match
+  with:
+    pattern: '\s*with\s+.+:'
+    has_condition: true
+  for:
+    pattern: '\s*for\s+.+:'
+    has_condition: true
+  while:
+    pattern: '\s*while\s+.+:'
+    has_condition: true
+
+returns:
+  - '\s*return\b'
+  - '\s*raise\b'
+  - '\s*sys\.exit\s*\('
+  - '\s*exit\s*\('
+  - '\s*break\b'
+  - '\s*continue\b'
+
+loops:
+  for:
+    pattern: '\s*(for)\s+\w+\s+in\b'
+  while:
+    pattern: '\s*(while)\s+'
+
+log_calls:
+  - '\blogger\s*\.\s*(debug|info|warning|error|critical|exception)\s*\('
+  - '\blogging\s*\.\s*(debug|info|warning|error|critical)\s*\('
+  - '\blog\s*\.\s*(debug|info|warning|error|critical)\s*\('
+  - '\bprint\s*\('
+
+method_calls:
+  pattern: '(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: [self, cls, super, logger, logging, print, str, int, float, list, dict, set, len, type, isinstance, hasattr, getattr]
+  skip_starts: [if, elif, else, for, while, return, raise, import, from, '#', '"""', "'''", def, class, with, assert]
+
+continuation:
+  trailing_backslash: true
+  unclosed_bracket: true        # (, [, { without matching close
+  unclosed_string: true         # triple-quoted strings
+  trailing_comma: true          # inside parens/brackets
+
+string_interpolation:
+  fstring: '\{[^}]+\}'
+  percent: '%[sdrf]'
+  format_call: '\{[^}]*\}'
+
+function_definitions:
+  - '^\s*def\s+(\w+)\s*\('
+  - '^\s*async\s+def\s+(\w+)\s*\('
+
+framework_markers:
+  - asyncio
+  - uvicorn
+  - werkzeug
+  - django.
+  - flask.
+  - celery.
+  - gunicorn
+  - starlette
+  - fastapi
+  - sqlalchemy

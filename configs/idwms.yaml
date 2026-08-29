@@ -1,0 +1,23 @@
+extends: base/spring-boot.yaml
+
+repo: idwms
+language: java
+service_name: idwms
+
+log_format:
+  # Spring Boot default: 2026-06-26 00:03:56.260  INFO [] 53609 --- [thread] logger : message
+  entry_start: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  line_pattern: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\s+(?P<level>\w+)\s+\[(?P<trace>[^\]]*)\]\s+\d+\s+---\s+\[(?P<thread>[^\]]+)\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)'
+  continuation_patterns:
+    - '^\s+at\s+'
+    - '^\s+\.\.\.\s+\d+'
+    - '^Caused by:'
+
+# Framework/infra noise
+ignore_patterns:
+  - 'org.springframework.*'
+  - 'org.apache.catalina.*'
+  - 'org.hibernate.*'
+  - 'com.zaxxer.hikari.*'
+
+skip_judges_if_single_trace: false

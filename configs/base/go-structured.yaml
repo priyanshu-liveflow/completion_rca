@@ -1,0 +1,27 @@
+# Base: Go structured logging (zerolog, zap, logrus JSON mode)
+
+log_format:
+  type: json
+  field_map:
+    timestamp: time       # or "ts", "@timestamp"
+    level: level          # or "severity"
+    message: msg          # or "message"
+    logger: caller        # or "logger", "source"
+    thread: goroutine     # optional
+    error: error          # optional — error field
+  # Alternate field names to try (first match wins)
+  field_aliases:
+    timestamp: [time, ts, '@timestamp', timestamp]
+    level: [level, severity, lvl]
+    message: [msg, message, body]
+    logger: [caller, logger, source, component]
+  error_levels: [error, fatal, panic, dpanic]
+  group_by_thread: false
+
+language: go
+
+stack_trace:
+  format: go
+  # Go stack traces in panic output
+  frame_pattern: '^(?P<package>[\w./]+)\.(?P<function>\w+)\(.*\)$'
+  location_pattern: '^\s+(?P<file>[^\s:]+):(?P<line>\d+)'

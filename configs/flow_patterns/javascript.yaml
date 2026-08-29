@@ -1,0 +1,82 @@
+# Flow extraction patterns: JavaScript, TypeScript
+# Block style: brace-delimited, single-line and arrow functions
+
+block_style: braces
+brace_open: '{'
+brace_close: '}'
+
+branches:
+  if:
+    pattern: '\s*(if|else\s*if)\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    single_line_allowed: true
+  else:
+    pattern: '\s*[\}]?\s*else\s*[\{]?'
+    links_to: if
+  try:
+    pattern: '\s*try\s*\{'
+  catch:
+    pattern: '\s*[\}]?\s*catch\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+    links_to: try
+  finally:
+    pattern: '\s*[\}]?\s*finally\s*\{'
+    links_to: try
+  switch:
+    pattern: '\s*switch\s*\('
+    has_condition: true
+    condition_delimiters: ['(', ')']
+  case:
+    pattern: '\s*case\s+.+:'
+    links_to: switch
+  default:
+    pattern: '\s*default\s*:'
+    links_to: switch
+
+returns:
+  - '\s*break\b'
+  - '\s*continue\b'
+  - '\s*return\b'
+  - '\s*throw\s+new\b'
+  - '\s*throw\b'
+  - '\s*process\.exit\s*\('
+
+log_calls:
+  - '\bconsole\s*\.\s*(log|debug|info|warn|error|trace)\s*\('
+  - '\blogger\s*\.\s*(log|debug|info|warn|error|trace)\s*\('
+  - '\blog\s*\.\s*(log|debug|info|warn|error|trace)\s*\('
+  - '\bprocess\s*\.\s*(stdout|stderr)\s*\.\s*write\s*\('
+
+method_calls:
+  pattern: '(\w+)\s*\.\s*(\w+)\s*\('
+  skip_receivers: [console, logger, log, Math, JSON, Object, Array, String, Number, Promise, this, super]
+  skip_starts: [if, else, for, while, switch, return, throw, try, catch, '//', '/*', '*', const, let, var, import, export]
+
+continuation:
+  trailing_open_paren: true
+  trailing_operator: true
+  trailing_comma: true
+  trailing_arrow: true          # => at end
+  unclosed_template: true       # backtick template literals
+
+string_interpolation:
+  template_literal: '\$\{[^}]*\}'
+  concatenation: '"\s*\+\s*|\s*\+\s*"'
+
+function_definitions:
+  - '^\s*(?:async\s+)?function\s+(\w+)\s*\('
+  - '^\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\('
+  - '^\s*(\w+)\s*\(.*\)\s*\{'
+
+framework_markers:
+  - express.
+  - node_modules
+  - webpack
+  - babel
+  - next.js
+  - react-dom
+  - vue.
+  - angular
+  - nestjs
