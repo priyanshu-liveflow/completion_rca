@@ -28,7 +28,7 @@ from src.main.code_tools.graph_conn import (
     reset_graph,
     socket_path,
 )
-from tests.agentradar.fakes import demo_fastmcp_graph
+from tests.agentradar.fakes import demo_fastmcp_graph, demo_selection_graph
 
 _SOCK = Path.home() / ".codegraphcontext" / "global" / "db" / "falkordb.sock"
 
@@ -340,3 +340,74 @@ def test_live_callers_carry_a_repo_relative_path() -> None:
     for row in callers:
         assert row["file_path"], f"caller {row['name']!r} arrived without a path"
         assert not row["file_path"].startswith("/")
+
+
+def test_dispatch_select_tests_reaches_the_right_modules() -> None:
+    """The conductor's one-call route from symbol to runnable tests."""
+    graph_server.set_graph(demo_selection_graph())
+    try:
+        result = dispatch(
+            "select_tests",
+            {"symbol": "FastMCP", "repo": "intervals-mcp-server"},
+        )
+    finally:
+        graph_server.set_graph(None)
+
+    assert not is_error_envelope(result)
+    modules = {node_id.split("::")[0] for node_id in result["tests"]}
+    assert modules == {
+        "tests/test_server.py",
+        "tests/test_make_intervals_request.py",
+    }
+    # Not a superset. Running tests that cannot fail makes the impact table
+    # meaningless, which is the whole point of selecting rather than running all.
+    assert "tests/test_formatting.py" not in modules
+    assert result["strategy"] in {"callers", "imports", "path"}
+
+
+def test_dispatch_select_tests_empty_is_an_answer_not_an_error() -> None:
+    """No coverage must degrade honestly, not look like a tool failure.
+
+    An error envelope here would push the agent toward retrying or guessing.
+    An empty list with a strategy is a real finding: report UNCOVERED and fall
+    back to an import check.
+    """
+    graph_server.set_graph(demo_selection_graph())
+    try:
+        result = dispatch(
+            "select_tests",
+            {"symbol": "NoSuchSymbolAnywhere", "repo": "intervals-mcp-server"},
+        )
+    finally:
+        graph_server.set_graph(None)
+
+    assert not is_error_envelope(result)
+    assert result["tests"] == []
+
+
+def test_dispatch_select_tests_rejects_missing_repo() -> None:
+    result = dispatch("select_tests", {"symbol": "FastMCP"})
+    assert result["error"]["type"] == "invalid_input"
+    assert "repo" in result["error"]["message"]
+
+
+# -- select_tests input guards ----------------------------------------------
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_select_tests_rejects_blank_symbol(blank: str) -> None:
+    """A substring search for "" matches everything, so it must not run."""
+    payload = dispatch("select_tests", {"symbol": blank, "repo": "demo-repo"})
+
+    assert is_error_envelope(payload)
+    assert payload["error"]["type"] == "invalid_input"
+    assert "symbol" in payload["error"]["message"]
+
+
+def test_select_tests_rejects_blank_repo() -> None:
+    """Without a repo the traversal is unscoped across every indexed checkout."""
+    payload = dispatch("select_tests", {"symbol": "FastMCP", "repo": "  "})
+
+    assert is_error_envelope(payload)
+    assert payload["error"]["type"] == "invalid_input"
+    assert "repo" in payload["error"]["message"]
