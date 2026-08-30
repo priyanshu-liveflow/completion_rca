@@ -26,7 +26,45 @@ export default function MissionControlPage({
     deny,
   } = useMission();
   const [popOutError, setPopOutError] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(190);
+  const [dockHeight, setDockHeight] = useState(360);
   const popOutRef = useRef<Window | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+
+  const startResizeSidebar = (e: React.MouseEvent<HTMLDivElement>) => {
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.min(Math.max(startW + ev.clientX - startX, 120), 360);
+      setSidebarWidth(newW);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!workspaceRef.current) return;
+    const startY = e.clientY;
+    const startH = dockHeight;
+    const maxH = workspaceRef.current.clientHeight - 120;
+    const onMove = (ev: MouseEvent) => {
+      const newH = Math.min(
+        Math.max(startH + (startY - ev.clientY), 120),
+        maxH
+      );
+      setDockHeight(newH);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   // Close the external window if this screen unmounts.
   useEffect(() => {
@@ -131,22 +169,33 @@ export default function MissionControlPage({
 
       <main className={styles.main}>
         {!readOnly && (
-          <nav className={styles.nav}>
-            <div className={styles.navPin}>
-              <span className={styles.navPinLabel}>Runtime</span>
-              <RuntimeIndicator state={state} />
-              <span className={styles.navPinRefresh}>Auto-refresh: on</span>
-            </div>
-          </nav>
+          <>
+            <nav className={styles.nav} style={{ width: sidebarWidth }}>
+              <div className={styles.navPin}>
+                <span className={styles.navPinLabel}>Runtime</span>
+                <RuntimeIndicator state={state} />
+                <span className={styles.navPinRefresh}>Auto-refresh: on</span>
+              </div>
+            </nav>
+            <div
+              className={styles.sidebarResizer}
+              onMouseDown={startResizeSidebar}
+              title="Drag to resize sidebar"
+            />
+          </>
         )}
 
         <div
+          ref={workspaceRef}
           className={[
             styles.workspace,
             readOnly && styles.workspaceSandbox,
           ]
             .filter(Boolean)
             .join(" ")}
+          style={{
+            gridTemplateRows: `minmax(120px, 1fr) ${dockHeight}px`,
+          }}
         >
           <MissionMap
             nodes={state.nodes}
@@ -160,6 +209,7 @@ export default function MissionControlPage({
             onToggleDock={toggleDock}
             onTabChange={setTab}
             onPopOut={readOnly ? undefined : onTogglePopOut}
+            onResizeDock={startResizeDock}
           />
 
           {!readOnly && (

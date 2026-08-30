@@ -11,6 +11,7 @@ interface SandboxDockProps {
   onToggleDock: () => void;
   onTabChange: (tab: MissionState["activeTab"]) => void;
   onPopOut?: () => void;
+  onResizeDock?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 function lineClass(kind: TestLine["kind"]) {
@@ -60,6 +61,7 @@ export default function SandboxDock({
   onToggleDock,
   onTabChange,
   onPopOut,
+  onResizeDock,
 }: SandboxDockProps) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -106,6 +108,13 @@ export default function SandboxDock({
 
   return (
     <section className={styles.dock}>
+      {onResizeDock && (
+        <div
+          className={styles.dockResizer}
+          onMouseDown={onResizeDock}
+          title="Drag to resize dock"
+        />
+      )}
       <div className={styles.dockHeader}>
         <span className={styles.dockTitle}>{title}</span>
         <span className={styles.dockConnected}>
