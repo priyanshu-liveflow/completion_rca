@@ -455,38 +455,47 @@
 .transcript {
   flex: 1;
   overflow: auto;
-  padding: 16px 20px;
+  padding: 14px 18px;
   font-family: var(--mono);
   font-size: 12px;
-  line-height: 1.7;
+  line-height: 1.65;
   background: var(--paper);
   color: var(--ink);
 }
 
 .line {
-  padding: 2px 0;
+  padding: 3px 0;
+  padding-left: 8px;
+  margin-bottom: 1px;
   color: var(--ink);
   white-space: pre-wrap;
+  border-left: 2px solid transparent;
 }
 
 .lineHighlighted {
   background: var(--active-soft);
+  border-left-color: var(--active);
 }
 
 .lineCommand {
-  color: var(--ink-secondary);
+  color: var(--ink-quiet);
+  border-left-color: var(--rule);
 }
 
 .lineStderr {
-  color: var(--oxide);
+  color: var(--failure);
+  border-left-color: var(--failure);
+  background: var(--red-soft);
 }
 
 .lineStatus {
   color: var(--ink-secondary);
+  border-left-color: var(--rule);
 }
 
 .lineTiming {
-  color: var(--mineral);
+  color: var(--verified);
+  border-left-color: var(--verified);
 }
 
 .inspector {
