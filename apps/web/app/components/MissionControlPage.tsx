@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, RefreshCw, Settings } from "lucide-react";
+import type { CSSProperties } from "react";
+import { GitBranch, Settings } from "lucide-react";
+import { useResizable } from "../lib/useResizable";
 import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
@@ -9,6 +11,10 @@ import SandboxDock from "./SandboxDock";
 import ApprovalRail from "./ApprovalRail";
 import styles from "./MissionControlPage.module.css";
 import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
+
+/** Floor for the proof-chain map. Fed to both the grid and the resize clamps. */
+const MAP_MIN_WIDTH = 360;
+const MAP_MIN_HEIGHT = 120;
 
 export default function MissionControlPage({
   readOnly = false,
@@ -26,45 +32,27 @@ export default function MissionControlPage({
     deny,
   } = useMission();
   const [popOutError, setPopOutError] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(190);
-  const [dockHeight, setDockHeight] = useState(360);
   const popOutRef = useRef<Window | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const rail = useResizable({
+    initial: 270,
+    min: 220,
+    max: 520,
+    axis: "x",
+    label: "Resize approval rail",
+    // Mirrors the map column's declared minimum below.
+    bounds: { ref: workspaceRef, reserve: MAP_MIN_WIDTH },
+  });
+  const dock = useResizable({
+    initial: 360,
+    min: 120,
+    axis: "y",
+    label: "Resize sandbox dock",
+    // Mirrors the map row's declared minimum below.
+    bounds: { ref: workspaceRef, reserve: MAP_MIN_HEIGHT },
+  });
 
-  const startResizeSidebar = (e: React.MouseEvent<HTMLDivElement>) => {
-    const startX = e.clientX;
-    const startW = sidebarWidth;
-    const onMove = (ev: MouseEvent) => {
-      const newW = Math.min(Math.max(startW + ev.clientX - startX, 120), 360);
-      setSidebarWidth(newW);
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
-  const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!workspaceRef.current) return;
-    const startY = e.clientY;
-    const startH = dockHeight;
-    const maxH = workspaceRef.current.clientHeight - 120;
-    const onMove = (ev: MouseEvent) => {
-      const newH = Math.min(
-        Math.max(startH + (startY - ev.clientY), 120),
-        maxH
-      );
-      setDockHeight(newH);
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
   // Close the external window if this screen unmounts.
   useEffect(() => {
@@ -147,12 +135,9 @@ export default function MissionControlPage({
               <span>mvilanova/intervals-mcp-server</span>
             </div>
             <div className={styles.missionId}>{state.id}</div>
-            {state.restored && (
-              <div className={styles.restored}>
-                <RefreshCw size={10} />
-                <span>Session restored</span>
-              </div>
-            )}
+            <div className={styles.headerStatus}>
+              <RuntimeIndicator state={state} />
+            </div>
           </>
         )}
         {readOnly && (
@@ -168,28 +153,14 @@ export default function MissionControlPage({
           </a>
         )}
         <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
-        {!readOnly && <div className={styles.docs}>DOCS</div>}
-        {!readOnly && <Settings size={15} color="var(--ink-quiet)" />}
+        {!readOnly && (
+          <button type="button" className={styles.iconBtn} title="Settings">
+            <Settings size={15} color="var(--ink-quiet)" />
+          </button>
+        )}
       </header>
 
       <main className={styles.main}>
-        {!readOnly && (
-          <>
-            <nav className={styles.nav} style={{ width: sidebarWidth }}>
-              <div className={styles.navPin}>
-                <span className={styles.navPinLabel}>Runtime</span>
-                <RuntimeIndicator state={state} />
-                <span className={styles.navPinRefresh}>Auto-refresh: on</span>
-              </div>
-            </nav>
-            <div
-              className={styles.sidebarResizer}
-              onMouseDown={startResizeSidebar}
-              title="Drag to resize sidebar"
-            />
-          </>
-        )}
-
         <div
           ref={workspaceRef}
           className={[
@@ -198,9 +169,19 @@ export default function MissionControlPage({
           ]
             .filter(Boolean)
             .join(" ")}
-          style={{
-            gridTemplateRows: `minmax(120px, 1fr) ${dockHeight}px`,
-          }}
+          // Values only. Writing the tracks themselves inline would outrank
+          // every class and media query, which is exactly how the sandbox
+          // variant and the sub-1024 layout were being defeated.
+          style={
+            {
+              "--rail-w": `${rail.size}px`,
+              // A collapsed dock is a 40px header. Holding the row at the
+              // chosen height would leave the rest of it as dead space.
+              "--dock-h": state.dockOpen ? `${dock.size}px` : "auto",
+              "--map-min-w": `${MAP_MIN_WIDTH}px`,
+              "--map-min-h": `${MAP_MIN_HEIGHT}px`,
+            } as CSSProperties
+          }
         >
           <MissionMap
             nodes={state.nodes}
@@ -214,7 +195,7 @@ export default function MissionControlPage({
             onToggleDock={toggleDock}
             onTabChange={setTab}
             onPopOut={readOnly ? undefined : onTogglePopOut}
-            onResizeDock={startResizeDock}
+            dockSeparator={dock.separatorProps}
           />
 
           {!readOnly && (
@@ -225,6 +206,7 @@ export default function MissionControlPage({
               popOutError={popOutError}
               onApprove={approve}
               onDeny={deny}
+              railSeparator={rail.separatorProps}
             />
           )}
         </div>

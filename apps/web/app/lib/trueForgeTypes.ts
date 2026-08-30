@@ -77,7 +77,7 @@ export interface TrueForgeSandboxCreated {
 /**
  * TrueForge wraps every REST payload in `{ data: ... }`, so a session create
  * answers `{"data":{"id":"01m18..."}}` — the id is never at the top level.
- * The proxy passes the body through verbatim, so this guard sees the envelope
+ * The proxy passes the body through verbatim, so this guard saw the envelope
  * and `createSession` threw "Invalid session response" on every well-formed
  * response. Both shapes are accepted: unwrapped in case a future proxy strips
  * the envelope, wrapped because that is what the harness actually sends.

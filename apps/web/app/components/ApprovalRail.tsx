@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MissionState, ProofNode } from "../lib/types";
+import type { SeparatorProps } from "../lib/useResizable";
 import styles from "./MissionControlPage.module.css";
 
 interface ApprovalRailProps {
@@ -11,6 +12,7 @@ interface ApprovalRailProps {
   popOutError: string | null;
   onApprove: () => Promise<boolean>;
   onDeny: () => Promise<boolean>;
+  railSeparator?: SeparatorProps;
 }
 
 export default function ApprovalRail({
@@ -20,6 +22,7 @@ export default function ApprovalRail({
   popOutError,
   onApprove,
   onDeny,
+  railSeparator,
 }: ApprovalRailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const approveRef = useRef<HTMLButtonElement>(null);
@@ -90,6 +93,13 @@ export default function ApprovalRail({
 
   return (
     <aside className={styles.rail}>
+      {railSeparator && (
+        <div
+          {...railSeparator}
+          className={styles.resizerX}
+          title="Drag to resize rail"
+        />
+      )}
       <div className={styles.railTitle}>Human approval required</div>
       <div className={styles.railSection}>
         <div className={styles.railHeading}>Verified patch receipt</div>

@@ -30,14 +30,20 @@ export function useMission() {
 }
 
 function formatTime() {
-  const now = new Date();
-  const yr = now.getUTCFullYear();
-  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const da = String(now.getUTCDate()).padStart(2, "0");
-  const hr = String(now.getUTCHours()).padStart(2, "0");
-  const mn = String(now.getUTCMinutes()).padStart(2, "0");
-  const sc = String(now.getUTCSeconds()).padStart(2, "0");
-  return `${yr}-${mo}-${da} · ${hr}:${mn}:${sc} UTC`;
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date()).map(({ type, value }) => [type, value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day} · ${parts.hour}:${parts.minute}:${parts.second} PT`;
 }
 
 interface MissionProviderProps {

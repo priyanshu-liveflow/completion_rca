@@ -187,3 +187,151 @@ describe("ApprovalRail", () => {
     expect(document.activeElement).toBe(approveButton);
   });
 });
+
+describe("workspace layout", () => {
+  const workspaceOf = (container: HTMLElement) =>
+    container.querySelector("main > div") as HTMLElement;
+
+  it("publishes the pane sizes as custom properties", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("270px");
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("360px");
+  });
+
+  it("never writes grid tracks inline, so the cascade still decides", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+
+    // Inline tracks outrank every class and media query, which is how the
+    // sandbox variant and the sub-1024 layout were both defeated.
+    expect(workspace.style.gridTemplateColumns).toBe("");
+    expect(workspace.style.gridTemplateRows).toBe("");
+  });
+
+  it("lets the collapsed dock row shrink to its header", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("360px");
+
+    fireEvent.click(screen.getByTitle("Collapse sandbox"));
+
+    // A px row would hold 360px open around a 40px header.
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("auto");
+  });
+
+  it("restores the chosen dock height when it is expanded again", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+
+    fireEvent.keyDown(screen.getByTitle("Drag to resize dock"), { key: "ArrowUp" });
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("376px");
+
+    fireEvent.click(screen.getByTitle("Collapse sandbox"));
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("auto");
+
+    fireEvent.click(screen.getByTitle("Expand sandbox"));
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("376px");
+  });
+
+  it("still hands the sandbox variant its own class", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage readOnly />
+      </MissionProvider>
+    );
+
+    expect(workspaceOf(container).className).toMatch(/workspaceSandbox/);
+  });
+});
+
+describe("resizer drag", () => {
+  const titles = [
+    "Drag to resize rail",
+    "Drag to resize dock",
+    "Drag to resize inspector",
+  ];
+
+  it.each(titles)("suppresses text selection while dragging: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    fireEvent.pointerDown(screen.getByTitle(title), {
+      clientX: 900,
+      clientY: 400,
+    });
+    expect(document.body.style.userSelect).toBe("none");
+
+    fireEvent.pointerUp(window);
+    expect(document.body.style.userSelect).toBe("");
+  });
+
+  it.each(titles)("exposes each divider as a focusable separator: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    const divider = screen.getByTitle(title);
+    expect(divider).toHaveAttribute("role", "separator");
+    expect(divider).toHaveAttribute("tabindex", "0");
+    expect(divider).toHaveAttribute("aria-valuenow");
+    expect(divider.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it("resizes the rail from the keyboard", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = container.querySelector("main > div") as HTMLElement;
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("270px");
+
+    fireEvent.keyDown(screen.getByTitle("Drag to resize rail"), {
+      key: "ArrowLeft",
+    });
+
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("286px");
+  });
+
+  it.each(titles)("prevents the browser default drag on: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    const down = new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 900,
+      clientY: 400,
+    });
+    screen.getByTitle(title).dispatchEvent(down);
+
+    expect(down.defaultPrevented).toBe(true);
+    fireEvent.pointerUp(window);
+  });
+});

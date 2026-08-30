@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Maximize, Minus } from "lucide-react";
 import { MissionState, TestLine } from "../lib/types";
+import { useResizable, type SeparatorProps } from "../lib/useResizable";
 import styles from "./MissionControlPage.module.css";
 
 interface SandboxDockProps {
@@ -11,7 +12,7 @@ interface SandboxDockProps {
   onToggleDock: () => void;
   onTabChange: (tab: MissionState["activeTab"]) => void;
   onPopOut?: () => void;
-  onResizeDock?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  dockSeparator?: SeparatorProps;
 }
 
 function lineClass(kind: TestLine["kind"]) {
@@ -61,10 +62,21 @@ export default function SandboxDock({
   onToggleDock,
   onTabChange,
   onPopOut,
-  onResizeDock,
+  dockSeparator,
 }: SandboxDockProps) {
+  const dockBodyRef = useRef<HTMLDivElement>(null);
+  const inspector = useResizable({
+    initial: 220,
+    min: 120,
+    max: 460,
+    axis: "x",
+    label: "Resize inspector",
+    // The transcript keeps enough width to stay a readable terminal.
+    bounds: { ref: dockBodyRef, reserve: 320 },
+  });
   const transcriptRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
+
 
   // Keep the terminal pinned to the bottom like VS Code unless the user
   // has intentionally scrolled up more than ~80px.
@@ -103,15 +115,14 @@ export default function SandboxDock({
   };
 
   const isLive = state.runtime.mode === "live";
-  const title =
-    isLive && state.runtime.sandboxId ? "Live Sandbox" : "Sandbox replay";
+  const title = isLive && state.runtime.sandboxId ? "Live sandbox" : "Sandbox";
 
   return (
     <section className={styles.dock}>
-      {onResizeDock && (
+      {dockSeparator && (
         <div
-          className={styles.dockResizer}
-          onMouseDown={onResizeDock}
+          {...dockSeparator}
+          className={styles.resizerY}
           title="Drag to resize dock"
         />
       )}
@@ -120,10 +131,10 @@ export default function SandboxDock({
         <span className={styles.dockConnected}>
           <span className={styles.dockDot} />
           <span>
-            {isLive ? "TrueForge-native Daytona" : "Demo environment"}
+            {isLive ? "TrueForge / Daytona" : "Demo"}
           </span>
         </span>
-        {readOnly && <span className={styles.dockMeta}>(read-only)</span>}
+        {readOnly && <span className={styles.dockMeta}>read-only</span>}
         <div className={styles.dockSpacer} />
         {!readOnly && onPopOut && (
           <button
@@ -143,6 +154,7 @@ export default function SandboxDock({
         </button>
       </div>
       <div
+        ref={dockBodyRef}
         className={[
           styles.dockBody,
           !state.dockOpen && styles.dockBodyHidden,
@@ -168,7 +180,12 @@ export default function SandboxDock({
             </div>
           ))}
         </div>
-        <aside className={styles.inspector}>
+        <aside className={styles.inspector} style={{ width: inspector.size }}>
+          <div
+            {...inspector.separatorProps}
+            className={styles.resizerX}
+            title="Drag to resize inspector"
+          />
           <div className={styles.inspectorTabs}>
             {tabs.map((t) => (
               <button
