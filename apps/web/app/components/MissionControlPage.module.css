@@ -84,6 +84,8 @@
   flex: 1;
   display: flex;
   min-height: 0;
+  max-height: calc(100vh - 52px);
+  overflow: hidden;
 }
 
 .nav {
@@ -94,6 +96,8 @@
   flex-direction: column;
   padding: 16px 0;
   background: var(--paper-line);
+  height: 100%;
+  overflow: hidden;
 }
 
 @media (min-width: 1024px) and (max-width: 1279px) {
@@ -197,6 +201,7 @@
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0;
   min-height: 0;
+  height: 100%;
   max-height: 100%;
   overflow: hidden;
 }
