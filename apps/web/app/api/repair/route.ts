@@ -19,11 +19,26 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   const url = new URL(request.url);
+  const action = url.searchParams.get("action") ?? "demo";
   const canned = url.searchParams.get("canned") === "1";
+  const pr = url.searchParams.get("pr") ?? "";
 
   const repoRoot = path.join(process.cwd(), "..", "..");
-  const args = ["scripts/demo_repair.py"];
-  if (canned) args.push("--canned");
+
+  // Two different commands, chosen from a fixed set. Nothing from the client
+  // reaches a command line: `action` selects a branch here, and `pr` is
+  // accepted only after proving it is digits, so it cannot carry an argument
+  // or a shell fragment.
+  let args: string[];
+  if (action === "verify") {
+    if (!/^\d+$/.test(pr)) {
+      return new Response("pr must be a number\n", { status: 400 });
+    }
+    args = ["scripts/verify_findings.py", "--pr", pr];
+  } else {
+    args = ["scripts/demo_repair.py"];
+    if (canned) args.push("--canned");
+  }
 
   const child = spawn(".venv/bin/python", args, {
     cwd: repoRoot,
