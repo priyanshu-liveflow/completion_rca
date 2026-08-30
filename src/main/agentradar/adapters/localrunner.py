@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -39,12 +40,17 @@ class LocalRunner:
         self,
         workdir: str | Path,
         *,
-        pytest_cmd: tuple[str, ...] = ("python", "-m", "pytest"),
+        pytest_cmd: tuple[str, ...] | None = None,
     ) -> None:
         self._workdir = Path(workdir).resolve()
         if not self._workdir.is_dir():
             raise ValueError(f"workdir does not exist: {self._workdir}")
-        self._pytest = tuple(pytest_cmd)
+        # `sys.executable`, not "python". The interpreter running this process
+        # is the one with pytest and the project's dependencies installed; a
+        # bare "python" resolves against PATH and can easily be a different,
+        # emptier environment — which fails as "0 tests collected" rather than
+        # as a missing interpreter, and so reads like a real result.
+        self._pytest = tuple(pytest_cmd or (sys.executable, "-m", "pytest"))
 
     @property
     def workdir(self) -> Path:
@@ -83,7 +89,11 @@ class LocalRunner:
         """Run the graph-selected tests. No ids means the whole suite."""
         for node_id in node_ids:
             _validate(node_id, _NODE_ID, "pytest node id")
-        return self._run([*self._pytest, "-q", *node_ids], timeout_s)
+        # `-rA` prints a short-summary line per test, which is what
+        # `core.testreport.parse_pytest` reads to build per-case outcomes.
+        # `-q` suppresses the decorated totals line the parser needs, and the
+        # failure mode is a silent `passed=0` on a run that actually passed.
+        return self._run([*self._pytest, "-rA", *node_ids], timeout_s)
 
     def set_package_version(self, package: str, version: str) -> RawRun:
         """Not supported locally, and refused rather than faked.
