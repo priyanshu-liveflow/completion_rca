@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import styles from "./ReviewsPage.module.css";
+import styles from "./reviews-panel.module.css";
 import { ReviewEntry, ReviewRun, STATUS_META } from "./types";
 import { useRepairRun } from "./useRepairRun";
 

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import ReviewsClient from "./ReviewsClient";
-import styles from "./ReviewsPage.module.css";
+import styles from "./reviews-panel.module.css";
 import { ReviewRun } from "./types";
 
 // Read on every request, never at build time. `router.refresh()` after a run
