@@ -16,8 +16,11 @@ runs on a machine that is not the one it was written on.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -27,7 +30,13 @@ from src.main.agentradar.adapters.localrunner import LocalRunner
 from src.main.agentradar.adapters.patchwriter import LlmPatchWriter
 from src.main.agentradar.adapters.review import DEFAULT_REVIEWERS, GhReviewSource
 from src.main.agentradar.adapters.sandbox import SandboxRunner
+from src.main.agentradar.adapters.store import SqliteStore
 from src.main.agentradar.contracts.finding import FindingStatus
+from src.main.agentradar.contracts.review import (
+    RepairRecord,
+    ReviewEntry,
+    ReviewRun,
+)
 from src.main.agentradar.core.review_run import (
     RunConfig,
     markdown_report,
@@ -35,6 +44,8 @@ from src.main.agentradar.core.review_run import (
     tally,
     verify_findings,
 )
+
+_DEFAULT_EXPORT = "apps/web/public/review-runs.json"
 
 BADGE = {
     FindingStatus.CONFIRMED: "\033[31mCONFIRMED\033[0m",
@@ -109,6 +120,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--no-save",
+        action="store_true",
+        help="do not persist this run to the store (it is saved by default)",
+    )
+    p.add_argument(
+        "--export",
+        default=os.getenv("AGENTRADAR_REVIEW_EXPORT", _DEFAULT_EXPORT),
+        help="write every persisted run here for the dashboard to read "
+        "[env: AGENTRADAR_REVIEW_EXPORT]",
+    )
+    p.add_argument(
         "--markdown",
         action="store_true",
         help="emit a markdown table on stdout, for posting back to the PR",
@@ -150,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
 
     verdicts = verify_findings(graph, findings, config, runner, narrate)
 
+    repairs: dict[str, RepairRecord] = {}
     if args.fix:
         confirmed = [v for v in verdicts if v.status is FindingStatus.CONFIRMED]
         say(f"\n\033[1mRepairing {len(confirmed)} confirmed finding(s)\033[0m")
@@ -166,6 +189,48 @@ def main(argv: list[str] | None = None) -> int:
                 outcome = remediate(verdict, graph, runner, writer, config, narrate)
                 gate = "OPEN" if outcome.may_open_pr else "SHUT"
                 say(f"    gate: {gate} — {outcome.reason}")
+                repairs[verdict.finding.id] = RepairRecord(
+                    diff=outcome.patch.diff if outcome.patch else "",
+                    files=list(outcome.patch.files) if outcome.patch else [],
+                    applied=outcome.applied,
+                    proven=outcome.may_open_pr,
+                    before_failed=(
+                        verdict.report.failed + verdict.report.errors
+                        if verdict.report
+                        else 0
+                    ),
+                    after_passed=outcome.after.passed if outcome.after else 0,
+                    reason=outcome.reason,
+                )
+
+    if not args.no_save:
+        run = ReviewRun(
+            id=str(uuid.uuid4()),
+            repo=args.repo,
+            pr=args.pr,
+            created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            repo_key=config.repo_key,
+            entries=[
+                ReviewEntry(verdict=v, repair=repairs.get(v.finding.id))
+                for v in verdicts
+            ],
+        )
+        store = SqliteStore()
+        store.save_review_run(run)
+        say(f"\n  saved run {run.id[:8]} to the store")
+        if args.export:
+            path = Path(args.export)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = [r.model_dump(mode="json") for r in store.list_review_runs()]
+            # `counts` and `proven_repairs` are computed properties, so they do
+            # not survive `model_dump`. The dashboard reads a file, not the
+            # contract, and recomputing them in TypeScript would put the same
+            # rule in two languages.
+            for item, record in zip(payload, store.list_review_runs(), strict=True):
+                item["counts"] = record.counts
+                item["proven_repairs"] = record.proven_repairs
+            path.write_text(json.dumps(payload, indent=2))
+            say(f"  exported {len(payload)} run(s) to {path}")
 
     if args.markdown:
         print(markdown_report(verdicts, config))

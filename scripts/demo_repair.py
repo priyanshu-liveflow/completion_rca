@@ -16,18 +16,27 @@ this repo would mean committing a bug.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.main.agentradar.adapters.localrunner import LocalRunner
+from src.main.agentradar.adapters.store import SqliteStore
 from src.main.agentradar.contracts.evidence import TestSelection
 from src.main.agentradar.contracts.finding import FindingStatus, ReviewFinding
 from src.main.agentradar.contracts.impact import ContactPoint
+from src.main.agentradar.contracts.review import (
+    RepairRecord,
+    ReviewEntry,
+    ReviewRun,
+)
 from src.main.agentradar.core.finding import judge_finding
 from src.main.agentradar.core.remediation import RemediationRequest
 from src.main.agentradar.core.review_run import RunConfig, remediate
@@ -116,8 +125,57 @@ def build_repo(root: Path) -> None:
     )
 
 
+def _persist(verdict: object, outcome: object, emit: object) -> None:
+    """Store the run so the dashboard can show it.
+
+    The demo repo is thrown away when this exits; the evidence should not be.
+    A repair nobody can look at afterwards is the same problem as a mission
+    that only ever existed in a terminal.
+    """
+    record = RepairRecord(
+        diff=outcome.patch.diff if outcome.patch else "",  # type: ignore[attr-defined]
+        files=list(outcome.patch.files) if outcome.patch else [],  # type: ignore[attr-defined]
+        applied=outcome.applied,  # type: ignore[attr-defined]
+        proven=outcome.may_open_pr,  # type: ignore[attr-defined]
+        before_failed=(
+            verdict.report.failed + verdict.report.errors  # type: ignore[attr-defined]
+            if verdict.report  # type: ignore[attr-defined]
+            else 0
+        ),
+        after_passed=outcome.after.passed if outcome.after else 0,  # type: ignore[attr-defined]
+        reason=outcome.reason,  # type: ignore[attr-defined]
+    )
+    run = ReviewRun(
+        id=str(uuid.uuid4()),
+        repo="agentradar/demo-billing",
+        pr=0,
+        created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        repo_key="billing",
+        entries=[ReviewEntry(verdict=verdict, repair=record)],  # type: ignore[arg-type]
+    )
+    store = SqliteStore()
+    store.save_review_run(run)
+
+    export = Path(
+        os.getenv("AGENTRADAR_REVIEW_EXPORT", "apps/web/public/review-runs.json")
+    )
+    export.parent.mkdir(parents=True, exist_ok=True)
+    runs = store.list_review_runs()
+    payload = [r.model_dump(mode="json") for r in runs]
+    for item, rec in zip(payload, runs, strict=True):
+        item["counts"] = rec.counts
+        item["proven_repairs"] = rec.proven_repairs
+    export.write_text(json.dumps(payload, indent=2))
+    emit(f"\n   saved to the store and exported to {export}")  # type: ignore[operator]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="do not persist this run to the store or the dashboard export",
+    )
     parser.add_argument(
         "--canned",
         action="store_true",
@@ -210,6 +268,9 @@ def main(argv: list[str] | None = None) -> int:
                     else "90"
                 )
                 say(f"   \033[{mark}m{line}\033[0m")
+
+        if not args.no_save:
+            _persist(verdict, outcome, say)
 
         gate = "OPEN" if outcome.may_open_pr else "SHUT"
         colour = "32" if outcome.may_open_pr else "31"

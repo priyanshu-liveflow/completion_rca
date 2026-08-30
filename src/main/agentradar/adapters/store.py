@@ -14,6 +14,7 @@ from ..contracts.evidence import TestReport, TestSelection
 from ..contracts.impact import ImpactRow
 from ..contracts.mission import Mission, MissionState
 from ..contracts.patch import VerifyResult
+from ..contracts.review import ReviewRun
 
 __all__ = ["MissionStore", "SqliteStore", "default_store_path"]
 
@@ -66,6 +67,22 @@ class SqliteStore:
                 selection_json TEXT,
                 reports_json TEXT NOT NULL,
                 verify_json TEXT
+            )
+            """
+        )
+        # Review runs are a separate table, not a mission with a strange
+        # shape. A mission tracks one dependency release through states; a
+        # review run is a snapshot of one pull request at one moment and has
+        # no lifecycle. Forcing them together would give both a state column
+        # that only one of them means anything by.
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS review_runs (
+                id TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                pr INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                run_json TEXT NOT NULL
             )
             """
         )
@@ -155,6 +172,40 @@ class SqliteStore:
                 ),
             }
         )
+
+    def save_review_run(self, run: ReviewRun) -> None:
+        """Persist a review verification, superseding any earlier run for that PR.
+
+        A re-verification replaces the previous run rather than accumulating
+        beside it: "what does this pull request look like now" has one answer,
+        and a list of stale ones is how a dashboard starts lying.
+        """
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM review_runs WHERE repo = ? AND pr = ?",
+                (run.repo, run.pr),
+            )
+            self._conn.execute(
+                "INSERT INTO review_runs (id, repo, pr, created_at, run_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (run.id, run.repo, run.pr, run.created_at, run.model_dump_json()),
+            )
+            self._conn.commit()
+
+    def get_review_run(self, run_id: str) -> ReviewRun | None:
+        """One persisted review run, or None when there is no such id."""
+        row = self._conn.execute(
+            "SELECT run_json FROM review_runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        return ReviewRun.model_validate_json(row["run_json"]) if row else None
+
+    def list_review_runs(self, limit: int = 50) -> list[ReviewRun]:
+        """Persisted review runs, newest first."""
+        rows = self._conn.execute(
+            "SELECT run_json FROM review_runs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [ReviewRun.model_validate_json(row["run_json"]) for row in rows]
 
     def set_state(self, mission_id: str, state: MissionState) -> None:
         """Update mission lifecycle state."""
