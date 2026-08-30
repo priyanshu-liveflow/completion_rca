@@ -1,0 +1,326 @@
+"""Verify a code reviewer's findings against our own indexed pipeline.
+
+Lives in the package rather than in `scripts/` so it is importable, typed
+under `mypy --strict`, and reachable by a real `import` statement from a test.
+That last one is not bookkeeping: the import graph is how `select_tests` finds
+the tests covering a site, and a module loaded by path through `importlib` has
+no import edge for it to walk. While this code sat in `scripts/`, the verifier
+reported findings against it as `uncovered` — correctly, because nothing the
+graph could see reached it.
+
+`scripts/verify_findings.py` remains as the command people type.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
+from pathlib import Path
+
+from src.main.agentradar.adapters.github import (
+    ActionDenied,
+    GateClosed,
+    GhClient,
+    GhError,
+    execute,
+)
+from src.main.agentradar.adapters.gitwork import GitError, LocalGit
+from src.main.agentradar.adapters.graph import FalkorCodeGraph
+from src.main.agentradar.adapters.localrunner import LocalRunner
+from src.main.agentradar.adapters.patchwriter import LlmPatchWriter
+from src.main.agentradar.adapters.review import DEFAULT_REVIEWERS, GhReviewSource
+from src.main.agentradar.adapters.store import SqliteStore
+from src.main.agentradar.contracts.finding import FindingStatus
+from src.main.agentradar.contracts.review import (
+    RepairRecord,
+    ReviewEntry,
+    ReviewRun,
+)
+from src.main.agentradar.core.policy import PolicyError
+from src.main.agentradar.core.publish import build_plan, commit_message
+from src.main.agentradar.core.remediation import RemediationOutcome
+from src.main.agentradar.core.review_run import (
+    PatchingRunner,
+    RunConfig,
+    markdown_report,
+    remediate,
+    tally,
+    verify_findings,
+)
+
+_DEFAULT_EXPORT = "apps/web/public/review-runs.json"
+
+
+def _repo_root() -> Path:
+    """The checkout this file lives in, found by marker rather than by hops.
+
+    This was `Path(__file__).parent.parent`, which was the repo root while the
+    CLI sat in `scripts/` and became `src/main/agentradar` the moment it moved
+    into the package. pytest then ran in a directory with no `tests/`, exited 4
+    for a usage error, and every verdict became `inconclusive`.
+
+    Counting `parents[n]` would have the same fragility one refactor later, so
+    walk up for `pyproject.toml` instead and fall back to the current
+    directory if this is ever vendored somewhere without one.
+    """
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    return Path.cwd()
+
+
+BADGE = {
+    FindingStatus.CONFIRMED: "\033[31mCONFIRMED\033[0m",
+    FindingStatus.UNREPRODUCED: "\033[32mUNREPRODUCED\033[0m",
+    FindingStatus.UNCOVERED: "\033[33mUNCOVERED\033[0m",
+    FindingStatus.UNLOCATABLE: "\033[90mUNLOCATABLE\033[0m",
+    FindingStatus.INCONCLUSIVE: "\033[35mINCONCLUSIVE\033[0m",
+}
+
+
+def say(message: str) -> None:
+    """Narrate a step as it happens, unbuffered.
+
+    The pipeline spends real seconds in the graph and in pytest. Printing
+    only at the end makes a working run look like a hung one, on a recording
+    as much as in a terminal.
+
+    Goes to stderr so it still shows in a terminal while leaving stdout clean
+    enough to pipe — `--markdown | gh pr comment --body-file -` would
+    otherwise post the progress log along with the table.
+    """
+    print(message, file=sys.stderr, flush=True)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--pr", type=int, required=True, help="pull request number")
+    p.add_argument(
+        "--repo",
+        default=os.getenv("AGENTRADAR_REPO", "priyanshu-liveflow/completion_rca"),
+        help="owner/name for `gh api` [env: AGENTRADAR_REPO]",
+    )
+    p.add_argument(
+        "--repo-key",
+        default=os.getenv("AGENTRADAR_REPO_KEY", "research-agents"),
+        help="graph repo key, the last path segment [env: AGENTRADAR_REPO_KEY]",
+    )
+    p.add_argument(
+        "--workdir",
+        default=os.getenv("AGENTRADAR_WORKDIR", str(_repo_root())),
+        help="checkout the tests run in [env: AGENTRADAR_WORKDIR]",
+    )
+    p.add_argument(
+        "--source-root",
+        default=os.getenv("AGENTRADAR_SOURCE_ROOT", ""),
+        help=(
+            "package prefix stripped from a module path before matching imports. "
+            "Empty for this repo, whose own tests import `src.main.agentradar...` "
+            "with the `src.` still on the front [env: AGENTRADAR_SOURCE_ROOT]"
+        ),
+    )
+    p.add_argument(
+        "--test-root",
+        default=os.getenv("AGENTRADAR_TEST_ROOT", "tests"),
+        help="[env: AGENTRADAR_TEST_ROOT]",
+    )
+    p.add_argument(
+        "--reviewer",
+        action="append",
+        default=None,
+        help="reviewer login to accept findings from; repeatable",
+    )
+    p.add_argument(
+        "--max-tests", type=int, default=8, help="cap tests selected per finding"
+    )
+    p.add_argument(
+        "--fix",
+        action="store_true",
+        help=(
+            "for each CONFIRMED finding, write a patch, apply it, and re-run the "
+            "same tests. A pull request is only reachable on a proven red-to-green"
+        ),
+    )
+    p.add_argument(
+        "--open-pr",
+        action="store_true",
+        help=(
+            "on a proven red-to-green, push the patch to a branch and open a "
+            "pull request. Passing this flag is the approval — the gate in "
+            "adapters/github.py still refuses anything not proven"
+        ),
+    )
+    p.add_argument(
+        "--base",
+        default="main",
+        help="branch the pull request targets",
+    )
+    p.add_argument(
+        "--no-save",
+        action="store_true",
+        help="do not persist this run to the store (it is saved by default)",
+    )
+    p.add_argument(
+        "--export",
+        default=os.getenv("AGENTRADAR_REVIEW_EXPORT", _DEFAULT_EXPORT),
+        help="write every persisted run here for the dashboard to read "
+        "[env: AGENTRADAR_REVIEW_EXPORT]",
+    )
+    p.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit a markdown table on stdout, for posting back to the PR",
+    )
+    p.add_argument(
+        "--no-run",
+        action="store_true",
+        help="locate and select only; do not run tests",
+    )
+    return p
+
+
+def _publish(
+    outcome: RemediationOutcome, args: argparse.Namespace, say_: Callable[[str], None]
+) -> str | None:
+    """Push a proven repair and open its pull request. Returns the URL, or None.
+
+    Two independent refusals stand between a repair and a pull request, and
+    this function is neither of them. `build_plan` returns None unless
+    `may_open_pr` is true, and `execute` re-derives the gate from the
+    `VerifyResult` and then compares the *pushed* branch against the proven
+    patch's file list. A failure here is reported and swallowed on purpose:
+    the verification is the product and it already succeeded, so a rejected
+    push must not turn a good run into a non-zero exit.
+    """
+    plan = build_plan(outcome, base=args.base)
+    if plan is None:
+        say_("    pr:   gate shut — nothing to publish")
+        return None
+
+    files = list(outcome.patch.files) if outcome.patch else []
+    git = LocalGit(args.workdir, base=args.base)
+    branch = str(plan.payload["branch"])
+    try:
+        git.publish(branch, commit_message(outcome), files)
+        say_(f"    pr:   pushed {branch}")
+        url = execute(GhClient(), plan, approved=True, verify=outcome.result)
+    except (GitError, GhError, ActionDenied, GateClosed, PolicyError) as exc:
+        say_(f"    pr:   not opened — {exc}")
+        return None
+    say_(f"    pr:   {url}")
+    return url
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    config = RunConfig(
+        repo_key=args.repo_key,
+        test_root=args.test_root,
+        source_root=args.source_root,
+        max_tests=args.max_tests,
+    )
+
+    say(f"\033[1mVerifying {args.repo} PR #{args.pr}\033[0m")
+    say(f"  graph repo key : {config.repo_key}")
+    say(f"  workdir        : {args.workdir}")
+    say(f"  run tests      : {'no' if args.no_run else 'yes'}")
+
+    reviewers = tuple(args.reviewer) if args.reviewer else DEFAULT_REVIEWERS
+    findings = GhReviewSource(args.repo, reviewers=reviewers).findings(args.pr)
+    say(f"\n{len(findings)} finding(s) from the reviewer.")
+    if not findings:
+        say("Nothing to verify. Either the review is clean or it has not run yet.")
+        return 0
+
+    graph = FalkorCodeGraph()
+    # `PatchingRunner`, not `SandboxRunner`: this variable is handed to both
+    # `verify_findings` (which needs `run_tests`) and `remediate` (which also
+    # needs `apply_patch`), and `PatchingRunner` is the Protocol that covers
+    # both. Typing it as the broader sandbox Protocol type-checked only
+    # because this file used to live in `scripts/`, where mypy never saw it.
+    runner: PatchingRunner | None = None if args.no_run else LocalRunner(args.workdir)
+
+    def narrate(line: str) -> None:
+        say(f"  {line}" if line.startswith(" ") else f"\n  \033[1m{line}\033[0m")
+
+    verdicts = verify_findings(graph, findings, config, runner, narrate)
+
+    repairs: dict[str, RepairRecord] = {}
+    if args.fix:
+        confirmed = [v for v in verdicts if v.status is FindingStatus.CONFIRMED]
+        say(f"\n\033[1mRepairing {len(confirmed)} confirmed finding(s)\033[0m")
+        if runner is None:
+            say("  --fix needs a runner; drop --no-run")
+        elif confirmed:
+            # Built only once there is something to repair. Constructing a
+            # provider needs a key and a reachable endpoint, and failing on
+            # those when the answer is "nothing to fix" turns a clean run
+            # into a stack trace.
+            writer = LlmPatchWriter()
+            for verdict in confirmed:
+                say(f"\n  \033[1m{verdict.finding.title}\033[0m")
+                outcome = remediate(verdict, graph, runner, writer, config, narrate)
+                gate = "OPEN" if outcome.may_open_pr else "SHUT"
+                say(f"    gate: {gate} — {outcome.reason}")
+                pr_url = _publish(outcome, args, say) if args.open_pr else None
+                repairs[verdict.finding.id] = RepairRecord(
+                    diff=outcome.patch.diff if outcome.patch else "",
+                    files=list(outcome.patch.files) if outcome.patch else [],
+                    applied=outcome.applied,
+                    proven=outcome.may_open_pr,
+                    before_failed=(
+                        verdict.report.failed + verdict.report.errors
+                        if verdict.report
+                        else 0
+                    ),
+                    after_passed=outcome.after.passed if outcome.after else 0,
+                    reason=outcome.reason,
+                    pr_url=pr_url,
+                )
+
+    if not args.no_save:
+        run = ReviewRun(
+            id=str(uuid.uuid4()),
+            repo=args.repo,
+            pr=args.pr,
+            created_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            repo_key=config.repo_key,
+            entries=[
+                ReviewEntry(verdict=v, repair=repairs.get(v.finding.id))
+                for v in verdicts
+            ],
+        )
+        store = SqliteStore()
+        store.save_review_run(run)
+        say(f"\n  saved run {run.id[:8]} to the store")
+        if args.export:
+            path = Path(args.export)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = [r.model_dump(mode="json") for r in store.list_review_runs()]
+            # `counts` and `proven_repairs` are computed properties, so they do
+            # not survive `model_dump`. The dashboard reads a file, not the
+            # contract, and recomputing them in TypeScript would put the same
+            # rule in two languages.
+            for item, record in zip(payload, store.list_review_runs(), strict=True):
+                item["counts"] = record.counts
+                item["proven_repairs"] = record.proven_repairs
+            path.write_text(json.dumps(payload, indent=2))
+            say(f"  exported {len(payload)} run(s) to {path}")
+
+    if args.markdown:
+        print(markdown_report(verdicts, config))
+        return 0
+
+    say("\n\033[1mVerdicts\033[0m")
+    for verdict in verdicts:
+        say(f"  {BADGE[verdict.status]}  {verdict.finding.title}")
+        say(f"      {verdict.why}")
+
+    counts = tally(verdicts)
+    say("\n  " + "  ".join(f"{s.value}={n}" for s, n in counts.items()))
+    return 0

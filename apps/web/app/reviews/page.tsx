@@ -1,10 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import RepairRunner from "./RepairRunner";
 import ReviewsClient from "./ReviewsClient";
-import styles from "./ReviewsPage.module.css";
+import styles from "./reviews-panel.module.css";
 import { ReviewRun } from "./types";
+
+// Read on every request, never at build time. `router.refresh()` after a run
+// only shows the new session if this component actually re-reads the file;
+// with the default caching it would re-render the same snapshot forever and
+// the sidebar would look frozen for exactly the run the viewer just watched.
+export const dynamic = "force-dynamic";
 
 // Read from disk on the server rather than through an API route. The verifier
 // already writes this file, so a route would be a second copy of the same read
@@ -36,8 +41,6 @@ export default async function ReviewsPage() {
           ← mission control
         </a>
       </header>
-
-      <RepairRunner />
 
       {runs.length === 0 ? (
         <p className={styles.empty}>

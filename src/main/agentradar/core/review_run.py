@@ -44,11 +44,22 @@ __all__ = [
 
 
 class RawRunLike(Protocol):
-    """The part of a sandbox `RawRun` this module reads."""
+    """The part of a sandbox `RawRun` this module reads.
 
-    exit_code: int
-    stdout: str
-    duration_s: float
+    Declared as read-only properties rather than plain attributes. `RawRun` is
+    a frozen dataclass, so its fields cannot be assigned, and a Protocol whose
+    members are writable attributes is not satisfied by a frozen one — the
+    implementation would have to promise a mutability nothing here wants.
+    """
+
+    @property
+    def exit_code(self) -> int: ...
+
+    @property
+    def stdout(self) -> str: ...
+
+    @property
+    def duration_s(self) -> float: ...
 
 
 class TestRunner(Protocol):

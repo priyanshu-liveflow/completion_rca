@@ -1,9 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import styles from "./ReviewsPage.module.css";
+import styles from "./reviews-panel.module.css";
 import { ReviewEntry, ReviewRun, STATUS_META } from "./types";
+import { useRepairRun } from "./useRepairRun";
+
+/** Lines the transcript should call out rather than render as plain output. */
+function toneOf(line: string): string {
+  if (/Gate:\s*OPEN|repair is proven/i.test(line)) return styles.lineGood;
+  if (/Gate:\s*SHUT|rejected|did not apply|Traceback/i.test(line)) {
+    return styles.lineBad;
+  }
+  if (/CONFIRMED/.test(line)) return styles.lineBad;
+  if (/^\s*\d\.\s/.test(line)) return styles.lineStep;
+  if (/^\s{2,}\+/.test(line)) return styles.add;
+  if (/^\s{2,}-\s/.test(line)) return styles.del;
+  return styles.ctx;
+}
 
 function DiffBlock({ diff }: { diff: string }) {
   return (
@@ -74,6 +88,16 @@ function Entry({ entry }: { entry: ReviewEntry }) {
               >
                 gate {entry.repair.proven ? "OPEN" : "SHUT"}
               </span>
+              {/* An open gate authorises a pull request; it does not open one.
+                  Saying "PR authorised" rather than implying one exists keeps
+                  the page honest about what actually happened. */}
+              <span className={styles.repairMeta}>
+                {entry.repair.proven
+                  ? entry.repair.pr_url
+                    ? "pull request opened"
+                    : "pull request authorised · not opened"
+                  : "no pull request"}
+              </span>
               <span className={styles.repairMeta}>
                 {entry.repair.before_failed} failing → {entry.repair.after_passed} passing
               </span>
@@ -117,23 +141,106 @@ function Entry({ entry }: { entry: ReviewEntry }) {
 }
 
 export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
-  const [selected, setSelected] = useState(0);
-  const run = runs[selected];
+  // Selection is held by id, not by index. The list is newest-first, so a
+  // finished run shifts every index by one — holding an index would silently
+  // move the viewer to a different session at the moment a run completes.
+  const [selectedId, setSelectedId] = useState(() => runs[0]?.id ?? "");
+  const knownIds = useRef(new Set(runs.map((r) => r.id)));
+
+  // A run that just finished is the one worth looking at, so jump to it. Only
+  // for ids that were not in the list before: re-rendering for any other
+  // reason must not yank the viewer out of the session they opened.
+  useEffect(() => {
+    const newest = runs[0];
+    if (newest && !knownIds.current.has(newest.id)) setSelectedId(newest.id);
+    knownIds.current = new Set(runs.map((r) => r.id));
+  }, [runs]);
+
+  const run = runs.find((r) => r.id === selectedId) ?? runs[0];
+
+  const repair = useRepairRun();
+  const paneRef = useRef<HTMLPreElement>(null);
+  const [prNumber, setPrNumber] = useState(
+    () => String(runs.find((r) => r.pr > 0)?.pr ?? 20),
+  );
+
+  // Follow the tail as lines arrive, the way a terminal does.
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (pane) pane.scrollTop = pane.scrollHeight;
+  }, [repair.lines]);
+
+  const busy = repair.phase === "running";
 
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
+        <div className={styles.runnerBox}>
+          <div className={styles.sidebarHead}>Repair demo</div>
+          <p className={styles.runnerHint}>
+            Builds a throwaway repo with one real defect, confirms it with a
+            failing test, patches it and re-runs. Both buttons run the same
+            pipeline — the difference is whether a model writes the patch.
+          </p>
+          <div className={styles.runnerButtons}>
+            <button
+              type="button"
+              className={styles.runButton}
+              disabled={busy}
+              onClick={() => repair.start({ action: "demo", canned: false })}
+            >
+              {busy ? "running…" : "Model writes it"}
+            </button>
+            <button
+              type="button"
+              className={styles.runButtonQuiet}
+              disabled={busy}
+              onClick={() => repair.start({ action: "demo", canned: true })}
+            >
+              Fixed patch
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.runnerBox}>
+          <div className={styles.sidebarHead}>Verify a pull request</div>
+          <p className={styles.runnerHint}>
+            Reads the reviewer&rsquo;s findings on a real PR and checks each one
+            against the graph and the tests. Writes nothing.
+          </p>
+          <div className={styles.runnerButtons}>
+            <input
+              className={styles.prInput}
+              type="number"
+              min={1}
+              value={prNumber}
+              onChange={(e) => setPrNumber(e.target.value)}
+              aria-label="Pull request number"
+            />
+            <button
+              type="button"
+              className={styles.runButtonQuiet}
+              disabled={busy || !prNumber}
+              onClick={() =>
+                repair.start({ action: "verify", pr: Number(prNumber) })
+              }
+            >
+              Verify PR
+            </button>
+          </div>
+        </div>
+
         <div className={styles.sidebarHead}>Sessions</div>
         <nav className={styles.sessionList}>
-          {runs.map((r, i) => {
+          {runs.map((r) => {
             const confirmed = r.counts.confirmed ?? 0;
             return (
               <button
                 type="button"
                 key={r.id}
-                onClick={() => setSelected(i)}
+                onClick={() => setSelectedId(r.id)}
                 className={`${styles.session} ${
-                  i === selected ? styles.sessionActive : ""
+                  r.id === run?.id ? styles.sessionActive : ""
                 }`}
               >
                 <span className={styles.sessionRepo}>
@@ -197,6 +304,44 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
           </>
         )}
       </main>
+
+      {repair.phase !== "idle" && (
+        <section className={styles.transcript}>
+          <div className={styles.transcriptHead}>
+            <span className={styles.transcriptTitle}>Run</span>
+            <span
+              className={
+                repair.phase === "running"
+                  ? styles.ctx
+                  : repair.phase === "done"
+                    ? styles.lineGood
+                    : styles.lineBad
+              }
+            >
+              {repair.phase === "running" ? "running…" : repair.phase}
+            </span>
+            <button
+              type="button"
+              className={styles.dismiss}
+              onClick={repair.dismiss}
+              disabled={busy}
+              title={busy ? "wait for the run to finish" : "dismiss"}
+              aria-label="Dismiss the repair transcript"
+            >
+              ×
+            </button>
+          </div>
+          <pre ref={paneRef} className={styles.transcriptPane}>
+            <code>
+              {repair.lines.map((line, i) => (
+                <span key={i} className={toneOf(line)}>
+                  {line || " "}
+                </span>
+              ))}
+            </code>
+          </pre>
+        </section>
+      )}
     </div>
   );
 }
