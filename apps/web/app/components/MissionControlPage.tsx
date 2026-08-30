@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GitBranch, Settings } from "lucide-react";
+import { useResizable } from "../lib/useResizable";
 import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
@@ -26,54 +27,18 @@ export default function MissionControlPage({
     deny,
   } = useMission();
   const [popOutError, setPopOutError] = useState<string | null>(null);
-  const [dockHeight, setDockHeight] = useState(360);
-  const [railWidth, setRailWidth] = useState(270);
   const popOutRef = useRef<Window | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const rail = useResizable({ initial: 270, min: 220, max: 520, axis: "x" });
+  const dock = useResizable({
+    initial: 360,
+    min: 120,
+    // The dock may not grow past the workspace, less the map's minimum.
+    max: () => (workspaceRef.current?.clientHeight ?? 0) - 120,
+    axis: "y",
+  });
 
-  const startResizeRail = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    document.body.style.userSelect = "none";
-    const startX = e.clientX;
-    const startW = railWidth;
-    const onMove = (ev: MouseEvent) => {
-      const newW = Math.min(
-        Math.max(startW + (startX - ev.clientX), 220),
-        520
-      );
-      setRailWidth(newW);
-    };
-    const onUp = () => {
-      document.body.style.userSelect = "";
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
-  const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!workspaceRef.current) return;
-    e.preventDefault();
-    document.body.style.userSelect = "none";
-    const startY = e.clientY;
-    const startH = dockHeight;
-    const maxH = workspaceRef.current.clientHeight - 120;
-    const onMove = (ev: MouseEvent) => {
-      const newH = Math.min(
-        Math.max(startH + (startY - ev.clientY), 120),
-        maxH
-      );
-      setDockHeight(newH);
-    };
-    const onUp = () => {
-      document.body.style.userSelect = "";
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
   // Close the external window if this screen unmounts.
   useEffect(() => {
@@ -186,8 +151,8 @@ export default function MissionControlPage({
             .filter(Boolean)
             .join(" ")}
           style={{
-            gridTemplateColumns: readOnly ? undefined : `1fr ${railWidth}px`,
-            gridTemplateRows: `minmax(120px, 1fr) ${dockHeight}px`,
+            gridTemplateColumns: readOnly ? undefined : `1fr ${rail.size}px`,
+            gridTemplateRows: `minmax(120px, 1fr) ${dock.size}px`,
           }}
         >
           <MissionMap
@@ -202,7 +167,7 @@ export default function MissionControlPage({
             onToggleDock={toggleDock}
             onTabChange={setTab}
             onPopOut={readOnly ? undefined : onTogglePopOut}
-            onResizeDock={startResizeDock}
+            onResizeDock={dock.onMouseDown}
           />
 
           {!readOnly && (
@@ -213,7 +178,7 @@ export default function MissionControlPage({
               popOutError={popOutError}
               onApprove={approve}
               onDeny={deny}
-              onResizeRail={startResizeRail}
+              onResizeRail={rail.onMouseDown}
             />
           )}
         </div>
