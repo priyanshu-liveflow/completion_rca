@@ -46,8 +46,12 @@ def say(message: str) -> None:
     The pipeline spends real seconds in the graph and in pytest. Printing
     only at the end makes a working run look like a hung one, on a recording
     as much as in a terminal.
+
+    Goes to stderr so it still shows in a terminal while leaving stdout clean
+    enough to pipe — `--markdown | gh pr comment --body-file -` would
+    otherwise post the progress log along with the table.
     """
-    print(message, flush=True)
+    print(message, file=sys.stderr, flush=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--max-tests", type=int, default=8, help="cap tests selected per finding"
+    )
+    p.add_argument(
+        "--markdown",
+        action="store_true",
+        help="emit a markdown table on stdout, for posting back to the PR",
     )
     p.add_argument(
         "--no-run",
@@ -152,6 +161,48 @@ def verify_one(
     return judge_finding(finding, points, selection, report)
 
 
+MARKDOWN_BADGE = {
+    FindingStatus.CONFIRMED: "🔴 **confirmed**",
+    FindingStatus.UNREPRODUCED: "🟢 unreproduced",
+    FindingStatus.UNCOVERED: "🟡 uncovered",
+    FindingStatus.UNLOCATABLE: "⚪ unlocatable",
+}
+
+
+def render_markdown(verdicts: list[FindingVerdict], args: argparse.Namespace) -> str:
+    """A PR comment. Leads with the count that should change someone's mind."""
+    tally = {status: 0 for status in FindingStatus}
+    for verdict in verdicts:
+        tally[verdict.status] += 1
+
+    lines = [
+        "## AgentRadar verified this review",
+        "",
+        f"Each finding was located in the code graph, the tests reaching it were "
+        f"selected, and those tests were run against `{args.repo_key}`.",
+        "",
+        f"**{tally[FindingStatus.CONFIRMED]} confirmed** · "
+        f"{tally[FindingStatus.UNREPRODUCED]} unreproduced · "
+        f"{tally[FindingStatus.UNCOVERED]} uncovered · "
+        f"{tally[FindingStatus.UNLOCATABLE]} unlocatable",
+        "",
+        "| verdict | finding | evidence |",
+        "|---|---|---|",
+    ]
+    for verdict in verdicts:
+        title = verdict.finding.title.replace("|", "\\|")
+        why = verdict.why.replace("|", "\\|")
+        lines.append(f"| {MARKDOWN_BADGE[verdict.status]} | {title} | {why} |")
+
+    lines += [
+        "",
+        "<sub>`uncovered` means located but no test reaches it — neither proven "
+        "nor refuted. `unlocatable` means the graph has not indexed that file. "
+        "Neither is a false positive.</sub>",
+    ]
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -172,6 +223,10 @@ def main(argv: list[str] | None = None) -> int:
     runner: SandboxRunner | None = None if args.no_run else LocalRunner(args.workdir)
 
     verdicts = [verify_one(f, graph, runner, args) for f in findings]
+
+    if args.markdown:
+        print(render_markdown(verdicts, args))
+        return 0
 
     say("\n\033[1mVerdicts\033[0m")
     for verdict in verdicts:

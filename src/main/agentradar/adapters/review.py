@@ -66,6 +66,43 @@ def _clean_title(body: str) -> str:
     return stripped[:_TITLE_MAX] or "untitled finding"
 
 
+def _decode_pages(payload: str) -> list[Any]:
+    """Decode one or more concatenated JSON arrays into a single row list.
+
+    `gh api --paginate` emits one complete JSON array *per page* and simply
+    concatenates them, so two pages arrive as `[{...}][{...}]`. That is not a
+    valid JSON document, and a plain `json.loads` rejects it — losing every
+    finding past the first page on exactly the large PRs where findings
+    matter most, and failing in a way that looks like a broken reviewer
+    rather than a broken reader.
+
+    `raw_decode` reads one value at a time and reports where it stopped, so
+    the pages can be walked and flattened. A single-page payload takes the
+    same path and costs one extra call.
+    """
+    text = (payload or "").strip()
+    if not text:
+        return []
+
+    decoder = json.JSONDecoder()
+    rows: list[Any] = []
+    index = 0
+    while index < len(text):
+        try:
+            value, end = decoder.raw_decode(text, index)
+        except json.JSONDecodeError as exc:
+            raise GhError(f"review comments were not valid JSON: {exc}") from exc
+        if not isinstance(value, list):
+            raise GhError(
+                f"expected a JSON array of comments, got {type(value).__name__}"
+            )
+        rows.extend(value)
+        index = end
+        while index < len(text) and text[index].isspace():
+            index += 1
+    return rows
+
+
 def parse_review_comments(
     payload: str, *, reviewers: tuple[str, ...] = DEFAULT_REVIEWERS
 ) -> list[ReviewFinding]:
@@ -79,13 +116,7 @@ def parse_review_comments(
     its file and loses its line. `core.finding.locate_finding` degrades to a
     whole-file blast radius in that case rather than discarding the finding.
     """
-    try:
-        rows: Any = json.loads(payload or "[]")
-    except json.JSONDecodeError as exc:
-        raise GhError(f"review comments were not valid JSON: {exc}") from exc
-
-    if not isinstance(rows, list):
-        raise GhError(f"expected a JSON array of comments, got {type(rows).__name__}")
+    rows = _decode_pages(payload)
 
     wanted = {name.lower() for name in reviewers}
     findings: list[ReviewFinding] = []
