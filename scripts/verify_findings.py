@@ -155,7 +155,11 @@ def main(argv: list[str] | None = None) -> int:
         say(f"\n\033[1mRepairing {len(confirmed)} confirmed finding(s)\033[0m")
         if runner is None:
             say("  --fix needs a runner; drop --no-run")
-        else:
+        elif confirmed:
+            # Built only once there is something to repair. Constructing a
+            # provider needs a key and a reachable endpoint, and failing on
+            # those when the answer is "nothing to fix" turns a clean run
+            # into a stack trace.
             writer = LlmPatchWriter()
             for verdict in confirmed:
                 say(f"\n  \033[1m{verdict.finding.title}\033[0m")

@@ -18,15 +18,24 @@ prompt or into sandbox execution.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 
 from src.main.agentradar.core.remediation import RemediationRequest
+from src.main.config.loader import get_analyzer_configs
 from src.main.shared.factory import make_provider
 from src.main.shared.providers.base import BaseLLMProvider
 
 __all__ = ["LlmPatchWriter", "extract_diff"]
 
 DEFAULT_MAX_SOURCE_CHARS = 6000
+
+# `make_provider()` with no argument falls back to the analyzer config, whose
+# default is AWS Bedrock — inherited from graph_rca and wrong for this path.
+# Repair runs against an OpenAI-compatible endpoint (PR2), so ask for that
+# unless the environment deliberately says otherwise, and fail on a missing
+# key rather than on a missing boto3 extra three frames deep.
+DEFAULT_PROVIDER = "openai_compat"
 
 _SYSTEM = """\
 You repair a single defect in one Python file and output nothing but a patch.
@@ -116,8 +125,23 @@ class LlmPatchWriter:
         *,
         model: str = "",
         max_source_chars: int = DEFAULT_MAX_SOURCE_CHARS,
+        cloud_provider: str | None = None,
     ) -> None:
-        self._provider = provider if provider is not None else make_provider()
+        if provider is not None:
+            self._provider = provider
+        else:
+            chosen = cloud_provider or os.getenv("CLOUD_PROVIDER") or DEFAULT_PROVIDER
+            # `make_provider(name)` picks the class, but the *config* it reads
+            # is whichever provider section `CLOUD_PROVIDER` named when the
+            # `lru_cache` was first populated — `basic.json` defaults that to
+            # `aws`. Choosing a provider without setting it hands
+            # `LangChainProvider` an AWS config and raises
+            # `KeyError: 'llm_base_url'` from its constructor. Set it, then
+            # drop the cache so the right section merges before it is read.
+            if os.getenv("CLOUD_PROVIDER") != chosen:
+                os.environ["CLOUD_PROVIDER"] = chosen
+                get_analyzer_configs.cache_clear()
+            self._provider = make_provider(chosen)
         self._model = model
         self._max_source_chars = max_source_chars
 

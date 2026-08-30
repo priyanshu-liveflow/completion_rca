@@ -26,6 +26,7 @@ import sys
 import time
 from pathlib import Path
 
+from ..core.diffnorm import normalize_hunk_headers
 from .sandbox import _NODE_ID, RawRun, _validate
 
 DEFAULT_TIMEOUT_S = 300
@@ -140,8 +141,35 @@ class LocalRunner:
             "use DaytonaRunner to test a dependency version bump"
         )
 
+    def _sources_for(self, diff: str) -> dict[str, str]:
+        """Current contents of the files a diff names, for header normalisation."""
+        sources: dict[str, str] = {}
+        for line in diff.splitlines():
+            if not line.startswith("+++ "):
+                continue
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            if path == "/dev/null":
+                continue
+            candidate = self._workdir / path
+            try:
+                sources[path] = candidate.read_text()
+            except OSError:
+                # A new file, or one outside the checkout. Leaving it out means
+                # its hunks pass through unchanged, which is the safe default.
+                continue
+        return sources
+
     def apply_patch(self, diff: str) -> RawRun:
-        """Apply a unified diff to the local checkout via `git apply`."""
+        """Apply a unified diff to the local checkout via `git apply`.
+
+        Hunk headers are normalised first. A model cannot know what line a
+        function starts on — nothing in its prompt says — so it emits a bare
+        `@@` or a guessed offset, and `git apply` rejects both. We do know,
+        because the file is right here.
+        """
+        diff = normalize_hunk_headers(diff, self._sources_for(diff))
         started = time.monotonic()
         try:
             proc = subprocess.run(
