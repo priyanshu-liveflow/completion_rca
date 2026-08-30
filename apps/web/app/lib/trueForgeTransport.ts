@@ -1,5 +1,5 @@
 import { demoMissionInput } from "./demoMission";
-import { isTrueForgeSessionResponse } from "./trueForgeTypes";
+import { readSessionId } from "./trueForgeTypes";
 
 export interface TrueForgeTurnInput {
   type: string;
@@ -33,12 +33,13 @@ export class TrueForgeTransport {
     }
 
     const body = (await response.json()) as unknown;
-    if (!isTrueForgeSessionResponse(body)) {
+    const sessionId = readSessionId(body);
+    if (sessionId === null) {
       throw new Error("Invalid session response from TrueForge");
     }
 
-    this.sessionId = body.id;
-    return body.id;
+    this.sessionId = sessionId;
+    return sessionId;
   }
 
   getSessionId(): string | null {

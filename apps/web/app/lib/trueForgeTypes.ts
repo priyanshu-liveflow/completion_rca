@@ -74,13 +74,34 @@ export interface TrueForgeSandboxCreated {
   type: string;
 }
 
+/**
+ * TrueForge wraps every REST payload in `{ data: ... }`, so a session create
+ * answers `{"data":{"id":"01m18..."}}` — the id is never at the top level.
+ * The proxy passes the body through verbatim, so this guard sees the envelope
+ * and `createSession` threw "Invalid session response" on every well-formed
+ * response. Both shapes are accepted: unwrapped in case a future proxy strips
+ * the envelope, wrapped because that is what the harness actually sends.
+ */
 export function isTrueForgeSessionResponse(value: unknown): value is TrueForgeSessionResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    typeof (value as { id: unknown }).id === "string"
-  );
+  return readSessionId(value) !== null;
+}
+
+export function readSessionId(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const direct = (value as { id?: unknown }).id;
+  if (typeof direct === "string" && direct.length > 0) {
+    return direct;
+  }
+  const wrapped = (value as { data?: { id?: unknown } }).data;
+  if (typeof wrapped === "object" && wrapped !== null) {
+    const nested = (wrapped as { id?: unknown }).id;
+    if (typeof nested === "string" && nested.length > 0) {
+      return nested;
+    }
+  }
+  return null;
 }
 
 export function isTrueForgeToolResponse(value: unknown): value is TrueForgeToolResponse {
