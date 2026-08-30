@@ -64,6 +64,19 @@ export default function SandboxDock({
   const transcriptRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
+  // Keep the terminal pinned to the bottom like VS Code unless the user
+  // has intentionally scrolled up more than ~80px.
+  const bottomThreshold = 80;
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    const distanceFromBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < bottomThreshold) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [state.transcript]);
+
   useEffect(() => {
     if (!state.selectedNode || !transcriptRef.current) return;
     const el = transcriptRef.current.querySelector(
