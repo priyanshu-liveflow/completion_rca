@@ -436,3 +436,13 @@
 @media (max-width: 860px) {
   .transcript { left: 12px; right: 12px; width: auto; }
 }
+
+.prInput {
+  width: 74px;
+  padding: 4px 7px;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+}

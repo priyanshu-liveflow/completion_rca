@@ -277,7 +277,12 @@ def main(argv: list[str] | None = None) -> int:
         say(f"\n\033[1m5. Gate: \033[{colour}m{gate}\033[0m")
         say(f"   {outcome.reason}")
         if outcome.may_open_pr:
-            say("\n   A pull request is reachable. It was not before.")
+            # Precise wording on purpose. `can_act` authorises the PR tool; it
+            # does not call it, and this demo repo is a temp directory with no
+            # remote to open one against. Saying "a PR was opened" would be the
+            # exact kind of unproven claim this whole product exists to refuse.
+            say("\n   The PR tool is now reachable. It was not before.")
+            say("   (Authorised, not opened — this repo is a temp directory.)")
         return 0 if outcome.may_open_pr else 1
 
 

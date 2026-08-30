@@ -88,6 +88,16 @@ function Entry({ entry }: { entry: ReviewEntry }) {
               >
                 gate {entry.repair.proven ? "OPEN" : "SHUT"}
               </span>
+              {/* An open gate authorises a pull request; it does not open one.
+                  Saying "PR authorised" rather than implying one exists keeps
+                  the page honest about what actually happened. */}
+              <span className={styles.repairMeta}>
+                {entry.repair.proven
+                  ? entry.repair.pr_url
+                    ? "pull request opened"
+                    : "pull request authorised · not opened"
+                  : "no pull request"}
+              </span>
               <span className={styles.repairMeta}>
                 {entry.repair.before_failed} failing → {entry.repair.after_passed} passing
               </span>
@@ -136,6 +146,9 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
 
   const repair = useRepairRun();
   const paneRef = useRef<HTMLPreElement>(null);
+  const [prNumber, setPrNumber] = useState(
+    () => String(runs.find((r) => r.pr > 0)?.pr ?? 20),
+  );
 
   // Follow the tail as lines arrive, the way a terminal does.
   useEffect(() => {
@@ -149,27 +162,56 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
         <div className={styles.runnerBox}>
-          <div className={styles.sidebarHead}>Run a repair</div>
+          <div className={styles.sidebarHead}>Repair demo</div>
           <p className={styles.runnerHint}>
-            Builds a repo with one real defect, confirms it with a failing
-            test, patches it, re-runs. The gate opens only on red-to-green.
+            Builds a throwaway repo with one real defect, confirms it with a
+            failing test, patches it and re-runs. Both buttons run the same
+            pipeline — the difference is whether a model writes the patch.
           </p>
           <div className={styles.runnerButtons}>
             <button
               type="button"
               className={styles.runButton}
               disabled={busy}
-              onClick={() => repair.start(false)}
+              onClick={() => repair.start({ action: "demo", canned: false })}
             >
-              {busy ? "running…" : "Run with model"}
+              {busy ? "running…" : "Model writes it"}
             </button>
             <button
               type="button"
               className={styles.runButtonQuiet}
               disabled={busy}
-              onClick={() => repair.start(true)}
+              onClick={() => repair.start({ action: "demo", canned: true })}
             >
-              Run offline
+              Fixed patch
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.runnerBox}>
+          <div className={styles.sidebarHead}>Verify a pull request</div>
+          <p className={styles.runnerHint}>
+            Reads the reviewer&rsquo;s findings on a real PR and checks each one
+            against the graph and the tests. Writes nothing.
+          </p>
+          <div className={styles.runnerButtons}>
+            <input
+              className={styles.prInput}
+              type="number"
+              min={1}
+              value={prNumber}
+              onChange={(e) => setPrNumber(e.target.value)}
+              aria-label="Pull request number"
+            />
+            <button
+              type="button"
+              className={styles.runButtonQuiet}
+              disabled={busy || !prNumber}
+              onClick={() =>
+                repair.start({ action: "verify", pr: Number(prNumber) })
+              }
+            >
+              Verify PR
             </button>
           </div>
         </div>
@@ -252,7 +294,7 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
       {repair.phase !== "idle" && (
         <section className={styles.transcript}>
           <div className={styles.transcriptHead}>
-            <span className={styles.transcriptTitle}>Repair run</span>
+            <span className={styles.transcriptTitle}>Run</span>
             <span
               className={
                 repair.phase === "running"

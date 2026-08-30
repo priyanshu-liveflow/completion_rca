@@ -9,10 +9,19 @@ export type RepairPhase = "idle" | "running" | "done" | "failed";
 // escape sequences are stripped and the meaning re-applied from the text.
 const ANSI = /\u001b\[[0-9;]*m/g;
 
+export interface StartOptions {
+  /** "demo" builds a throwaway repo and repairs it. "verify" checks a real PR. */
+  action: "demo" | "verify";
+  /** demo only: use a fixed patch instead of calling a model. */
+  canned?: boolean;
+  /** verify only: the pull request to check. */
+  pr?: number;
+}
+
 export interface RepairRun {
   phase: RepairPhase;
   lines: string[];
-  start: (canned: boolean) => Promise<void>;
+  start: (opts: StartOptions) => Promise<void>;
   dismiss: () => void;
 }
 
@@ -35,15 +44,17 @@ export function useRepairRun(): RepairRun {
   }, []);
 
   const start = useCallback(
-    async (canned: boolean) => {
+    async ({ action, canned = false, pr }: StartOptions) => {
       setPhase("running");
       setLines([]);
 
+      const query = new URLSearchParams({ action });
+      if (action === "demo") query.set("canned", canned ? "1" : "0");
+      if (action === "verify" && pr !== undefined) query.set("pr", String(pr));
+
       let response: Response;
       try {
-        response = await fetch(`/api/repair?canned=${canned ? "1" : "0"}`, {
-          method: "POST",
-        });
+        response = await fetch(`/api/repair?${query}`, { method: "POST" });
       } catch (err) {
         setLines([`could not reach the server: ${String(err)}`]);
         setPhase("failed");
