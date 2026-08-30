@@ -294,4 +294,5 @@ def parse_pytest(
         errors=errors,
         duration_s=duration_s or wall,
         raw_tail=text[-RAW_TAIL_CHARS:],
+        exit_code=exit_code,
     )

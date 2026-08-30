@@ -162,6 +162,11 @@ export default function MissionControlPage({
           </div>
         )}
         <div className={styles.spacer} />
+        {!readOnly && (
+          <a className={styles.docs} href="/reviews">
+            REVIEWS
+          </a>
+        )}
         <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
         {!readOnly && <div className={styles.docs}>DOCS</div>}
         {!readOnly && <Settings size={15} color="var(--ink-quiet)" />}

@@ -687,3 +687,15 @@
     flex: 0 0 auto;
   }
 }
+
+
+/* The nav link reuses the .docs chip. Anchors bring their own colour and
+   underline, which would break the flat chip look the header uses. */
+a.docs {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.docs:hover {
+  color: var(--active);
+}

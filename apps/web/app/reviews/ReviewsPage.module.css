@@ -1,0 +1,409 @@
+.shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.title {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: var(--ink-quiet);
+  max-width: 60ch;
+  line-height: 1.45;
+}
+
+.back {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--active);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.back:hover { text-decoration: underline; }
+
+/* Sidebar plus detail. The sidebar is the session list; only the detail pane
+   scrolls, so switching sessions never loses the list. */
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 264px 1fr;
+}
+
+.sidebar {
+  border-right: 1px solid var(--rule);
+  background: var(--paper-line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebarHead {
+  flex: none;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  border-bottom: 1px solid var(--rule);
+}
+
+.sessionList {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.session {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.session:hover { background: var(--paper); }
+
+.sessionActive {
+  background: var(--paper);
+  border-left-color: var(--active);
+}
+
+.sessionRepo {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.sessionMeta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-quiet);
+}
+
+.sessionTally {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.sessionCount {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-quiet);
+}
+
+.dot {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.detail {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.detailHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.detailRepo { font-weight: 700; }
+.detailMeta { color: var(--ink-quiet); }
+
+.tally {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* `align-self: start` matters: without it the pill stretches to the full
+   height of its grid row and a 999px radius turns it into a tall ellipse. */
+.pill {
+  align-self: start;
+  justify-self: start;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 1px 9px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.bad { color: var(--failure); border-color: var(--failure); background: var(--red-soft); }
+.good { color: var(--verified); border-color: var(--verified); background: var(--green-soft); }
+.warn { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+.quiet { color: var(--ink-quiet); }
+
+.badText { color: var(--failure); }
+.goodText { color: var(--verified); }
+
+.entries { display: flex; flex-direction: column; }
+
+.entry {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entryMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.findingTitle {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.where {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-quiet);
+  overflow-wrap: anywhere;
+}
+
+.why {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.counts {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+.testsWrap { margin-top: 2px; }
+
+.disclosure {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--active);
+}
+
+.disclosure:hover { text-decoration: underline; }
+
+.testList {
+  margin: 6px 0 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-quiet);
+  overflow-wrap: anywhere;
+}
+
+.repair {
+  margin-top: 8px;
+  border: 1px solid var(--rule);
+  background: var(--paper-line);
+}
+
+.repairHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.gate { font-weight: 700; letter-spacing: 0.04em; }
+.repairMeta { color: var(--ink-quiet); }
+
+.prLink { margin-left: auto; color: var(--active); text-decoration: none; }
+.prLink:hover { text-decoration: underline; }
+
+.diff {
+  margin: 0;
+  padding: 9px 11px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  background: var(--paper);
+}
+
+.diff code { display: block; min-width: max-content; }
+
+.add { color: var(--verified); background: var(--green-soft); display: block; }
+.del { color: var(--failure); background: var(--red-soft); display: block; }
+.ctx { color: var(--ink-secondary); display: block; }
+.meta { color: var(--ink-quiet); display: block; }
+
+.empty {
+  padding: 40px 24px;
+  color: var(--ink-quiet);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.empty code {
+  font-family: var(--mono);
+  background: var(--paper-line);
+  padding: 2px 6px;
+  border: 1px solid var(--rule);
+}
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--rule); max-height: 30vh; }
+  .entry { grid-template-columns: 1fr; gap: 8px; }
+}
+
+/* Live repair runner ----------------------------------------------------- */
+
+.runner {
+  flex: none;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.runnerHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 20px;
+}
+
+.runnerTitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.runnerHint {
+  font-size: 12px;
+  color: var(--ink-quiet);
+  line-height: 1.45;
+  max-width: 54ch;
+}
+
+.runButton,
+.runButtonQuiet {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 5px 12px;
+  border: 1px solid var(--active);
+  background: var(--active);
+  color: var(--paper);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.runButtonQuiet {
+  background: transparent;
+  color: var(--active);
+}
+
+.runButton:hover:not(:disabled),
+.runButtonQuiet:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.runButton:disabled,
+.runButtonQuiet:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.runButton:last-of-type { margin-left: 0; }
+
+.runnerPane {
+  margin: 0;
+  padding: 10px 20px 14px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--paper-line);
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.runnerPane code { display: block; min-width: max-content; }
+
+.lineGood { color: var(--verified); display: block; font-weight: 600; }
+.lineBad { color: var(--failure); display: block; font-weight: 600; }
+.lineStep { color: var(--ink); display: block; font-weight: 700; }

@@ -45,11 +45,11 @@ NIM_MODELS = [
 # Omitting it lets the model default to its own 128k output ceiling.
 OPENAI_MODELS = [
     # (model_id, alias, context_length, max_output_tokens or None)
-    ("gpt-5.6-sol", "gpt-5-6-sol", 1_050_000, None),      # flagship reasoning
+    ("gpt-5.6-sol", "gpt-5-6-sol", 1_050_000, None),  # flagship reasoning
     ("gpt-5.6-terra", "gpt-5-6-terra", 1_050_000, None),  # balanced
-    ("gpt-5.6-luna", "gpt-5-6-luna", 1_050_000, None),    # high volume
-    ("gpt-5.4-mini", "gpt-5-4-mini", 400_000, None),      # text-heavy worker
-    ("gpt-4.1", "gpt-4-1", 1_047_576, 8192),              # fallback
+    ("gpt-5.6-luna", "gpt-5-6-luna", 1_050_000, None),  # high volume
+    ("gpt-5.4-mini", "gpt-5-4-mini", 400_000, None),  # text-heavy worker
+    ("gpt-4.1", "gpt-4-1", 1_047_576, 8192),  # fallback
 ]
 
 
@@ -63,13 +63,20 @@ def load_env() -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
                 env[key.strip()] = value.strip()
-    return {**env, **{k: v for k, v in os.environ.items() if k in env or k.endswith("_KEY")}}
+    return {
+        **env,
+        **{k: v for k, v in os.environ.items() if k in env or k.endswith("_KEY")},
+    }
 
 
-def call(method: str, path: str, body: dict | None = None, timeout: int = 300) -> tuple[int, dict]:
+def call(
+    method: str, path: str, body: dict | None = None, timeout: int = 300
+) -> tuple[int, dict]:
     data = json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request(
-        f"{BASE}{path}", data=data, method=method,
+        f"{BASE}{path}",
+        data=data,
+        method=method,
         headers={"Content-Type": "application/json"},
     )
     try:
@@ -84,19 +91,29 @@ def call(method: str, path: str, body: dict | None = None, timeout: int = 300) -
 
 
 def configure_models(api_key: str) -> bool:
-    status, body = call("POST", "/api/v1/settings/model-providers", {
-        "manifest": {
-            "type": "custom",  # there is no `nvidia` provider type; custom is the
-            "name": "nvidia-nim",  # OpenAI-compatible escape hatch
-            "base_url": "https://integrate.api.nvidia.com/v1",
-            "auth": {"api_key": api_key},
-            "models": [
-                {"model_id": mid, "name": name,
-                 "properties": {"context_length": ctx, "max_output_tokens": 8192}}
-                for mid, name, ctx in NIM_MODELS
-            ],
-        }
-    })
+    status, body = call(
+        "POST",
+        "/api/v1/settings/model-providers",
+        {
+            "manifest": {
+                "type": "custom",  # there is no `nvidia` provider type; custom is the
+                "name": "nvidia-nim",  # OpenAI-compatible escape hatch
+                "base_url": "https://integrate.api.nvidia.com/v1",
+                "auth": {"api_key": api_key},
+                "models": [
+                    {
+                        "model_id": mid,
+                        "name": name,
+                        "properties": {
+                            "context_length": ctx,
+                            "max_output_tokens": 8192,
+                        },
+                    }
+                    for mid, name, ctx in NIM_MODELS
+                ],
+            }
+        },
+    )
     if status < 300:
         print(f"model provider   ready ({len(NIM_MODELS)} models)")
         return True
@@ -129,20 +146,28 @@ def configure_openai(api_key: str) -> bool:
     leaves the stored model list untouched, so editing `OPENAI_MODELS` and
     re-running POST would report success while changing nothing.
     """
-    status, body = call("PUT", "/api/v1/settings/model-providers", {
-        "manifest": {
-            "type": "openai",
-            "auth": {"api_key": api_key},
-            "models": [
-                {"model_id": mid, "name": name, "properties": (
-                    {"context_length": ctx}
-                    if out is None
-                    else {"context_length": ctx, "max_output_tokens": out}
-                )}
-                for mid, name, ctx, out in OPENAI_MODELS
-            ],
-        }
-    })
+    status, body = call(
+        "PUT",
+        "/api/v1/settings/model-providers",
+        {
+            "manifest": {
+                "type": "openai",
+                "auth": {"api_key": api_key},
+                "models": [
+                    {
+                        "model_id": mid,
+                        "name": name,
+                        "properties": (
+                            {"context_length": ctx}
+                            if out is None
+                            else {"context_length": ctx, "max_output_tokens": out}
+                        ),
+                    }
+                    for mid, name, ctx, out in OPENAI_MODELS
+                ],
+            }
+        },
+    )
     if status < 300:
         print(f"openai provider  ready ({len(OPENAI_MODELS)} models)")
         return True
@@ -171,23 +196,29 @@ AUTO_STOP_MIN = int(os.getenv("SANDBOX_AUTO_STOP_MIN", "20"))
 def configure_sandbox(api_key: str) -> bool:
     # PUT, not POST. auto_stop defaults to 5 minutes, which is shorter than the
     # wait before a demo slot — set every interval explicitly.
-    status, body = call("PUT", "/api/v1/settings/sandbox-providers", {
-        "manifest": {
-            "type": "daytona",
-            "auth": {"api_key": api_key},
-            "exec_timeout_ms": 300_000,
-            "auto_stop_interval_in_minutes": AUTO_STOP_MIN,
-            "auto_archive_interval_in_minutes": 10_080,
-            "auto_delete_interval_in_minutes": 20_160,
-        }
-    })
+    status, body = call(
+        "PUT",
+        "/api/v1/settings/sandbox-providers",
+        {
+            "manifest": {
+                "type": "daytona",
+                "auth": {"api_key": api_key},
+                "exec_timeout_ms": 300_000,
+                "auto_stop_interval_in_minutes": AUTO_STOP_MIN,
+                "auto_archive_interval_in_minutes": 10_080,
+                "auto_delete_interval_in_minutes": 20_160,
+            }
+        },
+    )
     if status >= 300:
         message = body.get("error", {}).get("message", "")
         print(f"sandbox provider FAILED {status}: {message[:200]}")
         if "rejected the API key" in message:
             print("  TrueForge maps any Daytona 401 OR 403 to that message, so this is")
             print("  usually a missing scope rather than a bad key. Registration calls")
-            print("  buildImage(), which needs snapshot WRITE. Reissue with full access.")
+            print(
+                "  buildImage(), which needs snapshot WRITE. Reissue with full access."
+            )
         return False
 
     # buildImage() runs asynchronously; the provider is unusable until it lands.
@@ -198,8 +229,10 @@ def configure_sandbox(api_key: str) -> bool:
         time.sleep(10)
         _, body = call("GET", "/api/v1/settings/sandbox-providers")
     state = body.get("data", {}).get("status")
-    print(f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m)"
-          f"{'' if state == 'ready' else ' — ' + str(body.get('data', {}).get('status_reason'))}")
+    reason = (
+        "" if state == "ready" else f" — {body.get('data', {}).get('status_reason')}"
+    )
+    print(f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m){reason}")
     return state == "ready"
 
 
