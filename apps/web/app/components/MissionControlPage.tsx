@@ -147,7 +147,7 @@ export default function MissionControlPage({
           </div>
         )}
         <div className={styles.spacer} />
-        <div className={styles.time}>{state.currentTime}</div>
+        <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
         {!readOnly && <div className={styles.docs}>DOCS</div>}
         {!readOnly && <Settings size={15} color="var(--ink-quiet)" />}
       </header>
