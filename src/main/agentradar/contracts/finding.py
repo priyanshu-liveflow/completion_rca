@@ -51,6 +51,17 @@ class FindingStatus(StrEnum):
     UNLOCATABLE = "unlocatable"
     """The file and line map to nothing the graph indexed."""
 
+    INCONCLUSIVE = "inconclusive"
+    """Tests ran, but what came back cannot speak to this claim.
+
+    Three situations land here, and none of them is a statement about the
+    reviewer being right or wrong: pytest itself failed (a timeout, a usage
+    error, a plugin crash), nothing actually executed because every selected
+    test skipped, or tests failed somewhere with no connection to the site
+    the finding names. Reporting any of these as `confirmed` would let broken
+    infrastructure vindicate an arbitrary claim.
+    """
+
 
 class FindingVerdict(BaseModel):
     """A finding plus the evidence trail that judged it.

@@ -15,7 +15,7 @@ do.
 
 from __future__ import annotations
 
-from ..contracts.evidence import TestReport, TestSelection
+from ..contracts.evidence import TestCase, TestReport, TestSelection
 from ..contracts.finding import FindingStatus, FindingVerdict, ReviewFinding
 from ..contracts.impact import ContactPoint
 from .selection import CodeGraph
@@ -53,6 +53,20 @@ def _encloses(function: dict[str, object], line: int) -> bool:
     return span is not None and span[0] <= line <= span[1]
 
 
+def _same_file(indexed: str, wanted: str) -> bool:
+    """True when an indexed path is the file the finding names, not merely similar.
+
+    The underlying query matches with `CONTAINS`, so asking for `core/patch.py`
+    also returns `core/patch_helpers.py`, and asking for `store.py` returns
+    every `*store.py` in the tree. Anchoring on a path-segment boundary keeps
+    the substring query (it is what the index supports) while refusing its
+    false positives.
+    """
+    if not indexed or not wanted:
+        return False
+    return indexed == wanted or indexed.endswith("/" + wanted.lstrip("/"))
+
+
 def locate_finding(
     graph: CodeGraph, finding: ReviewFinding, repo: str
 ) -> list[ContactPoint]:
@@ -68,7 +82,11 @@ def locate_finding(
     An empty list therefore means exactly one thing: the graph has never
     seen this file.
     """
-    functions = graph.functions_in(finding.file_path, repo)
+    functions = [
+        fn
+        for fn in graph.functions_in(finding.file_path, repo)
+        if _same_file(str(fn.get("file_path") or ""), finding.file_path)
+    ]
     if not functions:
         return []
 
@@ -98,6 +116,42 @@ def locate_finding(
         for fn in functions
     ]
     return sorted(points, key=lambda p: p.fid)
+
+
+def _split_by_site(
+    report: TestReport, finding: ReviewFinding, contact_points: list[ContactPoint]
+) -> tuple[list[TestCase], list[TestCase]]:
+    """Partition failing cases into those touching the finding's site and the rest.
+
+    The imports walk selects every test in a file that imports the changed
+    module, which is deliberately wide — it is the only strategy that reaches
+    an import-shaped break. The cost is that a selected test can fail for a
+    reason with no bearing on the claim, and counting that as a confirmation
+    would let any unrelated red in the same package vindicate any finding.
+
+    A failure counts as related when the finding's file or one of its located
+    function names appears in the test's node id or traceback. That is
+    evidence of contact, not proof of causation, and it is the strongest link
+    obtainable without instrumenting the run.
+    """
+    needles = {finding.file_path}
+    module = finding.file_path.rsplit("/", 1)[-1].removesuffix(".py")
+    if module:
+        needles.add(module)
+    needles.update(
+        point.function_name
+        for point in contact_points
+        if point.function_name and point.function_name not in _SYNTHETIC_NAMES
+    )
+
+    related: list[TestCase] = []
+    unrelated: list[TestCase] = []
+    for case in report.cases:
+        if case.outcome not in ("failed", "error"):
+            continue
+        haystack = f"{case.node_id}\n{case.traceback or ''}"
+        (related if any(n in haystack for n in needles) else unrelated).append(case)
+    return related, unrelated
 
 
 def judge_finding(
@@ -155,27 +209,48 @@ def judge_finding(
             ),
         )
 
-    if report.is_broken:
+    def verdict(status: FindingStatus, why: str) -> FindingVerdict:
         return FindingVerdict(
             finding=finding,
             contact_points=contact_points,
             selection=selection,
             report=report,
-            status=FindingStatus.CONFIRMED,
-            why=(
-                f"{report.failed} failed and {report.errors} errored across "
-                f"{len(selection.tests)} graph-selected test(s) reaching {sites}"
-            ),
+            status=status,
+            why=why,
         )
 
-    return FindingVerdict(
-        finding=finding,
-        contact_points=contact_points,
-        selection=selection,
-        report=report,
-        status=FindingStatus.UNREPRODUCED,
-        why=(
-            f"{report.passed} graph-selected test(s) reaching {sites} all passed — "
-            "the claim did not reproduce here"
-        ),
+    if report.is_execution_failure:
+        return verdict(
+            FindingStatus.INCONCLUSIVE,
+            f"pytest exited {report.exit_code}, which is the runner reporting it "
+            "could not do its job rather than a result about this code — "
+            "a crashed run must not confirm a claim",
+        )
+
+    if report.ran_nothing:
+        return verdict(
+            FindingStatus.INCONCLUSIVE,
+            f"{len(selection.tests)} test(s) were selected but none executed "
+            "(all skipped or none collected), so nothing was observed either way",
+        )
+
+    if report.is_broken:
+        related, unrelated = _split_by_site(report, finding, contact_points)
+        if not related:
+            return verdict(
+                FindingStatus.INCONCLUSIVE,
+                f"{len(unrelated)} test(s) failed, but none of them touch "
+                f"{finding.file_path} — the failure is real and is not evidence "
+                "about this claim",
+            )
+        shown = ", ".join(case.node_id for case in related[:3])
+        return verdict(
+            FindingStatus.CONFIRMED,
+            f"{len(related)} failing test(s) reach {sites} — {shown}",
+        )
+
+    return verdict(
+        FindingStatus.UNREPRODUCED,
+        f"{report.passed} graph-selected test(s) reaching {sites} all passed — "
+        "the claim did not reproduce here",
     )

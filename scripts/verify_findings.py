@@ -37,6 +37,7 @@ BADGE = {
     FindingStatus.UNREPRODUCED: "\033[32mUNREPRODUCED\033[0m",
     FindingStatus.UNCOVERED: "\033[33mUNCOVERED\033[0m",
     FindingStatus.UNLOCATABLE: "\033[90mUNLOCATABLE\033[0m",
+    FindingStatus.INCONCLUSIVE: "\033[35mINCONCLUSIVE\033[0m",
 }
 
 
@@ -166,6 +167,7 @@ MARKDOWN_BADGE = {
     FindingStatus.UNREPRODUCED: "🟢 unreproduced",
     FindingStatus.UNCOVERED: "🟡 uncovered",
     FindingStatus.UNLOCATABLE: "⚪ unlocatable",
+    FindingStatus.INCONCLUSIVE: "🟣 inconclusive",
 }
 
 
@@ -184,6 +186,7 @@ def render_markdown(verdicts: list[FindingVerdict], args: argparse.Namespace) ->
         f"**{tally[FindingStatus.CONFIRMED]} confirmed** · "
         f"{tally[FindingStatus.UNREPRODUCED]} unreproduced · "
         f"{tally[FindingStatus.UNCOVERED]} uncovered · "
+        f"{tally[FindingStatus.INCONCLUSIVE]} inconclusive · "
         f"{tally[FindingStatus.UNLOCATABLE]} unlocatable",
         "",
         "| verdict | finding | evidence |",
