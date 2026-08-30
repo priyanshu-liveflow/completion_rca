@@ -147,6 +147,11 @@ export default function MissionControlPage({
           </div>
         )}
         <div className={styles.spacer} />
+        {!readOnly && (
+          <a className={styles.docs} href="/reviews">
+            REVIEWS
+          </a>
+        )}
         <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
         {!readOnly && (
           <button type="button" className={styles.iconBtn} title="Settings">

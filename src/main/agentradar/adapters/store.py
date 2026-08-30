@@ -14,6 +14,7 @@ from ..contracts.evidence import TestReport, TestSelection
 from ..contracts.impact import ImpactRow
 from ..contracts.mission import Mission, MissionState
 from ..contracts.patch import VerifyResult
+from ..contracts.review import ReviewRun
 
 __all__ = ["MissionStore", "SqliteStore", "default_store_path"]
 
@@ -69,6 +70,22 @@ class SqliteStore:
             )
             """
         )
+        # Review runs are a separate table, not a mission with a strange
+        # shape. A mission tracks one dependency release through states; a
+        # review run is a snapshot of one pull request at one moment and has
+        # no lifecycle. Forcing them together would give both a state column
+        # that only one of them means anything by.
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS review_runs (
+                id TEXT PRIMARY KEY,
+                repo TEXT NOT NULL,
+                pr INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                run_json TEXT NOT NULL
+            )
+            """
+        )
         self._conn.commit()
 
     def create_mission(self, release: ReleaseEvent) -> Mission:
@@ -83,10 +100,28 @@ class SqliteStore:
             return mission.model_copy(deep=True)
 
     def save_impact(self, mission_id: str, row: ImpactRow) -> None:
-        """Append one impact row to the mission."""
+        """Record one impact row, replacing any earlier row for the same site.
+
+        Upsert, not append. A mission naturally saves the same contact point
+        twice — once when the graph locates it, with `verdict=unknown`, and
+        again once a test run has proven it `broken` or `safe`. Appending
+        turned seven located sites into fourteen stored rows, half of them
+        superseded, and an impact table that double-counts the blast radius
+        is not evidence, it is a bug a reader has to correct for.
+
+        Identity is the `ContactPoint` itself, so a re-save carrying a new
+        verdict replaces the placeholder in place, holding the graph's
+        original ordering rather than moving the row to the end.
+        """
         with self._lock:
             mission = self.get_mission(mission_id)
-            mission.impact_rows.append(row)
+            rows = mission.impact_rows
+            for i, existing in enumerate(rows):
+                if existing.contact_point == row.contact_point:
+                    rows[i] = row
+                    break
+            else:
+                rows.append(row)
             self._update(mission)
 
     def save_selection(self, mission_id: str, sel: TestSelection) -> None:
@@ -137,6 +172,40 @@ class SqliteStore:
                 ),
             }
         )
+
+    def save_review_run(self, run: ReviewRun) -> None:
+        """Persist a review verification, superseding any earlier run for that PR.
+
+        A re-verification replaces the previous run rather than accumulating
+        beside it: "what does this pull request look like now" has one answer,
+        and a list of stale ones is how a dashboard starts lying.
+        """
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM review_runs WHERE repo = ? AND pr = ?",
+                (run.repo, run.pr),
+            )
+            self._conn.execute(
+                "INSERT INTO review_runs (id, repo, pr, created_at, run_json) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (run.id, run.repo, run.pr, run.created_at, run.model_dump_json()),
+            )
+            self._conn.commit()
+
+    def get_review_run(self, run_id: str) -> ReviewRun | None:
+        """One persisted review run, or None when there is no such id."""
+        row = self._conn.execute(
+            "SELECT run_json FROM review_runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        return ReviewRun.model_validate_json(row["run_json"]) if row else None
+
+    def list_review_runs(self, limit: int = 50) -> list[ReviewRun]:
+        """Persisted review runs, newest first."""
+        rows = self._conn.execute(
+            "SELECT run_json FROM review_runs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [ReviewRun.model_validate_json(row["run_json"]) for row in rows]
 
     def set_state(self, mission_id: str, state: MissionState) -> None:
         """Update mission lifecycle state."""

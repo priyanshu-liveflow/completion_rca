@@ -179,3 +179,40 @@ before a demo belongs in the second category.
 The parsing logic *would* belong in `core/` if the product consumed fixtures at
 runtime. It does not — replay is a laptop-in-airplane-mode fallback, and if it
 ever moves onto the demo path, that move is what should carry the refactor.
+
+---
+
+## PR #20 — two implementations of `SandboxRunner` — **declined**
+
+**Finding:** *"localrunner duplicates sandbox implementation."* Rule 2987724
+permits exactly one concrete implementation per adapter Protocol, and
+`LocalRunner` is a second alongside `DaytonaRunner`.
+
+**Declined.** The rule as written says "one concrete impl", and this is
+literally a second one, so the finding is not wrong about the text. It is
+wrong about the purpose. `CLAUDE.md` states the rule as *"Every adapter is a
+`typing.Protocol` plus one concrete impl. Consumers type-hint the Protocol,
+never the impl."* — and the sentence that carries the weight is the second.
+The rule exists so nothing downstream binds to a concrete class; a Protocol
+with exactly one implementation forever is a Protocol that was never needed.
+
+`docs/build-plan.md` anticipated this in PR5, shipping `DockerRunner`
+alongside the native path and calling it out: *"the Protocol is what makes
+that a decision rather than a rewrite."* The two runners answer genuinely
+different questions. `DaytonaRunner` proves a third-party repo breaks under a
+new dependency release, and must be remote, because installing an untrusted
+release into our own interpreter is the thing we are trying to avoid.
+`LocalRunner` verifies a review finding about code already on this machine,
+already trusted, already installed — where a cloud round trip costs a CPU
+quota, a network, and roughly forty seconds per run, and buys nothing.
+
+`core/` cannot tell them apart, which is the invariant the rule protects.
+Consolidating them would mean one class with a mode flag: strictly worse, and
+still two behaviours.
+
+**Accepted from the same review, and fixed:** the `LocalRunner` environment
+leak (#4) was real and serious — it copied `os.environ` wholesale into the
+pytest subprocess, handing every key in `.env` to executed tests, against
+`CLAUDE.md`'s unconditional "secrets never enter the sandbox". Replaced with
+an allowlist and a regression test. Findings #8, #9, #10 and #12 were also
+real and are fixed in the same PR.

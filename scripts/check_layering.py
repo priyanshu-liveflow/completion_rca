@@ -20,7 +20,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "src" / "main" / "agentradar" / "core"
-BRIGHTDATA = (ROOT / "src" / "main" / "agentradar" / "adapters" / "brightdata.py").resolve()
+BRIGHTDATA = (
+    ROOT / "src" / "main" / "agentradar" / "adapters" / "brightdata.py"
+).resolve()
 
 # Pre-existing graph_rca HTTP clients. Do not grow this list.
 _INHERITED_NETWORK_PREFIXES = (
@@ -81,7 +83,9 @@ def _names_layer(mod: str) -> bool:
 def _is_network_module(mod: str) -> bool:
     if mod in _NETWORK_MODULES:
         return True
-    return any(mod == banned or mod.startswith(f"{banned}.") for banned in _NETWORK_MODULES)
+    return any(
+        mod == banned or mod.startswith(f"{banned}.") for banned in _NETWORK_MODULES
+    )
 
 
 def _const_str(node: ast.AST) -> str | None:
@@ -99,11 +103,17 @@ def _first_shell_bin(node: ast.AST) -> str | None:
         first = _const_str(node.elts[0])
         if first is None:
             return None
-        return first.rsplit("/", 1)[-1] if first.rsplit("/", 1)[-1] in _SHELL_BINS else None
+        return (
+            first.rsplit("/", 1)[-1]
+            if first.rsplit("/", 1)[-1] in _SHELL_BINS
+            else None
+        )
     return None
 
 
-def _is_subprocess_call(node: ast.Call, subprocess_aliases: set[str], bound_fns: set[str]) -> bool:
+def _is_subprocess_call(
+    node: ast.Call, subprocess_aliases: set[str], bound_fns: set[str]
+) -> bool:
     func = node.func
     if isinstance(func, ast.Name) and func.id in bound_fns:
         return True
@@ -152,14 +162,22 @@ def check_network(path: Path, tree: ast.AST) -> list[str]:
                     hits.append(f"{_rel(path)}:{node.lineno}: network import {mod!r}")
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name == "subprocess" or alias.name.startswith("subprocess."):
-                        subprocess_aliases.add(alias.asname or alias.name.split(".", 1)[0])
-            elif isinstance(node, ast.ImportFrom) and (node.module or "") == "subprocess":
+                    if alias.name == "subprocess" or alias.name.startswith(
+                        "subprocess."
+                    ):
+                        subprocess_aliases.add(
+                            alias.asname or alias.name.split(".", 1)[0]
+                        )
+            elif (
+                isinstance(node, ast.ImportFrom) and (node.module or "") == "subprocess"
+            ):
                 for alias in node.names:
                     if alias.name in _SUBPROCESS_FNS:
                         bound_fns.add(alias.asname or alias.name)
 
-        if isinstance(node, ast.Call) and _is_subprocess_call(node, subprocess_aliases, bound_fns):
+        if isinstance(node, ast.Call) and _is_subprocess_call(
+            node, subprocess_aliases, bound_fns
+        ):
             if node.args:
                 bin_name = _first_shell_bin(node.args[0])
                 if bin_name is not None:

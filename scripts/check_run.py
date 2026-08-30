@@ -10,6 +10,12 @@ in a chat transcript and not here, the mission did not really happen.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
+
+# Run me as `python scripts/check_run.py` from anywhere without setting
+# PYTHONPATH. Python puts `scripts/` on the path, not the repo root, so the
+# `src.` imports below fail unless the root is added first.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.main.agentradar.adapters.store import SqliteStore, default_store_path
 from src.main.agentradar.contracts.mission import Mission
