@@ -29,13 +29,20 @@ export default function MissionControlPage({
   const [popOutError, setPopOutError] = useState<string | null>(null);
   const popOutRef = useRef<Window | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-  const rail = useResizable({ initial: 270, min: 220, max: 520, axis: "x" });
+  const rail = useResizable({
+    initial: 270,
+    min: 220,
+    max: 520,
+    axis: "x",
+    label: "Resize approval rail",
+  });
   const dock = useResizable({
     initial: 360,
     min: 120,
     // The dock may not grow past the workspace, less the map's minimum.
     max: () => (workspaceRef.current?.clientHeight ?? 0) - 120,
     axis: "y",
+    label: "Resize sandbox dock",
   });
 
 
@@ -167,7 +174,7 @@ export default function MissionControlPage({
             onToggleDock={toggleDock}
             onTabChange={setTab}
             onPopOut={readOnly ? undefined : onTogglePopOut}
-            onResizeDock={dock.onMouseDown}
+            dockSeparator={dock.separatorProps}
           />
 
           {!readOnly && (
@@ -178,7 +185,7 @@ export default function MissionControlPage({
               popOutError={popOutError}
               onApprove={approve}
               onDeny={deny}
-              onResizeRail={rail.onMouseDown}
+              railSeparator={rail.separatorProps}
             />
           )}
         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MissionState, ProofNode } from "../lib/types";
+import type { SeparatorProps } from "../lib/useResizable";
 import styles from "./MissionControlPage.module.css";
 
 interface ApprovalRailProps {
@@ -11,7 +12,7 @@ interface ApprovalRailProps {
   popOutError: string | null;
   onApprove: () => Promise<boolean>;
   onDeny: () => Promise<boolean>;
-  onResizeRail?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  railSeparator?: SeparatorProps;
 }
 
 export default function ApprovalRail({
@@ -21,7 +22,7 @@ export default function ApprovalRail({
   popOutError,
   onApprove,
   onDeny,
-  onResizeRail,
+  railSeparator,
 }: ApprovalRailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const approveRef = useRef<HTMLButtonElement>(null);
@@ -92,10 +93,10 @@ export default function ApprovalRail({
 
   return (
     <aside className={styles.rail}>
-      {onResizeRail && (
+      {railSeparator && (
         <div
-          className={styles.railResizer}
-          onMouseDown={onResizeRail}
+          {...railSeparator}
+          className={styles.resizerX}
           title="Drag to resize rail"
         />
       )}

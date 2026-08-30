@@ -227,11 +227,44 @@ describe("resizer drag", () => {
       </MissionProvider>
     );
 
-    fireEvent.mouseDown(screen.getByTitle(title), { clientX: 900, clientY: 400 });
+    fireEvent.pointerDown(screen.getByTitle(title), {
+      clientX: 900,
+      clientY: 400,
+    });
     expect(document.body.style.userSelect).toBe("none");
 
-    fireEvent.mouseUp(window);
+    fireEvent.pointerUp(window);
     expect(document.body.style.userSelect).toBe("");
+  });
+
+  it.each(titles)("exposes each divider as a focusable separator: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    const divider = screen.getByTitle(title);
+    expect(divider).toHaveAttribute("role", "separator");
+    expect(divider).toHaveAttribute("tabindex", "0");
+    expect(divider).toHaveAttribute("aria-valuenow");
+    expect(divider.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it("resizes the rail from the keyboard", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = container.querySelector("main > div") as HTMLElement;
+    expect(workspace.style.gridTemplateColumns).toBe("1fr 270px");
+
+    fireEvent.keyDown(screen.getByTitle("Drag to resize rail"), {
+      key: "ArrowLeft",
+    });
+
+    expect(workspace.style.gridTemplateColumns).toBe("1fr 286px");
   });
 
   it.each(titles)("prevents the browser default drag on: %s", (title) => {
@@ -241,7 +274,7 @@ describe("resizer drag", () => {
       </MissionProvider>
     );
 
-    const down = new MouseEvent("mousedown", {
+    const down = new PointerEvent("pointerdown", {
       bubbles: true,
       cancelable: true,
       clientX: 900,
@@ -250,6 +283,6 @@ describe("resizer drag", () => {
     screen.getByTitle(title).dispatchEvent(down);
 
     expect(down.defaultPrevented).toBe(true);
-    fireEvent.mouseUp(window);
+    fireEvent.pointerUp(window);
   });
 });

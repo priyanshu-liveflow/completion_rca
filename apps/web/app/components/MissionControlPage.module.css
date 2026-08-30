@@ -699,54 +699,6 @@
   background: var(--active);
 }
 
-.dockResizer {
-  position: absolute;
-  top: -4px;
-  left: 0;
-  right: 0;
-  height: 8px;
-  cursor: ns-resize;
-  background: transparent;
-  z-index: 10;
-  transition: background 0.15s ease;
-}
-
-.dockResizer:hover {
-  background: var(--active);
-}
-
-.railResizer {
-  position: absolute;
-  top: 0;
-  left: -4px;
-  bottom: 0;
-  width: 8px;
-  cursor: col-resize;
-  background: transparent;
-  z-index: 10;
-  transition: background 0.15s ease;
-}
-
-.railResizer:hover {
-  background: var(--active);
-}
-
-.inspectorResizer {
-  position: absolute;
-  top: 0;
-  left: -4px;
-  bottom: 0;
-  width: 8px;
-  cursor: col-resize;
-  background: transparent;
-  z-index: 10;
-  transition: background 0.15s ease;
-}
-
-.inspectorResizer:hover {
-  background: var(--active);
-}
-
 @media (max-width: 1023px) {
   .chain {
     flex-wrap: nowrap;
@@ -759,4 +711,48 @@
     width: auto;
     flex: 0 0 auto;
   }
+}
+
+/*
+ * One shared divider. .resizerX sits on a panel's leading edge (rail,
+ * inspector), .resizerY on the dock's top edge. touch-action keeps a touch
+ * drag from scrolling the page instead of resizing.
+ */
+.resizerX,
+.resizerY {
+  position: absolute;
+  background: transparent;
+  z-index: 10;
+  touch-action: none;
+  transition: background 0.15s ease;
+}
+
+.resizerX {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+}
+
+.resizerY {
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.resizerX:hover,
+.resizerY:hover,
+.resizerX:active,
+.resizerY:active {
+  background: var(--active);
+}
+
+.resizerX:focus-visible,
+.resizerY:focus-visible {
+  outline: 2px solid var(--active);
+  outline-offset: 0;
+  background: var(--active);
 }
