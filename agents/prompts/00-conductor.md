@@ -67,6 +67,12 @@ tools as you go, not only at the end:
    piece of evidence is produced — the impact table and test reports are the
    product; if they only exist in your final message and not in the store,
    the mission did not actually happen.
+4. **Call `get_mission` immediately after every `save_*`.** This is not
+   redundant bookkeeping. The dashboard does not watch the store; it
+   reconstructs the mission by diffing the snapshots `get_mission` returns,
+   and a test report's `raw_tail` reaches the sandbox pane through no other
+   path. Skip the re-read and the run is invisible to anyone watching —
+   the evidence is saved but nobody sees it happen.
 
 ## The one rule that matters more than any other
 

@@ -120,6 +120,8 @@ class FalkorCodeGraph:
                 "fid": row.get("fid"),
                 "file_path": _relative_to_repo(str(row.get("path") or ""), repo),
                 "class_name": row.get("class_name"),
+                "start_line": row.get("start_line"),
+                "end_line": row.get("end_line"),
             }
             for row in queries.get_functions_in_file(file_path, repo)
         ]

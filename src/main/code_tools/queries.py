@@ -145,10 +145,10 @@ def get_functions_in_file(file_path: str, repo: str, limit: int = 500) -> list[d
     result = g.query(
         'MATCH (f:Function) WHERE f.path CONTAINS $path AND f.path CONTAINS $repo '
         'OPTIONAL MATCH (c:Class)-[:CONTAINS]->(f) '
-        'RETURN f.name, id(f), f.path, c.name LIMIT $lim',
+        'RETURN f.name, id(f), f.path, c.name, f.line_number, f.end_line LIMIT $lim',
         params={"path": file_path, "repo": _repo_filter(repo), "lim": limit}
     )
-    return [{"name": r[0], "fid": r[1], "path": r[2], "class_name": r[3]} for r in result.result_set] if result.result_set else []
+    return [{"name": r[0], "fid": r[1], "path": r[2], "class_name": r[3], "start_line": r[4], "end_line": r[5]} for r in result.result_set] if result.result_set else []
 
 
 def get_callees(function_name: str, repo: str, limit: int = 15, fid: int | None = None) -> list[dict]:

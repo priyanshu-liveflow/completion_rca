@@ -230,13 +230,19 @@ def test_default_store_is_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_concurrent_save_impact_preserves_all_rows(store: SqliteStore) -> None:
+    """Eight threads, eight distinct sites, no lost update.
+
+    Each thread saves a *different* contact point, so the lock is what is
+    under test here and not the upsert: read-modify-write without it drops
+    rows whenever two threads interleave.
+    """
     created = store.create_mission(_release())
 
     def append_row(index: int) -> None:
         store.save_impact(
             created.id,
             ImpactRow(
-                contact_point=_contact(),
+                contact_point=_contact().model_copy(update={"fid": index}),
                 verdict=Verdict.UNKNOWN,
                 why=f"row-{index}",
                 evidence_ref=None,
@@ -252,6 +258,67 @@ def test_concurrent_save_impact_preserves_all_rows(store: SqliteStore) -> None:
     loaded = store.get_mission(created.id)
     assert len(loaded.impact_rows) == 8
     assert {row.why for row in loaded.impact_rows} == {f"row-{i}" for i in range(8)}
+
+
+def test_save_impact_upserts_the_same_contact_point(store: SqliteStore) -> None:
+    """A verdict arriving later replaces the placeholder, it does not duplicate it.
+
+    This is the real mission shape: the graph locates a site with no verdict,
+    then a test run proves it broken. Appending stored both and doubled the
+    apparent blast radius.
+    """
+    created = store.create_mission(_release())
+    store.save_impact(
+        created.id,
+        ImpactRow(
+            contact_point=_contact(),
+            verdict=Verdict.UNKNOWN,
+            why="located by the graph",
+            evidence_ref=None,
+        ),
+    )
+    store.save_impact(
+        created.id,
+        ImpactRow(
+            contact_point=_contact(),
+            verdict=Verdict.BROKEN,
+            why="collection error under 2.1.1",
+            evidence_ref="report-1",
+        ),
+    )
+
+    rows = store.get_mission(created.id).impact_rows
+    assert len(rows) == 1
+    assert rows[0].verdict is Verdict.BROKEN
+    assert rows[0].evidence_ref == "report-1"
+
+
+def test_save_impact_upsert_holds_graph_ordering(store: SqliteStore) -> None:
+    """An updated row stays where the graph put it rather than jumping to the end."""
+    created = store.create_mission(_release())
+    for fid in (1, 2, 3):
+        store.save_impact(
+            created.id,
+            ImpactRow(
+                contact_point=_contact().model_copy(update={"fid": fid}),
+                verdict=Verdict.UNKNOWN,
+                why=f"site-{fid}",
+                evidence_ref=None,
+            ),
+        )
+    store.save_impact(
+        created.id,
+        ImpactRow(
+            contact_point=_contact().model_copy(update={"fid": 1}),
+            verdict=Verdict.BROKEN,
+            why="site-1 proven broken",
+            evidence_ref="report-1",
+        ),
+    )
+
+    rows = store.get_mission(created.id).impact_rows
+    assert [row.contact_point.fid for row in rows] == [1, 2, 3]
+    assert rows[0].verdict is Verdict.BROKEN
 
 
 # -- save_verify enforces validate_patch ------------------------------------

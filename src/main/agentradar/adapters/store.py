@@ -83,10 +83,28 @@ class SqliteStore:
             return mission.model_copy(deep=True)
 
     def save_impact(self, mission_id: str, row: ImpactRow) -> None:
-        """Append one impact row to the mission."""
+        """Record one impact row, replacing any earlier row for the same site.
+
+        Upsert, not append. A mission naturally saves the same contact point
+        twice — once when the graph locates it, with `verdict=unknown`, and
+        again once a test run has proven it `broken` or `safe`. Appending
+        turned seven located sites into fourteen stored rows, half of them
+        superseded, and an impact table that double-counts the blast radius
+        is not evidence, it is a bug a reader has to correct for.
+
+        Identity is the `ContactPoint` itself, so a re-save carrying a new
+        verdict replaces the placeholder in place, holding the graph's
+        original ordering rather than moving the row to the end.
+        """
         with self._lock:
             mission = self.get_mission(mission_id)
-            mission.impact_rows.append(row)
+            rows = mission.impact_rows
+            for i, existing in enumerate(rows):
+                if existing.contact_point == row.contact_point:
+                    rows[i] = row
+                    break
+            else:
+                rows.append(row)
             self._update(mission)
 
     def save_selection(self, mission_id: str, sel: TestSelection) -> None:
