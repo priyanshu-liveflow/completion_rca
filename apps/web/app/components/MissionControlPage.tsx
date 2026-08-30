@@ -1,18 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Box,
-  CheckCircle,
-  Circle,
-  FileText,
-  GitBranch,
-  Layers,
-  Play,
-  RefreshCw,
-  Settings,
-  Terminal,
-} from "lucide-react";
+import { GitBranch, RefreshCw, Settings } from "lucide-react";
 import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
@@ -20,18 +9,6 @@ import SandboxDock from "./SandboxDock";
 import ApprovalRail from "./ApprovalRail";
 import styles from "./MissionControlPage.module.css";
 import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
-
-const navItems = [
-  { icon: Circle, label: "Mission Control", active: true },
-  { icon: GitBranch, label: "Graph" },
-  { icon: FileText, label: "Events" },
-  { icon: Box, label: "Agents" },
-  { icon: Terminal, label: "Sandbox" },
-  { icon: CheckCircle, label: "Commits" },
-  { icon: Play, label: "Tests" },
-  { icon: Layers, label: "Artifacts" },
-  { icon: Settings, label: "Settings" },
-];
 
 export default function MissionControlPage({
   readOnly = false,
@@ -155,21 +132,6 @@ export default function MissionControlPage({
       <main className={styles.main}>
         {!readOnly && (
           <nav className={styles.nav}>
-            <div className={styles.navList}>
-              {navItems.map((it) => (
-                <div
-                  key={it.label}
-                  className={
-                    it.active
-                      ? `${styles.navItem} ${styles.navItemActive}`
-                      : styles.navItem
-                  }
-                >
-                  <it.icon size={13} />
-                  <span>{it.label}</span>
-                </div>
-              ))}
-            </div>
             <div className={styles.navPin}>
               <span className={styles.navPinLabel}>Runtime</span>
               <RuntimeIndicator state={state} />
