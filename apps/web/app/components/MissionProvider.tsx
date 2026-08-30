@@ -56,7 +56,7 @@ export function MissionProvider({
     undefined,
     () =>
       createInitialMissionState({
-        currentTime: formatTime(),
+        currentTime: "—",
         mode: adapter.mode,
         seed,
       })
@@ -64,6 +64,7 @@ export function MissionProvider({
 
   // Live clock
   useEffect(() => {
+    dispatch({ type: "clock.ticked", currentTime: formatTime() });
     const id = window.setInterval(() => {
       dispatch({ type: "clock.ticked", currentTime: formatTime() });
     }, 1000);
