@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, RefreshCw, Settings } from "lucide-react";
+import { GitBranch, Settings } from "lucide-react";
 import { useMission } from "./MissionProvider";
 import MissionMap from "./MissionMap";
 import RuntimeIndicator from "./RuntimeIndicator";
@@ -26,25 +26,9 @@ export default function MissionControlPage({
     deny,
   } = useMission();
   const [popOutError, setPopOutError] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(190);
   const [dockHeight, setDockHeight] = useState(360);
   const popOutRef = useRef<Window | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-
-  const startResizeSidebar = (e: React.MouseEvent<HTMLDivElement>) => {
-    const startX = e.clientX;
-    const startW = sidebarWidth;
-    const onMove = (ev: MouseEvent) => {
-      const newW = Math.min(Math.max(startW + ev.clientX - startX, 120), 360);
-      setSidebarWidth(newW);
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
 
   const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!workspaceRef.current) return;
@@ -147,12 +131,9 @@ export default function MissionControlPage({
               <span>mvilanova/intervals-mcp-server</span>
             </div>
             <div className={styles.missionId}>{state.id}</div>
-            {state.restored && (
-              <div className={styles.restored}>
-                <RefreshCw size={10} />
-                <span>Session restored</span>
-              </div>
-            )}
+            <div className={styles.headerStatus}>
+              <RuntimeIndicator state={state} />
+            </div>
           </>
         )}
         {readOnly && (
@@ -163,28 +144,14 @@ export default function MissionControlPage({
         )}
         <div className={styles.spacer} />
         <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
-        {!readOnly && <div className={styles.docs}>DOCS</div>}
-        {!readOnly && <Settings size={15} color="var(--ink-quiet)" />}
+        {!readOnly && (
+          <button className={styles.iconBtn} title="Settings">
+            <Settings size={15} color="var(--ink-quiet)" />
+          </button>
+        )}
       </header>
 
       <main className={styles.main}>
-        {!readOnly && (
-          <>
-            <nav className={styles.nav} style={{ width: sidebarWidth }}>
-              <div className={styles.navPin}>
-                <span className={styles.navPinLabel}>Runtime</span>
-                <RuntimeIndicator state={state} />
-                <span className={styles.navPinRefresh}>Auto-refresh: on</span>
-              </div>
-            </nav>
-            <div
-              className={styles.sidebarResizer}
-              onMouseDown={startResizeSidebar}
-              title="Drag to resize sidebar"
-            />
-          </>
-        )}
-
         <div
           ref={workspaceRef}
           className={[

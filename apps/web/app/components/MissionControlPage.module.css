@@ -51,9 +51,29 @@
 .missionId {
   font-family: var(--mono);
   font-weight: 500;
-  color: var(--amber);
-  border: 1px solid rgba(138, 90, 28, 0.35);
+  font-size: 10px;
+  color: var(--ink-secondary);
+  border: 1px solid var(--rule);
   padding: 3px 8px;
+}
+
+.headerStatus {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+}
+
+.iconBtn:hover {
+  background: var(--paper-line);
 }
 
 .restored {
