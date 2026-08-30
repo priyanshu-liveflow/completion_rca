@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import RepairRunner from "./RepairRunner";
 import ReviewsClient from "./ReviewsClient";
 import styles from "./ReviewsPage.module.css";
 import { ReviewRun } from "./types";
@@ -36,8 +35,6 @@ export default async function ReviewsPage() {
           ← mission control
         </a>
       </header>
-
-      <RepairRunner />
 
       {runs.length === 0 ? (
         <p className={styles.empty}>
