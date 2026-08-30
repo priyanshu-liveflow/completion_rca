@@ -168,17 +168,35 @@ def get_mission(mission_id: str) -> Mission:
         "type": "object",
         "properties": {
             "mission_id": {"type": "string"},
-            "state": {"type": "string"},
+            "state": {
+                "type": "string",
+                "description": (
+                    "One of: watching, locating, reproducing, patching, "
+                    "awaiting_approval, done, failed. Case-insensitive."
+                ),
+            },
         },
         "required": ["mission_id", "state"],
     },
 )
 def set_state(mission_id: str, state: str) -> Mission:
-    """Update mission state and return the refreshed record."""
+    """Update mission state and return the refreshed record.
+
+    Case-insensitive on purpose. `MissionState`'s *values* are lowercase but
+    its *members* are upper, and a state machine is conventionally written
+    upper in prose — this repo's own conductor prompt drew the pipeline as
+    `WATCHING -> LOCATING -> ...`, so a live mission dutifully sent
+    "WATCHING" and got `unknown state`. Rejecting a caller for the casing of
+    a name we spelled two ways ourselves is a pointless failure at the one
+    step whose whole job is bookkeeping.
+    """
     try:
-        mission_state = MissionState(state)
+        mission_state = MissionState(state.strip().lower())
     except ValueError as exc:
-        raise ToolError("invalid_input", f"unknown state {state!r}") from exc
+        valid = ", ".join(member.value for member in MissionState)
+        raise ToolError(
+            "invalid_input", f"unknown state {state!r}; expected one of: {valid}"
+        ) from exc
     return _mutate(
         mission_id,
         lambda: get_store().set_state(mission_id, mission_state),

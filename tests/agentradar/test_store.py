@@ -405,3 +405,26 @@ def test_save_verify_refuses_every_patch_when_nothing_was_located() -> None:
     )
     assert result["error"]["type"] == "patch_rejected"
     assert "allowed: none" in result["error"]["message"]
+
+
+@pytest.mark.parametrize("sent", ["WATCHING", "watching", "  Reproducing  "])
+def test_set_state_accepts_the_casing_our_own_prompt_teaches(sent: str) -> None:
+    """`MissionState` values are lower; its members and our prose are upper.
+
+    A live mission read `WATCHING -> LOCATING -> ...` from the conductor
+    prompt, sent `"WATCHING"`, and got `unknown state`. Failing a caller over
+    the casing of a name we spell two ways ourselves is a pointless error at
+    the one step whose entire job is bookkeeping.
+    """
+    created = dispatch("create_mission", _release().model_dump())
+    result = dispatch("set_state", {"mission_id": created["id"], "state": sent})
+    assert "error" not in result
+    assert result["state"] == sent.strip().lower()
+
+
+def test_set_state_still_rejects_a_state_that_does_not_exist() -> None:
+    created = dispatch("create_mission", _release().model_dump())
+    result = dispatch("set_state", {"mission_id": created["id"], "state": "wat"})
+    assert result["error"]["type"] == "invalid_input"
+    assert "expected one of" in result["error"]["message"]
+    assert "awaiting_approval" in result["error"]["message"]
