@@ -21,6 +21,14 @@ from typing import Protocol
 from ..contracts.evidence import TestReport
 from ..contracts.finding import FindingStatus, FindingVerdict, ReviewFinding
 from .finding import judge_finding, locate_finding
+from .remediation import (
+    PatchWriter,
+    RemediationOutcome,
+    build_request,
+    judge_remediation,
+    may_attempt,
+    validate_written_patch,
+)
 from .selection import CodeGraph, select_tests
 from .testreport import parse_pytest
 
@@ -28,6 +36,7 @@ __all__ = [
     "RunConfig",
     "TestRunner",
     "markdown_report",
+    "remediate",
     "tally",
     "verify_finding",
     "verify_findings",
@@ -46,6 +55,23 @@ class TestRunner(Protocol):
     """Anything that can run pytest node ids and report what happened."""
 
     def run_tests(self, node_ids: list[str], *, timeout_s: int = 180) -> RawRunLike: ...
+
+
+class PatchingRunner(TestRunner, Protocol):
+    """A runner that can also apply a diff inside its own checkout."""
+
+    def apply_patch(self, diff: str) -> RawRunLike: ...
+
+
+class SourceGraph(CodeGraph, Protocol):
+    """`CodeGraph` plus source reading, which only remediation needs.
+
+    Widened here rather than in `core/selection.py`, whose Protocol is
+    deliberately the narrow slice selection uses. A consumer asks for the
+    capabilities it actually calls; `FalkorCodeGraph` satisfies both.
+    """
+
+    def read_source(self, fid: int, repo: str, max_chars: int = 1500) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -182,3 +208,66 @@ def markdown_report(verdicts: Sequence[FindingVerdict], config: RunConfig) -> st
         "positive.</sub>",
     ]
     return "\n".join(lines)
+
+
+def remediate(
+    verdict: FindingVerdict,
+    graph: SourceGraph,
+    runner: PatchingRunner,
+    writer: PatchWriter,
+    config: RunConfig,
+    narrate: Narrator = _silent,
+) -> RemediationOutcome:
+    """Attempt a proven repair for one confirmed finding.
+
+    The sequence is fixed and each step can only refuse, never widen:
+
+    1. Refuse unless the finding is CONFIRMED — otherwise there is no failing
+       test to prove anything against.
+    2. Read the located function's source from the graph. That, the claim and
+       the failure output are all the writer sees. No credentials.
+    3. Validate the returned diff against the graph's blast radius and the
+       no-editing-tests rule, re-deriving the file list from the diff text.
+    4. Apply it, re-run *the same tests that failed*, and judge.
+
+    A patch that fails to apply, or applies without turning the tests green,
+    leaves `may_open_pr` false. The caller is responsible for reverting the
+    checkout; this function does not mutate anything it was not handed.
+    """
+    allowed, why = may_attempt(verdict)
+    if not allowed:
+        narrate(f"  patch:  skipped — {why}")
+        return judge_remediation(verdict, None, None)
+
+    point = verdict.contact_points[0]
+    source = graph.read_source(point.fid, config.repo_key)
+    request = build_request(verdict, source)
+    narrate(f"  patch:  writing for {point.function_name} ...")
+
+    diff = writer.write_patch(request)
+    patch, ok, reason = validate_written_patch(diff or "", verdict)
+    if not ok:
+        narrate(f"  patch:  rejected — {reason}")
+        return judge_remediation(verdict, None, None)
+    narrate(f"  patch:  {len(patch.files if patch else [])} file(s), validated")
+
+    applied = runner.apply_patch(patch.diff if patch else "")
+    if applied.exit_code != 0:
+        narrate("  patch:  did not apply cleanly")
+        return judge_remediation(verdict, None, None)
+
+    selection = verdict.selection
+    tests = list(selection.tests) if selection else []
+    narrate(f"  verify: re-running {len(tests)} test(s) ...")
+    raw = runner.run_tests(tests)
+    after = parse_pytest(
+        raw.stdout,
+        package=config.repo_key,
+        version="HEAD+patch",
+        report_id=f"finding-{verdict.finding.id}-after",
+        duration_s=raw.duration_s,
+        exit_code=raw.exit_code,
+    )
+    outcome = judge_remediation(verdict, patch, after)
+    narrate(f"  verify: {outcome.reason}")
+    return outcome
