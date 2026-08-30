@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -27,10 +26,13 @@ from src.main.agentradar.adapters.graph import FalkorCodeGraph
 from src.main.agentradar.adapters.localrunner import LocalRunner
 from src.main.agentradar.adapters.review import DEFAULT_REVIEWERS, GhReviewSource
 from src.main.agentradar.adapters.sandbox import SandboxRunner
-from src.main.agentradar.contracts.finding import FindingStatus, FindingVerdict
-from src.main.agentradar.core.finding import judge_finding, locate_finding
-from src.main.agentradar.core.selection import select_tests
-from src.main.agentradar.core.testreport import parse_pytest
+from src.main.agentradar.contracts.finding import FindingStatus
+from src.main.agentradar.core.review_run import (
+    RunConfig,
+    markdown_report,
+    tally,
+    verify_findings,
+)
 
 BADGE = {
     FindingStatus.CONFIRMED: "\033[31mCONFIRMED\033[0m",
@@ -109,114 +111,22 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def verify_one(
-    finding: object,
-    graph: FalkorCodeGraph,
-    runner: SandboxRunner | None,
-    args: argparse.Namespace,
-) -> FindingVerdict:
-    """Locate -> select -> run -> judge, for one finding."""
-    from src.main.agentradar.contracts.finding import ReviewFinding
-
-    assert isinstance(finding, ReviewFinding)
-    where = f"{finding.file_path}:{finding.line or '?'}"
-    say(f"\n  \033[1m{finding.title}\033[0m\n    {where}")
-
-    points = locate_finding(graph, finding, args.repo_key)
-    if not points:
-        say("    graph: no functions indexed for this file")
-        return judge_finding(finding, [], None, None)
-    say(f"    graph: {len(points)} function(s) — {points[0].function_name}")
-
-    selection = select_tests(
-        graph,
-        points,
-        args.repo_key,
-        max_tests=args.max_tests,
-        test_root=args.test_root,
-        source_root=args.source_root,
-    )
-    if not selection.tests:
-        say("    select: no test reaches this site")
-        return judge_finding(finding, points, selection, None)
-    say(f"    select: {len(selection.tests)} test(s) via {selection.strategy}")
-
-    if runner is None:
-        return judge_finding(finding, points, selection, None)
-
-    say(f"    run:    pytest {len(selection.tests)} test(s) ...")
-    started = time.monotonic()
-    raw = runner.run_tests(selection.tests)
-    report = parse_pytest(
-        raw.stdout,
-        package=args.repo_key,
-        version="HEAD",
-        report_id=f"finding-{finding.id}",
-        duration_s=raw.duration_s,
-        exit_code=raw.exit_code,
-    )
-    say(
-        f"    run:    passed={report.passed} failed={report.failed} "
-        f"errors={report.errors} in {time.monotonic() - started:.1f}s"
-    )
-    return judge_finding(finding, points, selection, report)
-
-
-MARKDOWN_BADGE = {
-    FindingStatus.CONFIRMED: "🔴 **confirmed**",
-    FindingStatus.UNREPRODUCED: "🟢 unreproduced",
-    FindingStatus.UNCOVERED: "🟡 uncovered",
-    FindingStatus.UNLOCATABLE: "⚪ unlocatable",
-    FindingStatus.INCONCLUSIVE: "🟣 inconclusive",
-}
-
-
-def render_markdown(verdicts: list[FindingVerdict], args: argparse.Namespace) -> str:
-    """A PR comment. Leads with the count that should change someone's mind."""
-    tally = {status: 0 for status in FindingStatus}
-    for verdict in verdicts:
-        tally[verdict.status] += 1
-
-    lines = [
-        "## AgentRadar verified this review",
-        "",
-        f"Each finding was located in the code graph, the tests reaching it were "
-        f"selected, and those tests were run against `{args.repo_key}`.",
-        "",
-        f"**{tally[FindingStatus.CONFIRMED]} confirmed** · "
-        f"{tally[FindingStatus.UNREPRODUCED]} unreproduced · "
-        f"{tally[FindingStatus.UNCOVERED]} uncovered · "
-        f"{tally[FindingStatus.INCONCLUSIVE]} inconclusive · "
-        f"{tally[FindingStatus.UNLOCATABLE]} unlocatable",
-        "",
-        "| verdict | finding | evidence |",
-        "|---|---|---|",
-    ]
-    for verdict in verdicts:
-        title = verdict.finding.title.replace("|", "\\|")
-        why = verdict.why.replace("|", "\\|")
-        lines.append(f"| {MARKDOWN_BADGE[verdict.status]} | {title} | {why} |")
-
-    lines += [
-        "",
-        "<sub>`uncovered` means located but no test reaches it — neither proven "
-        "nor refuted. `unlocatable` means the graph has not indexed that file. "
-        "Neither is a false positive.</sub>",
-    ]
-    return "\n".join(lines)
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    config = RunConfig(
+        repo_key=args.repo_key,
+        test_root=args.test_root,
+        source_root=args.source_root,
+        max_tests=args.max_tests,
+    )
 
     say(f"\033[1mVerifying {args.repo} PR #{args.pr}\033[0m")
-    say(f"  graph repo key : {args.repo_key}")
+    say(f"  graph repo key : {config.repo_key}")
     say(f"  workdir        : {args.workdir}")
     say(f"  run tests      : {'no' if args.no_run else 'yes'}")
 
     reviewers = tuple(args.reviewer) if args.reviewer else DEFAULT_REVIEWERS
-    source = GhReviewSource(args.repo, reviewers=reviewers)
-    findings = source.findings(args.pr)
+    findings = GhReviewSource(args.repo, reviewers=reviewers).findings(args.pr)
     say(f"\n{len(findings)} finding(s) from the reviewer.")
     if not findings:
         say("Nothing to verify. Either the review is clean or it has not run yet.")
@@ -225,10 +135,13 @@ def main(argv: list[str] | None = None) -> int:
     graph = FalkorCodeGraph()
     runner: SandboxRunner | None = None if args.no_run else LocalRunner(args.workdir)
 
-    verdicts = [verify_one(f, graph, runner, args) for f in findings]
+    def narrate(line: str) -> None:
+        say(f"  {line}" if line.startswith(" ") else f"\n  \033[1m{line}\033[0m")
+
+    verdicts = verify_findings(graph, findings, config, runner, narrate)
 
     if args.markdown:
-        print(render_markdown(verdicts, args))
+        print(markdown_report(verdicts, config))
         return 0
 
     say("\n\033[1mVerdicts\033[0m")
@@ -236,12 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         say(f"  {BADGE[verdict.status]}  {verdict.finding.title}")
         say(f"      {verdict.why}")
 
-    tally = {status: 0 for status in FindingStatus}
-    for verdict in verdicts:
-        tally[verdict.status] += 1
-    say(
-        "\n  " + "  ".join(f"{status.value}={count}" for status, count in tally.items())
-    )
+    counts = tally(verdicts)
+    say("\n  " + "  ".join(f"{s.value}={n}" for s, n in counts.items()))
     return 0
 
 

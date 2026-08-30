@@ -90,7 +90,10 @@ def test_line_stays_none_when_github_reports_neither() -> None:
 
 
 def test_html_badges_do_not_become_the_title() -> None:
-    body = '<img src="https://img.shields.io/badge/High-634FD1" height="20px">\n\n___\n\n**Agent proxy lacks access control**\n\ndetail'
+    body = (
+        '<img src="https://img.shields.io/badge/High-634FD1" height="20px">\n'
+        "\n___\n\n**Agent proxy lacks access control**\n\ndetail"
+    )
     findings = parse_review_comments(json.dumps([_comment(1, "src/a.py", 1, body)]))
     assert findings[0].title == "Agent proxy lacks access control"
 
@@ -100,7 +103,7 @@ def test_empty_body_is_not_a_finding() -> None:
 
 
 def test_malformed_json_raises_rather_than_returning_nothing() -> None:
-    """"The reviewer found nothing" and "we failed to ask" must not look alike."""
+    """ "The reviewer found nothing" and "we failed to ask" must not look alike."""
     with pytest.raises(GhError):
         parse_review_comments("{not json at all")
 
