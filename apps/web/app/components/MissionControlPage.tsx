@@ -11,6 +11,10 @@ import ApprovalRail from "./ApprovalRail";
 import styles from "./MissionControlPage.module.css";
 import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
 
+/** Floor for the proof-chain map, shared by the grid and the resize clamps. */
+const MAP_MIN_WIDTH = 360;
+const MAP_MIN_HEIGHT = 120;
+
 export default function MissionControlPage({
   readOnly = false,
 }: {
@@ -35,14 +39,16 @@ export default function MissionControlPage({
     max: 520,
     axis: "x",
     label: "Resize approval rail",
+    // Mirrors the map column's declared minimum below.
+    bounds: { ref: workspaceRef, reserve: MAP_MIN_WIDTH },
   });
   const dock = useResizable({
     initial: 360,
     min: 120,
-    // The dock may not grow past the workspace, less the map's minimum.
-    max: () => (workspaceRef.current?.clientHeight ?? 0) - 120,
     axis: "y",
     label: "Resize sandbox dock",
+    // Mirrors the map row's declared minimum below.
+    bounds: { ref: workspaceRef, reserve: MAP_MIN_HEIGHT },
   });
 
 
@@ -158,8 +164,10 @@ export default function MissionControlPage({
             .filter(Boolean)
             .join(" ")}
           style={{
-            gridTemplateColumns: readOnly ? undefined : `1fr ${rail.size}px`,
-            gridTemplateRows: `minmax(120px, 1fr) ${dock.size}px`,
+            gridTemplateColumns: readOnly
+              ? undefined
+              : `minmax(${MAP_MIN_WIDTH}px, 1fr) ${rail.size}px`,
+            gridTemplateRows: `minmax(${MAP_MIN_HEIGHT}px, 1fr) ${dock.size}px`,
           }}
         >
           <MissionMap

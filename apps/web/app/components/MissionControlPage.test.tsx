@@ -199,7 +199,9 @@ describe("workspace layout", () => {
       </MissionProvider>
     );
 
-    expect(workspaceOf(container).style.gridTemplateColumns).toBe("1fr 270px");
+    expect(workspaceOf(container).style.gridTemplateColumns).toBe(
+      "minmax(360px, 1fr) 270px"
+    );
   });
 
   it("does not reserve a rail column when the rail is hidden", () => {
@@ -258,13 +260,13 @@ describe("resizer drag", () => {
       </MissionProvider>
     );
     const workspace = container.querySelector("main > div") as HTMLElement;
-    expect(workspace.style.gridTemplateColumns).toBe("1fr 270px");
+    expect(workspace.style.gridTemplateColumns).toBe("minmax(360px, 1fr) 270px");
 
     fireEvent.keyDown(screen.getByTitle("Drag to resize rail"), {
       key: "ArrowLeft",
     });
 
-    expect(workspace.style.gridTemplateColumns).toBe("1fr 286px");
+    expect(workspace.style.gridTemplateColumns).toBe("minmax(360px, 1fr) 286px");
   });
 
   it.each(titles)("prevents the browser default drag on: %s", (title) => {

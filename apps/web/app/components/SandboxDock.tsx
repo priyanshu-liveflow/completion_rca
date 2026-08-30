@@ -64,12 +64,15 @@ export default function SandboxDock({
   onPopOut,
   dockSeparator,
 }: SandboxDockProps) {
+  const dockBodyRef = useRef<HTMLDivElement>(null);
   const inspector = useResizable({
     initial: 220,
     min: 120,
     max: 460,
     axis: "x",
     label: "Resize inspector",
+    // The transcript keeps enough width to stay a readable terminal.
+    bounds: { ref: dockBodyRef, reserve: 320 },
   });
   const transcriptRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -151,6 +154,7 @@ export default function SandboxDock({
         </button>
       </div>
       <div
+        ref={dockBodyRef}
         className={[
           styles.dockBody,
           !state.dockOpen && styles.dockBodyHidden,

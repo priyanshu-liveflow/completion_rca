@@ -88,32 +88,6 @@ describe("useResizable", () => {
     expect(result.current.size).toBe(420);
   });
 
-  it("resolves a dynamic maximum at the start of each drag", () => {
-    let ceiling = 400;
-    const { result } = renderHook(() =>
-      useResizable({
-        initial: 270,
-        min: 220,
-        max: () => ceiling,
-        axis: "x",
-        label: "Resize rail",
-      })
-    );
-
-    act(() => result.current.separatorProps.onPointerDown(press(900, 0)));
-    act(() => {
-      fireEvent.pointerMove(window, { clientX: 100 });
-      fireEvent.pointerUp(window);
-    });
-    expect(result.current.size).toBe(400);
-
-    ceiling = 300;
-    act(() => result.current.separatorProps.onPointerDown(press(900, 0)));
-    act(() => {
-      fireEvent.pointerMove(window, { clientX: 100 });
-    });
-    expect(result.current.size).toBe(300);
-  });
 
   it("suppresses text selection for the duration of the drag", () => {
     const { result } = renderHook(() => useResizable(rail));
@@ -168,13 +142,6 @@ describe("useResizable separator semantics", () => {
     expect(props["aria-valuemax"]).toBe(520);
   });
 
-  it("omits a maximum it cannot know until the drag begins", () => {
-    const { result } = renderHook(() =>
-      useResizable({ initial: 270, min: 220, max: () => 400, axis: "x", label: "Resize rail" })
-    );
-
-    expect(result.current.separatorProps["aria-valuemax"]).toBeUndefined();
-  });
 });
 
 describe("useResizable keyboard", () => {
@@ -235,5 +202,105 @@ describe("useResizable keyboard", () => {
     act(() => result.current.separatorProps.onKeyDown(keyed("a")));
 
     expect(result.current.size).toBe(270);
+  });
+});
+
+describe("useResizable bounds", () => {
+  const sized = (axis: "clientWidth" | "clientHeight", px: number) => {
+    const el = document.createElement("div");
+    Object.defineProperty(el, axis, { value: px, configurable: true });
+    return el;
+  };
+
+  it("keeps the design cap when the container leaves room for it", () => {
+    const el = sized("clientWidth", 1400);
+    const { result } = renderHook(() =>
+      useResizable({
+        ...rail,
+        bounds: { ref: { current: el }, reserve: 360 },
+      })
+    );
+
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(520);
+  });
+
+  it("narrows the ceiling to what the container can spare", () => {
+    const el = sized("clientWidth", 800);
+    const { result } = renderHook(() =>
+      useResizable({
+        ...rail,
+        bounds: { ref: { current: el }, reserve: 360 },
+      })
+    );
+
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(440);
+  });
+
+  it("never lets the ceiling fall below the minimum", () => {
+    const el = sized("clientWidth", 300);
+    const { result } = renderHook(() =>
+      useResizable({
+        ...rail,
+        bounds: { ref: { current: el }, reserve: 360 },
+      })
+    );
+
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(220);
+
+    act(() => result.current.separatorProps.onKeyDown(
+      { key: "End", preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLDivElement>
+    ));
+    expect(result.current.size).toBe(220);
+  });
+
+  it("pulls an oversized panel back in when the container shrinks", () => {
+    const el = sized("clientWidth", 1400);
+    const { result } = renderHook(() =>
+      useResizable({
+        ...rail,
+        bounds: { ref: { current: el }, reserve: 360 },
+      })
+    );
+
+    act(() => result.current.separatorProps.onKeyDown(
+      { key: "End", preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLDivElement>
+    ));
+    expect(result.current.size).toBe(520);
+
+    Object.defineProperty(el, "clientWidth", { value: 700, configurable: true });
+    act(() => {
+      fireEvent(window, new Event("resize"));
+    });
+
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(340);
+    expect(result.current.size).toBe(340);
+  });
+
+  it("ignores a container that reports no size", () => {
+    const el = sized("clientWidth", 0);
+    const { result } = renderHook(() =>
+      useResizable({
+        ...rail,
+        bounds: { ref: { current: el }, reserve: 360 },
+      })
+    );
+
+    expect(result.current.size).toBe(270);
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(520);
+  });
+
+  it("measures height rather than width on the y axis", () => {
+    const el = sized("clientHeight", 600);
+    const { result } = renderHook(() =>
+      useResizable({
+        initial: 360,
+        min: 120,
+        axis: "y",
+        label: "Resize dock",
+        bounds: { ref: { current: el }, reserve: 120 },
+      })
+    );
+
+    expect(result.current.separatorProps["aria-valuemax"]).toBe(480);
   });
 });

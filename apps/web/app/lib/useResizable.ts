@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import type { KeyboardEvent, PointerEvent, RefObject } from "react";
+
+interface ResizableBounds {
+  /** The element the panel shares its axis with. */
+  ref: RefObject<HTMLElement | null>;
+  /** Px along that axis the sibling must keep. */
+  reserve: number;
+}
 
 interface ResizableOptions {
   /** Size the panel starts at, in px. */
   initial: number;
   /** Smallest size the drag may reach, in px. */
   min: number;
+  /** Design cap, in px. Omit for a panel bounded only by its container. */
+  max?: number;
   /**
-   * Largest size the drag may reach, in px. Pass a function when the ceiling
-   * depends on layout that is only known once the drag begins — the dock
-   * derives its maximum from the live workspace height. A function ceiling is
-   * left out of aria-valuemax, which must not depend on a ref the server has
-   * no way to read.
+   * Ties the ceiling to the live container, so a panel cannot crowd out its
+   * sibling on a narrow window. Measured after mount and on every resize —
+   * the first render uses the design cap alone so the server and the client
+   * agree, then the effect narrows it.
    */
-  max: number | (() => number);
+  bounds?: ResizableBounds;
   /** "x" for a vertical divider, "y" for a horizontal one. */
   axis: "x" | "y";
   /** Announced to assistive tech, e.g. "Resize approval rail". */
@@ -36,24 +44,48 @@ export function useResizable({
   initial,
   min,
   max,
+  bounds,
   axis,
   label,
   step = 16,
 }: ResizableOptions) {
+  const cap = max ?? Number.POSITIVE_INFINITY;
   const [size, setSize] = useState(initial);
+  const [limit, setLimit] = useState(cap);
   const releaseRef = useRef<(() => void) | null>(null);
 
-  const ceilingOf = useCallback(
-    () => (typeof max === "function" ? max() : max),
-    [max]
-  );
+  const boundsRef = bounds?.ref;
+  const reserve = bounds?.reserve ?? 0;
+
+  useEffect(() => {
+    if (!boundsRef) return;
+
+    const measure = () => {
+      const el = boundsRef.current;
+      if (!el) return;
+      const extent = axis === "x" ? el.clientWidth : el.clientHeight;
+      // A hidden or not-yet-laid-out container measures 0. Believing it would
+      // collapse the panel to its minimum and strand it there once the
+      // container is shown again.
+      if (extent === 0) return;
+      const available = extent - reserve;
+      // A container too small for the minimum still owes the panel its
+      // minimum; letting the ceiling drop under it would invert the clamp.
+      const next = Math.max(min, Math.min(cap, available));
+      setLimit(next);
+      setSize((current) => Math.min(current, next));
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [axis, boundsRef, cap, min, reserve]);
 
   const onPointerDown = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       releaseRef.current?.();
 
-      const ceiling = ceilingOf();
       const start = axis === "x" ? e.clientX : e.clientY;
       const startSize = size;
       const controller = new AbortController();
@@ -70,7 +102,7 @@ export function useResizable({
         "pointermove",
         (ev: globalThis.PointerEvent) => {
           const current = axis === "x" ? ev.clientX : ev.clientY;
-          setSize(Math.min(Math.max(startSize + start - current, min), ceiling));
+          setSize(Math.min(Math.max(startSize + start - current, min), limit));
         },
         { signal: controller.signal }
       );
@@ -81,7 +113,7 @@ export function useResizable({
         signal: controller.signal,
       });
     },
-    [axis, ceilingOf, min, size]
+    [axis, limit, min, size]
   );
 
   const onKeyDown = useCallback(
@@ -89,7 +121,7 @@ export function useResizable({
       const grow = axis === "x" ? "ArrowLeft" : "ArrowUp";
       const shrink = axis === "x" ? "ArrowRight" : "ArrowDown";
 
-      const next = (current: number) => {
+      const target = (current: number) => {
         switch (e.key) {
           case grow:
             return current + step;
@@ -98,21 +130,19 @@ export function useResizable({
           case "Home":
             return min;
           case "End":
-            return ceilingOf();
+            return limit;
           default:
             return null;
         }
       };
 
-      setSize((current) => {
-        const target = next(current);
-        if (target === null) return current;
-        return Math.min(Math.max(target, min), ceilingOf());
-      });
-
-      if (next(size) !== null) e.preventDefault();
+      if (target(size) === null) return;
+      e.preventDefault();
+      setSize((current) =>
+        Math.min(Math.max(target(current) as number, min), limit)
+      );
     },
-    [axis, ceilingOf, min, size, step]
+    [axis, limit, min, size, step]
   );
 
   useEffect(() => () => releaseRef.current?.(), []);
@@ -128,7 +158,7 @@ export function useResizable({
         | "horizontal",
       "aria-valuenow": size,
       "aria-valuemin": min,
-      "aria-valuemax": typeof max === "number" ? max : undefined,
+      "aria-valuemax": Number.isFinite(limit) ? limit : undefined,
       onPointerDown,
       onKeyDown,
     },
