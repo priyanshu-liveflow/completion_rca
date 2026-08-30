@@ -17,6 +17,12 @@ on:
       pr:
         description: pull request number
         required: true
+      fix:
+        description: >-
+          attempt a proven repair for each confirmed finding. Writes code, so
+          it is off unless asked for.
+        type: boolean
+        default: false
 
 # One run per PR. A reviewer posting six comments in six seconds should not
 # start six indexing jobs that race to comment.
@@ -66,9 +72,20 @@ jobs:
           cgc index tests/agentradar
           cgc index scripts
 
+      # `--fix` is opt-in per run, never automatic on every review. It writes
+      # code, and a workflow that silently patches a branch whenever a bot
+      # comments is a worse problem than the bugs it fixes. The gate still
+      # holds either way: no proven red-to-green, no pull request.
       - name: Verify the review
         id: verify
         env:
+          # The model credential stays in the workflow environment. It is
+          # never forwarded into the prompt, and `LocalRunner` allowlists the
+          # environment it hands to pytest, so it cannot reach executed tests.
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          CLOUD_PROVIDER: openai_compat
           GH_TOKEN: ${{ github.token }}
           AGENTRADAR_REPO: ${{ github.repository }}
           AGENTRADAR_REPO_KEY: ${{ github.event.repository.name }}
@@ -79,6 +96,7 @@ jobs:
         run: |
           python scripts/verify_findings.py \
             --pr "${{ github.event.pull_request.number || inputs.pr }}" \
+            ${{ inputs.fix == 'true' && '--fix' || '' }} \
             --markdown > verdicts.md
           cat verdicts.md >> "$GITHUB_STEP_SUMMARY"
 

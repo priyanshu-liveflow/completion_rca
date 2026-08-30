@@ -24,12 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.main.agentradar.adapters.graph import FalkorCodeGraph
 from src.main.agentradar.adapters.localrunner import LocalRunner
+from src.main.agentradar.adapters.patchwriter import LlmPatchWriter
 from src.main.agentradar.adapters.review import DEFAULT_REVIEWERS, GhReviewSource
 from src.main.agentradar.adapters.sandbox import SandboxRunner
 from src.main.agentradar.contracts.finding import FindingStatus
 from src.main.agentradar.core.review_run import (
     RunConfig,
     markdown_report,
+    remediate,
     tally,
     verify_findings,
 )
@@ -99,6 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-tests", type=int, default=8, help="cap tests selected per finding"
     )
     p.add_argument(
+        "--fix",
+        action="store_true",
+        help=(
+            "for each CONFIRMED finding, write a patch, apply it, and re-run the "
+            "same tests. A pull request is only reachable on a proven red-to-green"
+        ),
+    )
+    p.add_argument(
         "--markdown",
         action="store_true",
         help="emit a markdown table on stdout, for posting back to the PR",
@@ -139,6 +149,19 @@ def main(argv: list[str] | None = None) -> int:
         say(f"  {line}" if line.startswith(" ") else f"\n  \033[1m{line}\033[0m")
 
     verdicts = verify_findings(graph, findings, config, runner, narrate)
+
+    if args.fix:
+        confirmed = [v for v in verdicts if v.status is FindingStatus.CONFIRMED]
+        say(f"\n\033[1mRepairing {len(confirmed)} confirmed finding(s)\033[0m")
+        if runner is None:
+            say("  --fix needs a runner; drop --no-run")
+        else:
+            writer = LlmPatchWriter()
+            for verdict in confirmed:
+                say(f"\n  \033[1m{verdict.finding.title}\033[0m")
+                outcome = remediate(verdict, graph, runner, writer, config, narrate)
+                gate = "OPEN" if outcome.may_open_pr else "SHUT"
+                say(f"    gate: {gate} — {outcome.reason}")
 
     if args.markdown:
         print(markdown_report(verdicts, config))
