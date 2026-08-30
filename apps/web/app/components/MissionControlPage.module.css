@@ -3,7 +3,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--paper);
+  background: transparent;
   color: var(--ink);
   font-family: var(--sans);
   overflow-x: hidden;
@@ -93,7 +93,7 @@
   display: flex;
   flex-direction: column;
   padding: 16px 0;
-  background: var(--paper);
+  background: var(--paper-line);
 }
 
 @media (min-width: 1024px) and (max-width: 1279px) {
@@ -148,8 +148,8 @@
 }
 
 .navItemActive {
-  background: var(--amber-soft);
-  border-left-color: var(--amber);
+  background: var(--active-soft);
+  border-left-color: var(--active);
   color: var(--ink);
 }
 
@@ -273,6 +273,7 @@
   padding: 14px;
   cursor: pointer;
   position: relative;
+  background: var(--paper);
 }
 
 .mapButton {
@@ -288,12 +289,12 @@
 .inspectorTab:focus-visible,
 .btnPrimary:focus-visible,
 .btnSecondary:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--active);
   outline-offset: 2px;
 }
 
 .nodeSelected {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--active);
   outline-offset: -2px;
 }
 
@@ -371,6 +372,7 @@
   border-bottom: 1px solid var(--rule);
   font-family: var(--mono);
   font-size: 12px;
+  background: var(--paper-line);
 }
 
 .dockTitle {
@@ -422,6 +424,8 @@
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.7;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 .line {
@@ -431,7 +435,7 @@
 }
 
 .lineHighlighted {
-  background: var(--amber-soft);
+  background: var(--active-soft);
 }
 
 .lineCommand {
@@ -456,6 +460,7 @@
   border-left: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
+  background: var(--paper-line);
 }
 
 .inspectorTabs {
@@ -496,7 +501,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  background: var(--paper);
+  background: var(--paper-line);
 }
 
 .railTitle {
@@ -589,7 +594,7 @@
 .dialogOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(33, 29, 22, 0.18);
+  background: rgba(9, 13, 18, 0.38);
   display: flex;
   align-items: center;
   justify-content: center;
