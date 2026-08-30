@@ -109,18 +109,29 @@ def configure_models(api_key: str) -> bool:
 
 
 def configure_openai(api_key: str) -> bool:
-    """Register OpenAI as a second model provider. Same shape as NIM.
+    """Register OpenAI as a second model provider.
 
-    PUT, not POST. `POST /api/v1/settings/model-providers` only *creates* —
-    it answers "already exists" and silently leaves the stored model list
-    untouched, so editing `OPENAI_MODELS` and re-running would appear to
-    succeed while changing nothing. PUT replaces the manifest.
+    `type: "openai"`, NOT `type: "custom"`. This is the whole reason the
+    gpt-5.6 family works. TrueForge's `buildProviderOptions` branches on the
+    provider type: `"openai"` routes through the OpenAI provider, which sets
+    `include: ["reasoning.encrypted_content"]` and talks to `/v1/responses`;
+    anything else falls through to the openai-*compatible* provider and
+    `/v1/chat/completions`. On that path every gpt-5.6 turn 400s with
+    "Function tools with reasoning_effort are not supported for gpt-5.6-sol
+    in /v1/chat/completions. To use function tools, use /v1/responses" — and
+    since the agent always has TrueForge's built-in tools, that is every turn.
+    `custom` remains correct for NVIDIA, which really is only OpenAI-shaped.
+
+    The manifest takes no `name` key for this type; the provider is named
+    `openai` by TrueForge, so models are referenced as `openai/<alias>`.
+
+    PUT, not POST. POST only *creates* — it answers "already exists" and
+    leaves the stored model list untouched, so editing `OPENAI_MODELS` and
+    re-running POST would report success while changing nothing.
     """
     status, body = call("PUT", "/api/v1/settings/model-providers", {
         "manifest": {
-            "type": "custom",
-            "name": "openai",
-            "base_url": "https://api.openai.com/v1",
+            "type": "openai",
             "auth": {"api_key": api_key},
             "models": [
                 {"model_id": mid, "name": name, "properties": (
@@ -136,11 +147,25 @@ def configure_openai(api_key: str) -> bool:
         print(f"openai provider  ready ({len(OPENAI_MODELS)} models)")
         return True
     message = body.get("error", {}).get("message", "")
-    if "already exists" in message.lower() or status == 409:
-        print("openai provider  already configured")
-        return True
     print(f"openai provider  FAILED {status}: {message[:200]}")
     return False
+
+
+# Daytona's free tier caps *concurrent* CPU (10 at the time of writing), and a
+# sandbox holds its share until it stops. Every TrueForge session starts a new
+# sandbox, so a long `auto_stop` plus a morning of test runs fills the quota
+# and every later run dies with "Total CPU limit exceeded" — after first
+# degrading into misleading errors like `fork/exec /usr/bin/bash: no such file
+# or directory`.
+#
+# So the interval is a genuine trade, not a value to maximise:
+#   development  — short, or leaked sandboxes exhaust the tier by lunchtime
+#   demo day     — long, or the prewarmed sandbox stops during the wait for
+#                  your slot and you cold-clone on venue wifi
+#
+# Default is the development value. Export SANDBOX_AUTO_STOP_MIN=120 and
+# re-run this script as part of the pre-demo checklist.
+AUTO_STOP_MIN = int(os.getenv("SANDBOX_AUTO_STOP_MIN", "20"))
 
 
 def configure_sandbox(api_key: str) -> bool:
@@ -151,7 +176,7 @@ def configure_sandbox(api_key: str) -> bool:
             "type": "daytona",
             "auth": {"api_key": api_key},
             "exec_timeout_ms": 300_000,
-            "auto_stop_interval_in_minutes": 120,
+            "auto_stop_interval_in_minutes": AUTO_STOP_MIN,
             "auto_archive_interval_in_minutes": 10_080,
             "auto_delete_interval_in_minutes": 20_160,
         }
@@ -173,7 +198,7 @@ def configure_sandbox(api_key: str) -> bool:
         time.sleep(10)
         _, body = call("GET", "/api/v1/settings/sandbox-providers")
     state = body.get("data", {}).get("status")
-    print(f"sandbox provider {state}"
+    print(f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m)"
           f"{'' if state == 'ready' else ' — ' + str(body.get('data', {}).get('status_reason'))}")
     return state == "ready"
 

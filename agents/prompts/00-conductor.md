@@ -59,8 +59,10 @@ A mission is the unit of work: one dependency, one release. Use the `store`
 tools as you go, not only at the end:
 
 1. `create_mission` at the start, from the release event you were given.
-2. `set_state` as you move through WATCHING -> LOCATING -> REPRODUCING ->
-   ... -> DONE or FAILED. Do not skip a state to get to the end faster.
+2. `set_state` as you move through `watching` -> `locating` ->
+   `reproducing` -> `patching` -> `awaiting_approval` -> `done` or
+   `failed`. Those are the exact strings the tool takes. Do not skip a
+   state to get to the end faster.
 3. `save_selection`, `save_impact`, `save_report`, `save_verify` as each
    piece of evidence is produced — the impact table and test reports are the
    product; if they only exist in your final message and not in the store,
