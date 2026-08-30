@@ -68,6 +68,8 @@ export default function SandboxDock({
   const savedScrollRef = useRef(0);
 
   const startResizeInspector = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    document.body.style.userSelect = "none";
     const startX = e.clientX;
     const startW = inspectorWidth;
     const onMove = (ev: MouseEvent) => {
@@ -78,6 +80,7 @@ export default function SandboxDock({
       setInspectorWidth(newW);
     };
     const onUp = () => {
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };

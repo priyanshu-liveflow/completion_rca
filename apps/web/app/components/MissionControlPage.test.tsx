@@ -187,3 +187,69 @@ describe("ApprovalRail", () => {
     expect(document.activeElement).toBe(approveButton);
   });
 });
+
+describe("workspace layout", () => {
+  const workspaceOf = (container: HTMLElement) =>
+    container.querySelector("main > div") as HTMLElement;
+
+  it("reserves a rail column while the approval rail is rendered", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    expect(workspaceOf(container).style.gridTemplateColumns).toBe("1fr 270px");
+  });
+
+  it("does not reserve a rail column when the rail is hidden", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage readOnly />
+      </MissionProvider>
+    );
+
+    expect(workspaceOf(container).style.gridTemplateColumns).not.toMatch(/px/);
+  });
+});
+
+describe("resizer drag", () => {
+  const titles = [
+    "Drag to resize rail",
+    "Drag to resize dock",
+    "Drag to resize inspector",
+  ];
+
+  it.each(titles)("suppresses text selection while dragging: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    fireEvent.mouseDown(screen.getByTitle(title), { clientX: 900, clientY: 400 });
+    expect(document.body.style.userSelect).toBe("none");
+
+    fireEvent.mouseUp(window);
+    expect(document.body.style.userSelect).toBe("");
+  });
+
+  it.each(titles)("prevents the browser default drag on: %s", (title) => {
+    render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+
+    const down = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 900,
+      clientY: 400,
+    });
+    screen.getByTitle(title).dispatchEvent(down);
+
+    expect(down.defaultPrevented).toBe(true);
+    fireEvent.mouseUp(window);
+  });
+});

@@ -311,6 +311,7 @@
 
 .mapButton:focus-visible,
 .dockBtn:focus-visible,
+.iconBtn:focus-visible,
 .inspectorTab:focus-visible,
 .btnPrimary:focus-visible,
 .btnSecondary:focus-visible {

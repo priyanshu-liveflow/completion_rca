@@ -32,6 +32,8 @@ export default function MissionControlPage({
   const workspaceRef = useRef<HTMLDivElement | null>(null);
 
   const startResizeRail = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    document.body.style.userSelect = "none";
     const startX = e.clientX;
     const startW = railWidth;
     const onMove = (ev: MouseEvent) => {
@@ -42,6 +44,7 @@ export default function MissionControlPage({
       setRailWidth(newW);
     };
     const onUp = () => {
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
@@ -51,6 +54,8 @@ export default function MissionControlPage({
 
   const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!workspaceRef.current) return;
+    e.preventDefault();
+    document.body.style.userSelect = "none";
     const startY = e.clientY;
     const startH = dockHeight;
     const maxH = workspaceRef.current.clientHeight - 120;
@@ -62,6 +67,7 @@ export default function MissionControlPage({
       setDockHeight(newH);
     };
     const onUp = () => {
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
@@ -164,7 +170,7 @@ export default function MissionControlPage({
         <div className={styles.spacer} />
         <div className={styles.time} suppressHydrationWarning>{state.currentTime}</div>
         {!readOnly && (
-          <button className={styles.iconBtn} title="Settings">
+          <button type="button" className={styles.iconBtn} title="Settings">
             <Settings size={15} color="var(--ink-quiet)" />
           </button>
         )}
@@ -180,7 +186,7 @@ export default function MissionControlPage({
             .filter(Boolean)
             .join(" ")}
           style={{
-            gridTemplateColumns: `1fr ${railWidth}px`,
+            gridTemplateColumns: readOnly ? undefined : `1fr ${railWidth}px`,
             gridTemplateRows: `minmax(120px, 1fr) ${dockHeight}px`,
           }}
         >
