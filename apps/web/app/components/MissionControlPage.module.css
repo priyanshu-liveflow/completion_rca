@@ -262,6 +262,13 @@
   display: flex;
   align-items: flex-start;
   gap: 14px;
+  /* Six 184px nodes plus gaps run past the map column on a 1440 projector, and
+     without this the VERIFIER card — the one carrying "61 tests passed", the
+     payoff of the whole chain — is clipped by the approval rail with no way to
+     reach it. Scrolls at every width, not only under the mobile breakpoint. */
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
 }
 
 .node {
