@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { GitBranch, Settings } from "lucide-react";
 import { useResizable } from "../lib/useResizable";
 import { useMission } from "./MissionProvider";
@@ -11,7 +12,7 @@ import ApprovalRail from "./ApprovalRail";
 import styles from "./MissionControlPage.module.css";
 import { writeSandboxSnapshot } from "../lib/sandboxSnapshot";
 
-/** Floor for the proof-chain map, shared by the grid and the resize clamps. */
+/** Floor for the proof-chain map. Fed to both the grid and the resize clamps. */
 const MAP_MIN_WIDTH = 360;
 const MAP_MIN_HEIGHT = 120;
 
@@ -163,12 +164,17 @@ export default function MissionControlPage({
           ]
             .filter(Boolean)
             .join(" ")}
-          style={{
-            gridTemplateColumns: readOnly
-              ? undefined
-              : `minmax(${MAP_MIN_WIDTH}px, 1fr) ${rail.size}px`,
-            gridTemplateRows: `minmax(${MAP_MIN_HEIGHT}px, 1fr) ${dock.size}px`,
-          }}
+          // Values only. Writing the tracks themselves inline would outrank
+          // every class and media query, which is exactly how the sandbox
+          // variant and the sub-1024 layout were being defeated.
+          style={
+            {
+              "--rail-w": `${rail.size}px`,
+              "--dock-h": `${dock.size}px`,
+              "--map-min-w": `${MAP_MIN_WIDTH}px`,
+              "--map-min-h": `${MAP_MIN_HEIGHT}px`,
+            } as CSSProperties
+          }
         >
           <MissionMap
             nodes={state.nodes}

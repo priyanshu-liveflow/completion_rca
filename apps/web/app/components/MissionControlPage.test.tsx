@@ -192,26 +192,40 @@ describe("workspace layout", () => {
   const workspaceOf = (container: HTMLElement) =>
     container.querySelector("main > div") as HTMLElement;
 
-  it("reserves a rail column while the approval rail is rendered", () => {
+  it("publishes the pane sizes as custom properties", () => {
     const { container } = render(
       <MissionProvider>
         <MissionControlPage />
       </MissionProvider>
     );
+    const workspace = workspaceOf(container);
 
-    expect(workspaceOf(container).style.gridTemplateColumns).toBe(
-      "minmax(360px, 1fr) 270px"
-    );
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("270px");
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("360px");
   });
 
-  it("does not reserve a rail column when the rail is hidden", () => {
+  it("never writes grid tracks inline, so the cascade still decides", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+
+    // Inline tracks outrank every class and media query, which is how the
+    // sandbox variant and the sub-1024 layout were both defeated.
+    expect(workspace.style.gridTemplateColumns).toBe("");
+    expect(workspace.style.gridTemplateRows).toBe("");
+  });
+
+  it("still hands the sandbox variant its own class", () => {
     const { container } = render(
       <MissionProvider>
         <MissionControlPage readOnly />
       </MissionProvider>
     );
 
-    expect(workspaceOf(container).style.gridTemplateColumns).not.toMatch(/px/);
+    expect(workspaceOf(container).className).toMatch(/workspaceSandbox/);
   });
 });
 
@@ -260,13 +274,13 @@ describe("resizer drag", () => {
       </MissionProvider>
     );
     const workspace = container.querySelector("main > div") as HTMLElement;
-    expect(workspace.style.gridTemplateColumns).toBe("minmax(360px, 1fr) 270px");
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("270px");
 
     fireEvent.keyDown(screen.getByTitle("Drag to resize rail"), {
       key: "ArrowLeft",
     });
 
-    expect(workspace.style.gridTemplateColumns).toBe("minmax(360px, 1fr) 286px");
+    expect(workspace.style.getPropertyValue("--rail-w")).toBe("286px");
   });
 
   it.each(titles)("prevents the browser default drag on: %s", (title) => {
