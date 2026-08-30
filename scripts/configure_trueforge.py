@@ -229,10 +229,10 @@ def configure_sandbox(api_key: str) -> bool:
         time.sleep(10)
         _, body = call("GET", "/api/v1/settings/sandbox-providers")
     state = body.get("data", {}).get("status")
-    print(
-        f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m)"
-        f"{'' if state == 'ready' else ' — ' + str(body.get('data', {}).get('status_reason'))}"
+    reason = (
+        "" if state == "ready" else f" — {body.get('data', {}).get('status_reason')}"
     )
+    print(f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m){reason}")
     return state == "ready"
 
 
