@@ -30,6 +30,38 @@ from .sandbox import _NODE_ID, RawRun, _validate
 
 DEFAULT_TIMEOUT_S = 300
 
+# The only environment variables a pytest run is given. CLAUDE.md is
+# unconditional — "Secrets never enter the sandbox. Never pass an API key,
+# token, or connection string into sandbox execution" — and `os.environ` on a
+# developer machine holds exactly those. Copying it wholesale handed every
+# key in `.env` to whatever the tests happen to execute, which is the same
+# hole whether the code is trusted or not.
+#
+# An allowlist, not a denylist: a denylist has to predict every secret's name
+# and silently leaks the one it did not think of.
+_ENV_ALLOWLIST = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "SYSTEMROOT",  # Windows: subprocess creation fails without it
+    "COMSPEC",
+    "VIRTUAL_ENV",
+    "PYTHONPATH",
+)
+
+
+def _safe_env() -> dict[str, str]:
+    """The allowlisted subset of this process's environment, plus test hygiene."""
+    env = {name: os.environ[name] for name in _ENV_ALLOWLIST if name in os.environ}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    return env
+
+
 __all__ = ["LocalRunner"]
 
 
@@ -67,7 +99,7 @@ class LocalRunner:
                 text=True,
                 timeout=timeout_s,
                 check=False,
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                env=_safe_env(),
             )
         except subprocess.TimeoutExpired as exc:
             return RawRun(
