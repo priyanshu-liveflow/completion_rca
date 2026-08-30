@@ -1,9 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import styles from "./ReviewsPage.module.css";
 import { ReviewEntry, ReviewRun, STATUS_META } from "./types";
+import { useRepairRun } from "./useRepairRun";
+
+/** Lines the transcript should call out rather than render as plain output. */
+function toneOf(line: string): string {
+  if (/Gate:\s*OPEN|repair is proven/i.test(line)) return styles.lineGood;
+  if (/Gate:\s*SHUT|rejected|did not apply|Traceback/i.test(line)) {
+    return styles.lineBad;
+  }
+  if (/CONFIRMED/.test(line)) return styles.lineBad;
+  if (/^\s*\d\.\s/.test(line)) return styles.lineStep;
+  if (/^\s{2,}\+/.test(line)) return styles.add;
+  if (/^\s{2,}-\s/.test(line)) return styles.del;
+  return styles.ctx;
+}
 
 function DiffBlock({ diff }: { diff: string }) {
   return (
@@ -120,9 +134,46 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
   const [selected, setSelected] = useState(0);
   const run = runs[selected];
 
+  const repair = useRepairRun();
+  const paneRef = useRef<HTMLPreElement>(null);
+
+  // Follow the tail as lines arrive, the way a terminal does.
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (pane) pane.scrollTop = pane.scrollHeight;
+  }, [repair.lines]);
+
+  const busy = repair.phase === "running";
+
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
+        <div className={styles.runnerBox}>
+          <div className={styles.sidebarHead}>Run a repair</div>
+          <p className={styles.runnerHint}>
+            Builds a repo with one real defect, confirms it with a failing
+            test, patches it, re-runs. The gate opens only on red-to-green.
+          </p>
+          <div className={styles.runnerButtons}>
+            <button
+              type="button"
+              className={styles.runButton}
+              disabled={busy}
+              onClick={() => repair.start(false)}
+            >
+              {busy ? "running…" : "Run with model"}
+            </button>
+            <button
+              type="button"
+              className={styles.runButtonQuiet}
+              disabled={busy}
+              onClick={() => repair.start(true)}
+            >
+              Run offline
+            </button>
+          </div>
+        </div>
+
         <div className={styles.sidebarHead}>Sessions</div>
         <nav className={styles.sessionList}>
           {runs.map((r, i) => {
@@ -197,6 +248,44 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
           </>
         )}
       </main>
+
+      {repair.phase !== "idle" && (
+        <section className={styles.transcript}>
+          <div className={styles.transcriptHead}>
+            <span className={styles.transcriptTitle}>Repair run</span>
+            <span
+              className={
+                repair.phase === "running"
+                  ? styles.ctx
+                  : repair.phase === "done"
+                    ? styles.lineGood
+                    : styles.lineBad
+              }
+            >
+              {repair.phase === "running" ? "running…" : repair.phase}
+            </span>
+            <button
+              type="button"
+              className={styles.dismiss}
+              onClick={repair.dismiss}
+              disabled={busy}
+              title={busy ? "wait for the run to finish" : "dismiss"}
+              aria-label="Dismiss the repair transcript"
+            >
+              ×
+            </button>
+          </div>
+          <pre ref={paneRef} className={styles.transcriptPane}>
+            <code>
+              {repair.lines.map((line, i) => (
+                <span key={i} className={toneOf(line)}>
+                  {line || " "}
+                </span>
+              ))}
+            </code>
+          </pre>
+        </section>
+      )}
     </div>
   );
 }
