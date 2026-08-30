@@ -1,0 +1,38 @@
+/* Fixed rather than in flow: mission control sizes itself to the viewport,
+   so a banner in the document would push its last row off-screen. */
+.replayBadge {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
+  pointer-events: auto;
+}
+
+.replayDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.replayLink {
+  color: var(--active);
+  text-decoration: none;
+  border-left: 1px solid var(--rule);
+  padding-left: 8px;
+}
+
+.replayLink:hover { text-decoration: underline; }
