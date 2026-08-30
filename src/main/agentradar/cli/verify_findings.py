@@ -18,9 +18,18 @@ import json
 import os
 import sys
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+from src.main.agentradar.adapters.github import (
+    ActionDenied,
+    GateClosed,
+    GhClient,
+    GhError,
+    execute,
+)
+from src.main.agentradar.adapters.gitwork import GitError, LocalGit
 from src.main.agentradar.adapters.graph import FalkorCodeGraph
 from src.main.agentradar.adapters.localrunner import LocalRunner
 from src.main.agentradar.adapters.patchwriter import LlmPatchWriter
@@ -32,6 +41,9 @@ from src.main.agentradar.contracts.review import (
     ReviewEntry,
     ReviewRun,
 )
+from src.main.agentradar.core.policy import PolicyError
+from src.main.agentradar.core.publish import build_plan, commit_message
+from src.main.agentradar.core.remediation import RemediationOutcome
 from src.main.agentradar.core.review_run import (
     PatchingRunner,
     RunConfig,
@@ -135,6 +147,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--open-pr",
+        action="store_true",
+        help=(
+            "on a proven red-to-green, push the patch to a branch and open a "
+            "pull request. Passing this flag is the approval — the gate in "
+            "adapters/github.py still refuses anything not proven"
+        ),
+    )
+    p.add_argument(
+        "--base",
+        default="main",
+        help="branch the pull request targets",
+    )
+    p.add_argument(
         "--no-save",
         action="store_true",
         help="do not persist this run to the store (it is saved by default)",
@@ -156,6 +182,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="locate and select only; do not run tests",
     )
     return p
+
+
+def _publish(
+    outcome: RemediationOutcome, args: argparse.Namespace, say_: Callable[[str], None]
+) -> str | None:
+    """Push a proven repair and open its pull request. Returns the URL, or None.
+
+    Two independent refusals stand between a repair and a pull request, and
+    this function is neither of them. `build_plan` returns None unless
+    `may_open_pr` is true, and `execute` re-derives the gate from the
+    `VerifyResult` and then compares the *pushed* branch against the proven
+    patch's file list. A failure here is reported and swallowed on purpose:
+    the verification is the product and it already succeeded, so a rejected
+    push must not turn a good run into a non-zero exit.
+    """
+    plan = build_plan(outcome, base=args.base)
+    if plan is None:
+        say_("    pr:   gate shut — nothing to publish")
+        return None
+
+    files = list(outcome.patch.files) if outcome.patch else []
+    git = LocalGit(args.workdir, base=args.base)
+    branch = str(plan.payload["branch"])
+    try:
+        git.publish(branch, commit_message(outcome), files)
+        say_(f"    pr:   pushed {branch}")
+        url = execute(GhClient(), plan, approved=True, verify=outcome.result)
+    except (GitError, GhError, ActionDenied, GateClosed, PolicyError) as exc:
+        say_(f"    pr:   not opened — {exc}")
+        return None
+    say_(f"    pr:   {url}")
+    return url
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -209,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:
                 outcome = remediate(verdict, graph, runner, writer, config, narrate)
                 gate = "OPEN" if outcome.may_open_pr else "SHUT"
                 say(f"    gate: {gate} — {outcome.reason}")
+                pr_url = _publish(outcome, args, say) if args.open_pr else None
                 repairs[verdict.finding.id] = RepairRecord(
                     diff=outcome.patch.diff if outcome.patch else "",
                     files=list(outcome.patch.files) if outcome.patch else [],
@@ -221,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     after_passed=outcome.after.passed if outcome.after else 0,
                     reason=outcome.reason,
+                    pr_url=pr_url,
                 )
 
     if not args.no_save:
