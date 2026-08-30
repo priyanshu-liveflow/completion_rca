@@ -218,6 +218,39 @@ describe("workspace layout", () => {
     expect(workspace.style.gridTemplateRows).toBe("");
   });
 
+  it("lets the collapsed dock row shrink to its header", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("360px");
+
+    fireEvent.click(screen.getByTitle("Collapse sandbox"));
+
+    // A px row would hold 360px open around a 40px header.
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("auto");
+  });
+
+  it("restores the chosen dock height when it is expanded again", () => {
+    const { container } = render(
+      <MissionProvider>
+        <MissionControlPage />
+      </MissionProvider>
+    );
+    const workspace = workspaceOf(container);
+
+    fireEvent.keyDown(screen.getByTitle("Drag to resize dock"), { key: "ArrowUp" });
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("376px");
+
+    fireEvent.click(screen.getByTitle("Collapse sandbox"));
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("auto");
+
+    fireEvent.click(screen.getByTitle("Expand sandbox"));
+    expect(workspace.style.getPropertyValue("--dock-h")).toBe("376px");
+  });
+
   it("still hands the sandbox variant its own class", () => {
     const { container } = render(
       <MissionProvider>

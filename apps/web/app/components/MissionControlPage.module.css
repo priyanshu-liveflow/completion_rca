@@ -123,8 +123,11 @@
   grid-template-areas: "map rail" "dock dock";
   gap: 0;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
+  /* No percentage height here. .main sets only max-height, so its specified
+     height is auto and a percentage resolves against nothing — the grid then
+     sized to content and overflowed, and the hook measured that inflated
+     height and allowed a dock taller than the window. Flex stretch gives a
+     definite height instead. */
   overflow: hidden;
 }
 

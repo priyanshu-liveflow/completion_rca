@@ -170,7 +170,9 @@ export default function MissionControlPage({
           style={
             {
               "--rail-w": `${rail.size}px`,
-              "--dock-h": `${dock.size}px`,
+              // A collapsed dock is a 40px header. Holding the row at the
+              // chosen height would leave the rest of it as dead space.
+              "--dock-h": state.dockOpen ? `${dock.size}px` : "auto",
               "--map-min-w": `${MAP_MIN_WIDTH}px`,
               "--map-min-h": `${MAP_MIN_HEIGHT}px`,
             } as CSSProperties
