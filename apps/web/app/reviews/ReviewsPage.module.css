@@ -328,3 +328,82 @@
   .sidebar { border-right: none; border-bottom: 1px solid var(--rule); max-height: 30vh; }
   .entry { grid-template-columns: 1fr; gap: 8px; }
 }
+
+/* Live repair runner ----------------------------------------------------- */
+
+.runner {
+  flex: none;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.runnerHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 20px;
+}
+
+.runnerTitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.runnerHint {
+  font-size: 12px;
+  color: var(--ink-quiet);
+  line-height: 1.45;
+  max-width: 54ch;
+}
+
+.runButton,
+.runButtonQuiet {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 5px 12px;
+  border: 1px solid var(--active);
+  background: var(--active);
+  color: var(--paper);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.runButtonQuiet {
+  background: transparent;
+  color: var(--active);
+}
+
+.runButton:hover:not(:disabled),
+.runButtonQuiet:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.runButton:disabled,
+.runButtonQuiet:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.runButton:last-of-type { margin-left: 0; }
+
+.runnerPane {
+  margin: 0;
+  padding: 10px 20px 14px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--paper-line);
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.runnerPane code { display: block; min-width: max-content; }
+
+.lineGood { color: var(--verified); display: block; font-weight: 600; }
+.lineBad { color: var(--failure); display: block; font-weight: 600; }
+.lineStep { color: var(--ink); display: block; font-weight: 700; }
