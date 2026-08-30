@@ -141,8 +141,22 @@ function Entry({ entry }: { entry: ReviewEntry }) {
 }
 
 export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
-  const [selected, setSelected] = useState(0);
-  const run = runs[selected];
+  // Selection is held by id, not by index. The list is newest-first, so a
+  // finished run shifts every index by one — holding an index would silently
+  // move the viewer to a different session at the moment a run completes.
+  const [selectedId, setSelectedId] = useState(() => runs[0]?.id ?? "");
+  const knownIds = useRef(new Set(runs.map((r) => r.id)));
+
+  // A run that just finished is the one worth looking at, so jump to it. Only
+  // for ids that were not in the list before: re-rendering for any other
+  // reason must not yank the viewer out of the session they opened.
+  useEffect(() => {
+    const newest = runs[0];
+    if (newest && !knownIds.current.has(newest.id)) setSelectedId(newest.id);
+    knownIds.current = new Set(runs.map((r) => r.id));
+  }, [runs]);
+
+  const run = runs.find((r) => r.id === selectedId) ?? runs[0];
 
   const repair = useRepairRun();
   const paneRef = useRef<HTMLPreElement>(null);
@@ -218,15 +232,15 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
 
         <div className={styles.sidebarHead}>Sessions</div>
         <nav className={styles.sessionList}>
-          {runs.map((r, i) => {
+          {runs.map((r) => {
             const confirmed = r.counts.confirmed ?? 0;
             return (
               <button
                 type="button"
                 key={r.id}
-                onClick={() => setSelected(i)}
+                onClick={() => setSelectedId(r.id)}
                 className={`${styles.session} ${
-                  i === selected ? styles.sessionActive : ""
+                  r.id === run?.id ? styles.sessionActive : ""
                 }`}
               >
                 <span className={styles.sessionRepo}>
