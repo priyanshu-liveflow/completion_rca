@@ -27,8 +27,27 @@ export default function MissionControlPage({
   } = useMission();
   const [popOutError, setPopOutError] = useState<string | null>(null);
   const [dockHeight, setDockHeight] = useState(360);
+  const [railWidth, setRailWidth] = useState(270);
   const popOutRef = useRef<Window | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+
+  const startResizeRail = (e: React.MouseEvent<HTMLDivElement>) => {
+    const startX = e.clientX;
+    const startW = railWidth;
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.min(
+        Math.max(startW + (startX - ev.clientX), 220),
+        520
+      );
+      setRailWidth(newW);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const startResizeDock = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!workspaceRef.current) return;
@@ -161,6 +180,7 @@ export default function MissionControlPage({
             .filter(Boolean)
             .join(" ")}
           style={{
+            gridTemplateColumns: `1fr ${railWidth}px`,
             gridTemplateRows: `minmax(120px, 1fr) ${dockHeight}px`,
           }}
         >
@@ -187,6 +207,7 @@ export default function MissionControlPage({
               popOutError={popOutError}
               onApprove={approve}
               onDeny={deny}
+              onResizeRail={startResizeRail}
             />
           )}
         </div>

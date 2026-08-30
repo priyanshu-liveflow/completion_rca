@@ -11,6 +11,7 @@ interface ApprovalRailProps {
   popOutError: string | null;
   onApprove: () => Promise<boolean>;
   onDeny: () => Promise<boolean>;
+  onResizeRail?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export default function ApprovalRail({
@@ -20,6 +21,7 @@ export default function ApprovalRail({
   popOutError,
   onApprove,
   onDeny,
+  onResizeRail,
 }: ApprovalRailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const approveRef = useRef<HTMLButtonElement>(null);
@@ -90,6 +92,13 @@ export default function ApprovalRail({
 
   return (
     <aside className={styles.rail}>
+      {onResizeRail && (
+        <div
+          className={styles.railResizer}
+          onMouseDown={onResizeRail}
+          title="Drag to resize rail"
+        />
+      )}
       <div className={styles.railTitle}>Human approval required</div>
       <div className={styles.railSection}>
         <div className={styles.railHeading}>Verified patch receipt</div>

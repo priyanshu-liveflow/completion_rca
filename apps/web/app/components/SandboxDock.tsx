@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Maximize, Minus } from "lucide-react";
 import { MissionState, TestLine } from "../lib/types";
 import styles from "./MissionControlPage.module.css";
@@ -63,8 +63,27 @@ export default function SandboxDock({
   onPopOut,
   onResizeDock,
 }: SandboxDockProps) {
+  const [inspectorWidth, setInspectorWidth] = useState(220);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
+
+  const startResizeInspector = (e: React.MouseEvent<HTMLDivElement>) => {
+    const startX = e.clientX;
+    const startW = inspectorWidth;
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.min(
+        Math.max(startW + (startX - ev.clientX), 120),
+        460
+      );
+      setInspectorWidth(newW);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   // Keep the terminal pinned to the bottom like VS Code unless the user
   // has intentionally scrolled up more than ~80px.
@@ -168,7 +187,12 @@ export default function SandboxDock({
             </div>
           ))}
         </div>
-        <aside className={styles.inspector}>
+        <aside className={styles.inspector} style={{ width: inspectorWidth }}>
+          <div
+            className={styles.inspectorResizer}
+            onMouseDown={startResizeInspector}
+            title="Drag to resize inspector"
+          />
           <div className={styles.inspectorTabs}>
             {tabs.map((t) => (
               <button
