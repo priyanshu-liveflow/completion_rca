@@ -242,6 +242,74 @@ silently has no sandbox fails at the most important step of the demo.
 
 `dynamic_sub_agents` is already on, which is what the fan-out relies on.
 
+## Observed conductor stream — 2026-08-29
+
+Captured from `POST /api/v1/sessions/{id}/turns` on the local TrueForge server
+with the conductor agent (`nvidia-nim/nemotron-3-5-lightning`) and the no-write
+mission prompt from `apps/web/app/lib/demoMission.ts`. The turn was aborted by
+`turn.done` without taking an external action.
+
+### Event order
+
+```
+turn.created
+model.message
+model.message.delta  x177
+tool.response_required
+turn.done
+```
+
+- `sandbox.created`: **not observed in this turn — unsupported in the frontend.**
+- Generic sandbox `tool.response` (e.g. `exitCode`/`result`): **not observed — unsupported in the frontend.**
+- Store mission-snapshot `tool.response`: **not observed — unsupported in the frontend.**
+- `tool.approval_required`: **not observed.** The only observed action-related event was `tool.response_required` for the `ask_user_question` tool call.
+- Approval-submission payload and response: **not proven — unsupported in the frontend.**
+
+### Sanitized `turn.created`
+
+```json
+{
+  "type": "turn.created",
+  "id": "captured-001",
+  "turn_id": "captured-002",
+  "previous_turn_id": null,
+  "input": [
+    {
+      "type": "user.message",
+      "content": "Reproduce and fix the dependency upgrade for mvilanova/intervals-mcp-server at commit cb1fbcac8109.\n...wait for explicit human approval before writing to GitHub."
+    }
+  ],
+  "state": { "status": "running" },
+  "created_at": "2026-08-29T23:32:32.305Z",
+  "thread_id": null
+}
+```
+
+### Sanitized `tool.response_required`
+
+```json
+{
+  "type": "tool.response_required",
+  "id": "captured-003",
+  "created_at": "2026-08-29T23:32:39.122Z",
+  "thread_id": "main",
+  "tool_calls": [
+    {
+      "id": "captured-call-001",
+      "source_event_id": "captured-004",
+      "type": "function",
+      "function": { "name": "ask_user_question", "arguments": "..." }
+    }
+  ]
+}
+```
+
+### Implications for the frontend
+
+The captured stream confirms that TrueForge sends the discriminator in the
+`data:` JSON `type` field, not as an SSE `event:` field. The translator must
+therefore read `data.type` rather than rely on a bare `message.event` line.
+
 ## What this means for PR10
 
 1. `seed.ts` writes `model: { name: "provider/model" }`, never a bare string.
