@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Sequence
 from typing import Any, Protocol
@@ -80,16 +81,25 @@ class BdataClient:
         self._timeout_s = timeout_s
         self._collector_timeout_s = collector_timeout_s
         self._binary = binary
+        self._serp_zone = os.getenv("BRIGHTDATA_SERP_ZONE", "")
+        self._unlocker_zone = os.getenv("BRIGHTDATA_UNLOCKER_ZONE", "")
 
     def search(self, query: str, *, limit: int = 10) -> list[dict[str, Any]]:
         """SERP via `bdata search`. Returns organic hits as `{title, url, snippet}`."""
-        stdout = self._invoke(["search", query, "--json"], timeout_s=self._timeout_s)
+        argv = ["search", query]
+        if self._serp_zone:
+            argv.extend(["--zone", self._serp_zone])
+        argv.append("--json")
+        stdout = self._invoke(argv, timeout_s=self._timeout_s)
         hits = [_normalize_hit(row) for row in _organic_rows(stdout)]
         return hits[:limit]
 
     def scrape(self, url: str) -> str:
         """Web Unlocker via `bdata scrape`. Markdown by default."""
-        stdout = self._invoke(["scrape", url], timeout_s=self._timeout_s)
+        argv = ["scrape", url]
+        if self._unlocker_zone:
+            argv.extend(["--zone", self._unlocker_zone])
+        stdout = self._invoke(argv, timeout_s=self._timeout_s)
         return _scrape_text(stdout)
 
     def run_collector(self, spec: CollectorSpec) -> list[dict[str, Any]]:
