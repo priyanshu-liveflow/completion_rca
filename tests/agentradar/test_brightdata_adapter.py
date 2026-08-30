@@ -113,6 +113,13 @@ def _spec() -> CollectorSpec:
 
 
 @pytest.fixture(autouse=True)
+def _clear_zones(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.delenv("BRIGHTDATA_SERP_ZONE", raising=False)
+    monkeypatch.delenv("BRIGHTDATA_UNLOCKER_ZONE", raising=False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _inject_fake() -> Iterator[None]:
     hits = json.loads(_search_stdout())["organic"]
     mapped = [
