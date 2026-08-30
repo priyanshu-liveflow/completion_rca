@@ -151,6 +151,23 @@ def configure_openai(api_key: str) -> bool:
     return False
 
 
+# Daytona's free tier caps *concurrent* CPU (10 at the time of writing), and a
+# sandbox holds its share until it stops. Every TrueForge session starts a new
+# sandbox, so a long `auto_stop` plus a morning of test runs fills the quota
+# and every later run dies with "Total CPU limit exceeded" — after first
+# degrading into misleading errors like `fork/exec /usr/bin/bash: no such file
+# or directory`.
+#
+# So the interval is a genuine trade, not a value to maximise:
+#   development  — short, or leaked sandboxes exhaust the tier by lunchtime
+#   demo day     — long, or the prewarmed sandbox stops during the wait for
+#                  your slot and you cold-clone on venue wifi
+#
+# Default is the development value. Export SANDBOX_AUTO_STOP_MIN=120 and
+# re-run this script as part of the pre-demo checklist.
+AUTO_STOP_MIN = int(os.getenv("SANDBOX_AUTO_STOP_MIN", "20"))
+
+
 def configure_sandbox(api_key: str) -> bool:
     # PUT, not POST. auto_stop defaults to 5 minutes, which is shorter than the
     # wait before a demo slot — set every interval explicitly.
@@ -159,7 +176,7 @@ def configure_sandbox(api_key: str) -> bool:
             "type": "daytona",
             "auth": {"api_key": api_key},
             "exec_timeout_ms": 300_000,
-            "auto_stop_interval_in_minutes": 120,
+            "auto_stop_interval_in_minutes": AUTO_STOP_MIN,
             "auto_archive_interval_in_minutes": 10_080,
             "auto_delete_interval_in_minutes": 20_160,
         }
@@ -181,7 +198,7 @@ def configure_sandbox(api_key: str) -> bool:
         time.sleep(10)
         _, body = call("GET", "/api/v1/settings/sandbox-providers")
     state = body.get("data", {}).get("status")
-    print(f"sandbox provider {state}"
+    print(f"sandbox provider {state} (auto_stop {AUTO_STOP_MIN}m)"
           f"{'' if state == 'ready' else ' — ' + str(body.get('data', {}).get('status_reason'))}")
     return state == "ready"
 
