@@ -17,7 +17,7 @@ jobs:
 
       - name: Install agentradar CI tools
         run: |
-          uv venv
+          uv venv --allow-existing
           uv pip install -r requirements-ci.txt
 
       - name: Ruff lint
@@ -73,7 +73,7 @@ jobs:
 
       - name: Install local repair runtime
         run: |
-          uv venv
+          uv venv --allow-existing
           uv pip install pydantic pytest
 
       - name: Install browser
