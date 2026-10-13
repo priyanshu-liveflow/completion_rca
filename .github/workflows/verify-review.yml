@@ -104,6 +104,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A PR can have no review findings yet. The verifier then emits no
+          # Markdown, and GitHub rejects an empty comment body.
+          if ! grep -q '[^[:space:]]' verdicts.md; then
+            echo "No review findings to report; skipping the PR comment."
+            exit 0
+          fi
+
           # Edit the existing comment rather than adding one per review round,
           # so the PR carries the current verdict instead of a scroll of stale
           # ones. `--edit-last` no-ops into a create when there is none yet.
