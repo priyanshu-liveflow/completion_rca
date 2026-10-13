@@ -1,6 +1,6 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
-rootdir: /private/tmp/claude-501/-Users-priyanshu-research-agents/1124eaa1-392f-46e1-befa-94f5d8a8bc04/scratchpad/intervals
+rootdir: /workspace/intervals-mcp-server
 configfile: pyproject.toml
 testpaths: tests
 plugins: asyncio-1.4.0, anyio-4.14.2, mock-3.12.0

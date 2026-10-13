@@ -16,27 +16,29 @@ jobs:
           python-version: "3.11"
 
       - name: Install agentradar CI tools
-        run: uv pip install pydantic pytest pytest-asyncio ruff mypy mcp langchain-openai python-dotenv
+        run: |
+          uv venv --allow-existing
+          uv pip install -r requirements-ci.txt
 
       - name: Ruff lint
-        run: uv run ruff check src/main/agentradar tests/agentradar
+        run: uv run --no-sync ruff check src/main/agentradar tests/agentradar
 
       - name: Ruff format
-        run: uv run ruff format --check src/main/agentradar tests/agentradar
+        run: uv run --no-sync ruff format --check src/main/agentradar tests/agentradar
 
       - name: Layering
-        run: uv run python scripts/check_layering.py
+        run: uv run --no-sync python scripts/check_layering.py
 
       - name: Mypy
-        run: uv run mypy --strict src/main/agentradar
+        run: uv run --no-sync mypy --strict src/main/agentradar
 
       - name: Schemas
-        run: uv run python scripts/export_schemas.py --check
+        run: uv run --no-sync python scripts/export_schemas.py --check
 
       # tests/shared covers the LLM providers. Without it here, PR7's entire
       # suite - including the bind_tools regression - never runs in CI.
       - name: Pytest
-        run: uv run pytest tests/agentradar tests/shared -q
+        run: uv run --no-sync pytest tests/agentradar tests/shared -q
 
   web:
     runs-on: ubuntu-latest
@@ -64,3 +66,27 @@ jobs:
       - name: Build
         working-directory: apps/web
         run: npm run build
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install local repair runtime
+        run: |
+          uv venv --allow-existing
+          uv pip install pydantic pytest
+
+      - name: Install browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser E2E
+        working-directory: apps/web
+        run: npm run test:e2e
+
+      - name: Upload browser report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/

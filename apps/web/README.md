@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentRadar mission control
 
-## Getting Started
+Next.js / React dashboard for inspecting dependency-break evidence, sandbox output, and review verification. See the [project README](../../README.md) for the product and the [architecture](../../docs/architecture.md) for data flow.
 
-First, run the development server:
+## Run locally
+
+Requires Node.js 22.14+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+npm run dev -- --hostname 127.0.0.1
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `/`: recorded replay. No backend or service keys needed; decisions are local only.
+- `/?live=1`: starts a TrueForge session through the local proxy. Follow the [runbook](../../docs/runbook.md) first. Resolve live approvals in TrueForge; browser submission and session resume are not implemented.
+- `/sandbox`: read-only pop-out of the current dashboard evidence.
+- `/reviews`: stored review/repair evidence, with controls for a local repair demonstration or PR verification. Python must be installed in the repository's `.venv`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The fixed-patch demo runs real local tests and Git against a temporary package; it does not perform dependency discovery or call a model. Model repair requires the existing provider configuration in the server environment.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app is intended for local use. Do not expose its command-running endpoints or harness proxy as a public hosted service.
 
-## Learn More
+## Test
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run lint
+npm run test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Browser E2E starts the production server on `127.0.0.1:3100`, uses its own store and review export under the repository's ignored `.e2e/` directory, and never requires a GitHub write. Install the Python dependencies first. See [testing details](../../docs/testing.md).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`AGENTRADAR_REVIEW_EXPORT` may point to an absolute JSON export path; when omitted, `/reviews` reads `public/review-runs.json`. Match this value in the verifier and Next.js server when using a custom path.

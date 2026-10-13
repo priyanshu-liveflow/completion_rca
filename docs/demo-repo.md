@@ -1,3 +1,5 @@
+> **Historical demo record.** Counts and timings below describe the original pinned run. Host-specific paths in the pytest fixtures are sanitized; test outcomes and tracebacks are otherwise preserved. See [current verification](verification.md) for the publication-cleanup checks.
+
 # Demo target: `intervals-mcp-server` × MCP SDK v1 → v2
 
 Chosen at H0 and verified by hand before any code was written. Machine-readable

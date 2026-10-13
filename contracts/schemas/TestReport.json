@@ -84,6 +84,18 @@
     "raw_tail": {
       "title": "Raw Tail",
       "type": "string"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exit Code"
     }
   },
   "required": [

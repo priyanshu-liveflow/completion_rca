@@ -21,21 +21,11 @@ the conductor is the first and (for now) only consumer.
 
 ## Model choice
 
-`conductor.json` pins `nvidia-nim/kimi-k3` — the "heavy" tier, not the
-"default" tier the models were tiered for. This was not the first choice.
-`nvidia-nim/deepseek-v4-flash` (the intended default) was re-verified live
-against this machine's TrueForge instance while building this PR and hung
-indefinitely: `turn.created` and an empty `model.message` arrive, then
-nothing — no `model.message.delta`, no `tool_call`, no `turn.done`, no error
-event, across three separate turns and up to a 280s wait, on prompts as
-simple as "say hello." `nvidia-nim/kimi-k3` and `nvidia-nim/llama-3-2-11b`
-both streamed normally in the same session against the same running
-instance. Whatever the fault is (NIM-side incident, a stale model id, rate
-limiting that TrueForge swallows rather than surfacing as an event), it is
-outside this PR's code, so the fix here is to default to the tier that is
-demonstrably alive rather than ship an agent that silently never finishes a
-turn. Re-check `nvidia-nim/deepseek-v4-flash` before relying on this note —
-it may well be transient.
+The current `conductor.json` selects `openai/gpt-5-6-sol`. Register the matching
+provider before seeding, or change the manifest to an available registered model.
+Earlier hackathon experiments used NVIDIA NIM; the provider notes in
+`docs/runbook.md` are historical integration observations, not a guarantee that
+a model is currently available in your account.
 
 ## Running it
 

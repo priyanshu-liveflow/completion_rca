@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { MissionProvider } from "./MissionProvider";
 import MissionControlPage from "./MissionControlPage";
 import { fixtureMissionAdapter } from "../lib/fixtureMissionAdapter";
@@ -37,9 +38,9 @@ export default function MissionRuntime({ mode }: MissionRuntimeProps) {
         <div className={styles.replayBadge}>
           <span className={styles.replayDot} />
           recorded replay · not a live run
-          <a className={styles.replayLink} href="/?live=1">
+          <Link className={styles.replayLink} href="/?live=1">
             go live
-          </a>
+          </Link>
         </div>
       )}
       <MissionControlPage />

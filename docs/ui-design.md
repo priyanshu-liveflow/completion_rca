@@ -1,3 +1,5 @@
+> **Historical design document.** This records the hackathon planning process, including superseded scope and status notes. See the [current project overview](../README.md) and [architecture](architecture.md) for the implemented product.
+
 # AgentRadar UI — design spec
 
 Prototype: https://claude.ai/code/artifact/2d364f6d-2b35-430c-b3c3-10fc51a27439

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import Link from "next/link";
 
 import ReviewsClient from "./ReviewsClient";
 import styles from "./reviews-panel.module.css";
@@ -16,9 +17,11 @@ export const dynamic = "force-dynamic";
 // plus a network hop, and the page would lose the ability to render before the
 // client has any JavaScript.
 async function loadRuns(): Promise<ReviewRun[]> {
-  const file = path.join(process.cwd(), "public", "review-runs.json");
+  const file =
+    process.env.AGENTRADAR_REVIEW_EXPORT ??
+    path.join(process.cwd(), "public", "review-runs.json");
   try {
-    return JSON.parse(await fs.readFile(file, "utf8")) as ReviewRun[];
+    return JSON.parse(await fs.readFile(/* turbopackIgnore: true */ file, "utf8")) as ReviewRun[];
   } catch {
     // No file yet is the ordinary state before the first run, not an error.
     return [];
@@ -37,19 +40,12 @@ export default async function ReviewsPage() {
           against the tests that reach it, and repaired only on a proven
           red-to-green.
         </span>
-        <a className={styles.back} href="/">
+        <Link className={styles.back} href="/">
           ← mission control
-        </a>
+        </Link>
       </header>
 
-      {runs.length === 0 ? (
-        <p className={styles.empty}>
-          No runs stored yet. Run{" "}
-          <code>python scripts/verify_findings.py --pr 20</code> and reload.
-        </p>
-      ) : (
-        <ReviewsClient runs={runs} />
-      )}
+      <ReviewsClient runs={runs} />
     </div>
   );
 }

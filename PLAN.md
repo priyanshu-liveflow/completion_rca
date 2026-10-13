@@ -1,3 +1,5 @@
+> **Historical design document.** This records the hackathon planning process, including superseded scope and status notes. See the [current project overview](README.md) and [architecture](docs/architecture.md) for the implemented product.
+
 # AgentRadar — Prove the Break, Write the Fix
 
 *Fork of `graph_rca`. Two builders, one day.*

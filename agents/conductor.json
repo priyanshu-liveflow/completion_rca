@@ -7,7 +7,7 @@
     {
       "name": "graph",
       "url": "http://localhost:8768/sse",
-      "description": "Code graph: find_contact_points, get_callers, get_call_chain, read_function_source. select_tests lands here in a later PR."
+      "description": "Code graph: find_contact_points, get_callers, get_call_chain, read_function_source, select_tests, get_demo_target."
     },
     {
       "name": "web",

@@ -270,7 +270,11 @@ export default function ReviewsClient({ runs }: { runs: ReviewRun[] }) {
       </aside>
 
       <main className={styles.detail}>
-        {run && (
+        {!run ? (
+          <p className={styles.empty}>
+            No runs stored yet. Run the fixed-patch demo to create your first session.
+          </p>
+        ) : (
           <>
             <div className={styles.detailHead}>
               <span className={styles.detailRepo}>
