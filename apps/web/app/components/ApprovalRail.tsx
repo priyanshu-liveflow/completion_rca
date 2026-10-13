@@ -45,7 +45,7 @@ export default function ApprovalRail({
     : "—";
   const before = state.redEvidence
     ? state.redTests > 0
-      ? `${state.redTests} failed`
+      ? `${state.redTests} failures/errors`
       : `exit ${state.redEvidence.exitCode}`
     : "—";
   const after = state.greenEvidence

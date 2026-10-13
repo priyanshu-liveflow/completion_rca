@@ -24,7 +24,7 @@ function SandboxWindow() {
         </div>
         <div className={styles.dockConnected}>
           <span className={styles.dockDot} />
-          <span>TrueForge-native Daytona sandbox · read-only</span>
+          <span>{state.runtime.mode === "live" ? "Live evidence" : "Recorded replay"} · read-only</span>
         </div>
         <div className={styles.spacer} />
         <div className={styles.time}>{state.currentTime}</div>

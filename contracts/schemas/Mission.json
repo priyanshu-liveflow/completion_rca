@@ -256,6 +256,18 @@
         "raw_tail": {
           "title": "Raw Tail",
           "type": "string"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
         }
       },
       "required": [
@@ -324,7 +336,7 @@
       "type": "string"
     },
     "VerifyResult": {
-      "description": "Before/after test reports for a patch.\n\n`verified` is the PR gate and must be `before.is_broken and after.is_green`.\nDo not use `before.failed > 0`: a collection error is broken with failed=0.",
+      "description": "Before/after test reports for a patch.\n\n`verified` is the PR gate and is DERIVED, never supplied. It must be\n`before.is_broken and after.is_green`; do not use `before.failed > 0`,\nbecause a collection error is broken with failed=0.\n\nIt is a `computed_field` rather than a plain `bool` on purpose. The one\ncaller that reaches this model with untrusted input is\n`mcp/store_server.py::save_verify`, which does\n`VerifyResult.model_validate(result)` on a dict the *agent* wrote. If\n`verified` were an ordinary field, an agent could post\n`{\"verified\": true}` beside a red `after` report and `core.patch.can_act`\nwould open the PR on evidence that never went green. Deriving it means the\ngate is computed from the two test reports every time it is read, whether\nthe model came from `build_verify_result`, from agent JSON, or from a row\nreloaded out of SQLite.",
       "properties": {
         "patch": {
           "$ref": "#/$defs/Patch"
@@ -334,17 +346,12 @@
         },
         "after": {
           "$ref": "#/$defs/TestReport"
-        },
-        "verified": {
-          "title": "Verified",
-          "type": "boolean"
         }
       },
       "required": [
         "patch",
         "before",
-        "after",
-        "verified"
+        "after"
       ],
       "title": "VerifyResult",
       "type": "object"

@@ -204,12 +204,19 @@ export const fixtureMissionEvents: TimedMissionEvent[] = [
     event: {
       type: "patch.observed",
       patch: {
-        diff: "@@ -1 +1 @@\n-import mcp.server.fastmcp\n+from mcp.server.fastmcp import FastMCP",
+        diff: [
+          "src/intervals_mcp_server/mcp_instance.py",
+          "src/intervals_mcp_server/api/client.py",
+          "src/intervals_mcp_server/server_setup.py",
+          "src/intervals_mcp_server/tools/__init__.py",
+        ].map((file) =>
+          `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-from mcp.server.fastmcp import FastMCP\n+from mcp.server.mcpserver import MCPServer as FastMCP`
+        ).join("\n"),
         files: [
-          "src/intervals/mcp.py",
-          "src/intervals/server.py",
-          "tests/test_mcp.py",
-          "tests/test_server.py",
+          "src/intervals_mcp_server/mcp_instance.py",
+          "src/intervals_mcp_server/api/client.py",
+          "src/intervals_mcp_server/server_setup.py",
+          "src/intervals_mcp_server/tools/__init__.py",
         ],
         rationale: "Update FastMCP import path for mcp[cli] 2.1.1",
       },

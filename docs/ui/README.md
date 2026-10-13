@@ -1,3 +1,5 @@
+> **Historical prototypes.** The implemented dashboard is in [`apps/web`](../../apps/web/README.md). These files preserve early design exploration; they are not the current runtime.
+
 # UI prototypes
 
 Open any file here directly in a browser — no build step, no dependencies, no network.
@@ -5,8 +7,6 @@ Open any file here directly in a browser — no build step, no dependencies, no 
 | File | What it is |
 |---|---|
 | `mission-feed.html` | Mission detail view. Plays a full mission: scouts fan out, scraper self-repairs, impact table fills, tests go red, patch applied, tests go green, hard stop at the approval gate. |
-
-Published copy (same file): https://claude.ai/code/artifact/2d364f6d-2b35-430c-b3c3-10fc51a27439
 
 Design rationale, tokens, component inventory, and the event-binding contract live in
 [`../ui-design.md`](../ui-design.md).

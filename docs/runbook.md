@@ -1,7 +1,37 @@
-# Runbook
+# Connected workflow runbook
 
-Referenced by `scripts/configure_trueforge.py` and `agents/README.md`. Everything
-here was learned by hitting it, usually more than once.
+For a no-credentials first run, use the [README quick start](../README.md).
+These steps concern the live dependency workflow. Older troubleshooting notes
+below record the original environment and may differ from current service plans.
+
+## Prerequisites
+
+- Python 3.11+, uv, Git, and Node.js 22.14+.
+- `uv sync --group dev`, `npm ci --prefix agents`, and `npm ci --prefix apps/web`.
+- A configured FalkorDB Lite index. Clone the target at the commit in
+  `configs/demo.yaml`; index its source **and tests**, with `IGNORE_TEST_FILES=false`.
+  Run `uv run cgc api start --host 127.0.0.1` and leave the worker alive.
+  `FALKORDB_SOCKET_PATH` must match the worker if its socket is not in the default location.
+  The Lite worker needs a Python 3.12+ environment with `falkordblite`. Verify
+  that FalkorDB really started: newer indexers can fall back to KùzuDB, which
+  AgentRadar's FalkorDB adapter cannot read. A successful index command alone
+  does not establish that the required backend is available.
+- Bright Data CLI (`bdata`), an API key, and configured SERP/Unlocker zones.
+  Collector IDs in `collectors/` are account-bound hackathon artifacts; configure
+  collectors in your own account when reproducing the workflow.
+- Daytona access and an available model provider. `configure_trueforge.py`
+  currently requires `NIM_KEY` and `DAYTONA_API_KEY`; the checked-in conductor
+  additionally needs the OpenAI model named in `agents/conductor.json`.
+- GitHub CLI authentication for the intended PR target.
+
+Copy `.env.example` to `.env` and fill only the needed settings. The configuration
+script reads the root `.env`; launch MCP processes with `uv run --env-file .env`
+so the Bright Data credentials/zones reach the web adapter. Keep secrets out of
+terminal output and sandbox commands.
+
+
+The service commands below assume the repository root as the working directory.
+Model availability, quotas, and timings in the troubleshooting notes are historical observations.
 
 ## Bring the stack up
 
@@ -10,15 +40,20 @@ them, and TrueForge must be up before either.
 
 ```bash
 npx @truefoundry/trueforge@latest          # localhost:8790, Node 22.14+
-python scripts/configure_trueforge.py      # model + sandbox providers
+uv run python scripts/configure_trueforge.py      # model + sandbox providers
 
-python -m src.main.agentradar.mcp.graph_server  --port 8768   # needs FalkorDB
-python -m src.main.agentradar.mcp.web_server    --port 8766   # needs bdata
-python -m src.main.agentradar.mcp.store_server  --port 8767
-python -m src.main.agentradar.mcp.github_server --port 8769   # needs gh auth
+uv run --env-file .env python -m src.main.agentradar.mcp.graph_server  --port 8768   # needs FalkorDB
+uv run --env-file .env python -m src.main.agentradar.mcp.web_server    --port 8766   # needs bdata
+uv run --env-file .env python -m src.main.agentradar.mcp.store_server  --port 8767
+uv run --env-file .env python -m src.main.agentradar.mcp.github_server --port 8769   # needs gh auth
 
 cd agents && npm ci && npx tsx seed.ts
 ```
+
+After seeding, start the frontend with `npm run dev --prefix apps/web -- --hostname 127.0.0.1`
+and visit `http://localhost:3000/?live=1`. Resolve live GitHub approvals in TrueForge;
+the dashboard currently streams evidence but does not submit live approval decisions.
+Refreshing the dashboard starts a new session.
 
 ## Port map
 
@@ -99,8 +134,8 @@ image and is not; only when the tier is fully consumed does the honest error
 appear — `Total CPU limit exceeded. Maximum allowed: 10`.
 
 ```bash
-SANDBOX_AUTO_STOP_MIN=20  python scripts/configure_trueforge.py   # development
-SANDBOX_AUTO_STOP_MIN=120 python scripts/configure_trueforge.py   # demo day
+SANDBOX_AUTO_STOP_MIN=20  uv run python scripts/configure_trueforge.py   # development
+SANDBOX_AUTO_STOP_MIN=120 uv run python scripts/configure_trueforge.py   # demo day
 ```
 
 Short for development or leaked sandboxes exhaust the tier by lunchtime; long
@@ -149,7 +184,7 @@ is muscle memory.
 
 ## Pre-demo checklist
 
-1. `SANDBOX_AUTO_STOP_MIN=120 python scripts/configure_trueforge.py`
+1. `SANDBOX_AUTO_STOP_MIN=120 uv run python scripts/configure_trueforge.py`
 2. Daytona dashboard: sandbox count near zero
 3. Four `200`s from the port check above
 4. `ps aux | grep agentradar.mcp` — every path is the main checkout

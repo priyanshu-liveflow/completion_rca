@@ -89,3 +89,9 @@ follow_imports = "skip"
 [[tool.mypy.overrides]]
 module = ["daytona.*"]
 ignore_missing_imports = true
+
+# Imported legacy modules retain their types at the boundary but are outside
+# AgentRadar's strict-check scope, including on a fresh mypy cache.
+[[tool.mypy.overrides]]
+module = ["src.main.shared", "src.main.shared.*", "src.main.config", "src.main.config.*"]
+follow_imports = "silent"

@@ -18,7 +18,7 @@ Root cause analysis for application logs using a code graph. Feed it a log file 
 ## Step 1: Clone & Install
 
 ```bash
-cd /Users/priyanshu/graph_rca
+cd /path/to/completion_rca
 ./install.sh
 # or: uv sync
 ```

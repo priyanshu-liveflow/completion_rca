@@ -1,3 +1,5 @@
+> **Historical design document.** This records the hackathon planning process, including superseded scope and status notes. See the [current project overview](../README.md) and [architecture](architecture.md) for the implemented product.
+
 # AgentRadar — Backend Build Plan (PR by PR)
 
 **Audience: the coding agent implementing this.** Every section is executable. Do not improvise structure — it is specified below.
